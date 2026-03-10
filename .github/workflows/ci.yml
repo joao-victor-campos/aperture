@@ -29,11 +29,10 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        # --ignore-scripts skips the postinstall electron-rebuild step.
-        # CI only runs tsc + Vitest — it never launches Electron, so the
-        # system-Node ABI DuckDB binary (installed by npm) is sufficient.
-        # electron-rebuild is only needed for local `just dev` / `just release`.
-        run: npm ci --ignore-scripts
+        # postinstall (electron-rebuild) is skipped automatically when CI=true.
+        # DuckDB's own install script (node-pre-gyp) still runs and downloads
+        # the system-Node ABI binary needed by Vitest.
+        run: npm ci
 
       - name: Typecheck (master + renderer)
         run: npm run typecheck
