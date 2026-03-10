@@ -44,5 +44,7 @@ export interface IpcMap {
   }
 }
 
-export type IpcRequest<C extends Channel> = IpcMap[C]['req']
-export type IpcResponse<C extends Channel> = IpcMap[C]['res']
+// Channel is a superset of IpcMap keys (QUERY_LOG is push-only, not request/response).
+// Constrain to keyof IpcMap so the index is always valid.
+export type IpcRequest<C extends keyof IpcMap> = IpcMap[C]['req']
+export type IpcResponse<C extends keyof IpcMap> = IpcMap[C]['res']

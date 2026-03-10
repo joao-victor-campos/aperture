@@ -2,12 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths-ignore:
       - '**.md'
       - 'resources/**'
   pull_request:
-    branches: [main]
+    branches: [master]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -29,10 +29,21 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
+        # postinstall (electron-rebuild) is skipped automatically when CI=true.
+        # DuckDB's own install script (node-pre-gyp) still runs and downloads
+        # the system-Node ABI binary needed by Vitest.
         run: npm ci
 
-      - name: Typecheck (main + renderer)
+      - name: Typecheck (master + renderer)
         run: npm run typecheck
 
-      - name: Run tests
-        run: npm test
+      - name: Run tests with coverage (min 70 %)
+        run: npm run test:coverage
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14
