@@ -14,6 +14,7 @@
   - [Setup](#setup)
   - [Available Commands](#available-commands)
   - [Branching Workflow](#branching-workflow)
+  - [Testing](#testing)
   - [CI / CD](#ci--cd)
 
 ---
@@ -226,8 +227,9 @@ just lint           Alias for typecheck (static analysis gate)
 just ci             Run full local CI suite (lint + test)
 
 just build          Compile without packaging (outputs to out/)
-just release        Build macOS DMG (outputs to dist/)
-just release-open   Build + open dist/ in Finder
+just release-local  Build DMG for your machine's arch only (~30 s, use locally)
+just release        Build DMGs for arm64 + x64 (~5 min, mirrors CI)
+just release-open   Build (local arch) + open dist/ in Finder
 
 just version        Print current version
 just bump [level]   Bump version (patch | minor | major)
@@ -274,6 +276,42 @@ just pr
 | `docs/` | Documentation-only changes |
 
 PRs require CI to pass before merging. Merge with **Squash and merge** to keep the history linear.
+
+---
+
+### Testing
+
+The project uses **Vitest** with a **70 % coverage minimum** enforced in CI.
+
+#### Framework overview
+
+| Layer | Environment | What is tested |
+|---|---|---|
+| `src/main/db/` | Node | Store persistence, DuckDB engine, BigQuery bridge |
+| `src/main/ipc/` | Node | IPC handlers (connections, catalog, query) |
+| `src/renderer/src/store/` | jsdom | Zustand stores (connection, catalog, query) |
+
+The test files live in `src/__tests__/` mirroring the source tree. Each test follows the **Arrange → Act → Assert** pattern and is kept intentionally short.
+
+#### Running tests
+
+```bash
+just test          # run once
+just test-watch    # re-run on file changes
+just coverage      # run with coverage report (enforces 70 % threshold)
+just coverage-open # open the HTML report in the browser after `just coverage`
+```
+
+#### Coverage scope
+
+Coverage is measured only over the core logic files (`src/main/db/**`, `src/main/ipc/**`, `src/renderer/src/store/**`). UI components and Electron bootstrap are excluded — they are tested via E2E tests (Playwright, planned).
+
+#### Mocking strategy
+
+- **`electron`** — mocked via `vi.mock('electron', ...)` so main-process code can run in plain Node.
+- **`@google-cloud/bigquery`** — fully mocked; no real GCP calls in tests.
+- **`duckdb`** — uses the real native module (integration tests).
+- **`window.api`** — stubbed in `src/__tests__/setup.ts` for renderer store tests.
 
 ---
 

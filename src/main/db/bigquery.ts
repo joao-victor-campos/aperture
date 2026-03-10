@@ -1,4 +1,4 @@
-import { BigQuery } from '@google-cloud/bigquery'
+import { BigQuery, Job } from '@google-cloud/bigquery'
 import type { WebContents } from 'electron'
 import { CHANNELS } from '../../shared/ipc'
 import type { Connection, Dataset, Table, TableField, QueryResult } from '../../shared/types'
@@ -11,7 +11,7 @@ const clients = new Map<string, BigQuery>()
 
 // Active running jobs, keyed by tab ID — used for cancellation
 interface RunningJob {
-  job: ReturnType<BigQuery['createQueryJob']> extends Promise<infer T> ? T[0] : never
+  job: Job
   webContents: WebContents
 }
 const runningJobs = new Map<string, RunningJob>()
@@ -127,13 +127,13 @@ export async function runQuery(
   // ── 4. Core query promise ────────────────────────────────────────────────
   const queryPromise = job
     .getQueryResults({ autoPaginate: true })
-    .then(([rows, , response]) => {
+    .then(([rows]) => {
       cleanup()
       const columns = rows.length > 0 ? Object.keys(rows[0] as object) : []
-      const bytes =
-        response?.statistics?.query?.totalBytesProcessed != null
-          ? Number(response.statistics.query.totalBytesProcessed)
-          : undefined
+      // Statistics live in job.metadata after the job completes, not in the response payload
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const statsBytes = (job.metadata as any)?.statistics?.query?.totalBytesProcessed
+      const bytes = statsBytes != null ? Number(statsBytes) : undefined
       const byteLabel = bytes != null ? ` · ${formatBytes(bytes)} processed` : ''
       log(`Done · ${rows.length.toLocaleString()} rows · ${elapsed(start)}${byteLabel}`)
       return {
@@ -189,13 +189,12 @@ export async function dryRunQuery(
   sql: string
 ): Promise<{ bytesProcessed: number }> {
   const client = getClient(connection)
-  const [, , response] = await client.query({ query: sql, useLegacySql: false, dryRun: true })
-  return {
-    bytesProcessed:
-      response?.statistics?.query?.totalBytesProcessed != null
-        ? Number(response.statistics.query.totalBytesProcessed)
-        : 0
-  }
+  // Use createQueryJob with dryRun so we get a Job object whose metadata
+  // carries statistics.query.totalBytesProcessed without executing the query.
+  const [job] = await client.createQueryJob({ query: sql, useLegacySql: false, dryRun: true })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const statsBytes = (job.metadata as any)?.statistics?.query?.totalBytesProcessed
+  return { bytesProcessed: statsBytes != null ? Number(statsBytes) : 0 }
 }
 
 export function invalidateClient(connectionId: string): void {

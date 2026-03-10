@@ -8,9 +8,13 @@ default:
 
 # ── Dependencies ──────────────────────────────────────────────────────────────
 
-# Install npm dependencies
+# Install npm dependencies and rebuild native modules for Electron
 install:
     npm ci
+
+# Rebuild native modules for the current Electron version (run after Electron upgrades)
+rebuild:
+    npm run rebuild
 
 # ── Development ───────────────────────────────────────────────────────────────
 
@@ -32,14 +36,22 @@ test:
 test-watch:
     npm run test:watch
 
+# Run tests with coverage report and enforce 70 % minimum
+coverage:
+    npm run test:coverage
+
+# Open the HTML coverage report in the browser (run `just coverage` first)
+coverage-open:
+    open coverage/index.html
+
 # Alias: typecheck is the static-analysis gate until ESLint is wired in
 lint:
     @just typecheck
 
-# Run the full local CI suite (lint + typecheck + tests) — mirrors CI pipeline
+# Run the full local CI suite (lint + typecheck + tests + coverage) — mirrors CI pipeline
 ci:
     @just lint
-    @just test
+    @just coverage
     @echo "✓ All CI checks passed"
 
 # ── Build & Release ───────────────────────────────────────────────────────────
@@ -48,12 +60,20 @@ ci:
 build:
     npm run build
 
-# Build a macOS DMG for the current machine's architecture (outputs to dist/)
+# Build a DMG for the current machine's arch only — fast local smoke test (~30s)
+# Use this while developing; CI builds both arm64 + x64 on tag push.
+release-local:
+    #!/usr/bin/env bash
+    ARCH=$(uname -m | sed 's/x86_64/x64/;s/arm64/arm64/')
+    echo "Building for $ARCH only…"
+    npm run build && npx electron-builder --mac --$ARCH
+
+# Build DMGs for BOTH arm64 and x64 — mirrors the CI release job (~5 min)
 release:
     npm run build:mac
 
-# Build and immediately open the dist/ folder in Finder
-release-open: release
+# Build (native arch only) and immediately open the dist/ folder in Finder
+release-open: release-local
     open dist/
 
 # ── Versioning ────────────────────────────────────────────────────────────────
