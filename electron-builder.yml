@@ -1,0 +1,27 @@
+appId: com.aperture.app
+productName: Aperture
+copyright: Copyright © 2024
+
+directories:
+  buildResources: resources
+  output: dist
+
+files:
+  - out/**/*
+  - '!**/*.map'
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+  category: public.app-category.developer-tools
+  darkModeSupport: true
+  minimumSystemVersion: '13.0'
+
+dmg:
+  artifactName: ${productName}-${version}-${arch}.dmg
+  window:
+    width: 540
+    height: 380

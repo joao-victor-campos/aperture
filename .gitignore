@@ -1,0 +1,9 @@
+node_modules/
+dist/
+out/
+.env
+.env.local
+.DS_Store
+*.log
+CLAUDE.md
+.env.example
