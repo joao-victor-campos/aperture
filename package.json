@@ -9,7 +9,7 @@
     "build:mac": "npm run build && electron-builder --mac",
     "preview": "electron-vite preview",
     "rebuild": "electron-rebuild -f -w duckdb",
-    "postinstall": "npm run rebuild",
+    "postinstall": "node -e \"process.env.CI || require('child_process').execSync('npm run rebuild', {stdio:'inherit'})\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
