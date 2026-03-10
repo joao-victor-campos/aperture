@@ -1,0 +1,79 @@
+name: Release
+
+# Triggered by a semver tag: git tag v1.2.3 && git push --tags
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  # ── Build macOS DMG (arm64 + x64) ─────────────────────────────────────────
+  build-macos:
+    name: Build macOS DMG
+    runs-on: macos-14   # Apple Silicon — electron-builder cross-compiles x64 via Rosetta
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ── Code-signing & notarization (optional — only runs when secrets exist) ──
+      # To enable:
+      #   1. Export your Developer ID certificate as a .p12 file
+      #   2. Base64-encode it:  base64 -i cert.p12 | pbcopy
+      #   3. Add GitHub secret MAC_CERTIFICATE  (the base64 string)
+      #   4. Add GitHub secret MAC_CERTIFICATE_PASSWORD  (the .p12 password)
+      #   5. Add GitHub secret APPLE_ID  (your Apple ID email)
+      #   6. Add GitHub secret APPLE_APP_SPECIFIC_PASSWORD  (app-specific password)
+      #   7. Add GitHub secret APPLE_TEAM_ID  (10-char team ID from developer.apple.com)
+      - name: Build & package
+        run: npm run build:mac
+        env:
+          # Signing (no-ops when secrets are absent — produces an unsigned DMG)
+          CSC_LINK: ${{ secrets.MAC_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          # Notarization (skipped when secrets are absent)
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Upload DMG artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dmg-macos
+          path: dist/*.dmg
+          if-no-files-found: error
+
+  # ── Create GitHub Release with the DMG files ──────────────────────────────
+  release:
+    name: Publish GitHub Release
+    needs: build-macos
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # required to create the release
+
+    steps:
+      - name: Download DMG artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dmg-macos
+          path: artifacts/
+
+      - name: List artifacts
+        run: ls -lh artifacts/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.dmg
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}  # e.g. v1.0.0-beta.1
