@@ -2,12 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths-ignore:
       - '**.md'
       - 'resources/**'
   pull_request:
-    branches: [main]
+    branches: [master]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -35,7 +35,7 @@ jobs:
         # electron-rebuild is only needed for local `just dev` / `just release`.
         run: npm ci --ignore-scripts
 
-      - name: Typecheck (main + renderer)
+      - name: Typecheck (master + renderer)
         run: npm run typecheck
 
       - name: Run tests with coverage (min 70 %)
