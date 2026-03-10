@@ -35,12 +35,21 @@ jobs:
       #   6. Add GitHub secret APPLE_APP_SPECIFIC_PASSWORD  (app-specific password)
       #   7. Add GitHub secret APPLE_TEAM_ID  (10-char team ID from developer.apple.com)
       - name: Build & package
-        run: npm run build:mac
+        # IMPORTANT: CSC_LINK must never be set to an empty string — electron-builder
+        # resolves "" to the current working directory (a folder, not a .p12 file)
+        # and fails with "not a file". Instead, we decode the cert to a real file
+        # when the secret is present, or disable signing entirely when it is absent.
+        run: |
+          if [ -n "$MAC_CERTIFICATE_B64" ]; then
+            echo "$MAC_CERTIFICATE_B64" | base64 --decode > /tmp/cert.p12
+            export CSC_LINK=/tmp/cert.p12
+          else
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
+          npm run build:mac
         env:
-          # Signing (no-ops when secrets are absent — produces an unsigned DMG)
-          CSC_LINK: ${{ secrets.MAC_CERTIFICATE }}
+          MAC_CERTIFICATE_B64: ${{ secrets.MAC_CERTIFICATE }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
-          # Notarization (skipped when secrets are absent)
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
