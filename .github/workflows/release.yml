@@ -46,7 +46,10 @@ jobs:
           else
             export CSC_IDENTITY_AUTO_DISCOVERY=false
           fi
-          npm run build:mac
+          # --publish never: prevent electron-builder from trying to publish to
+          # GitHub itself (it would need GH_TOKEN and would conflict with the
+          # dedicated "Publish GitHub Release" job below that uses softprops/action-gh-release).
+          npm run build && npx electron-builder --mac --publish never
         env:
           MAC_CERTIFICATE_B64: ${{ secrets.MAC_CERTIFICATE }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
