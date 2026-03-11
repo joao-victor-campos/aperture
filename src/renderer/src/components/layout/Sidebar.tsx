@@ -12,8 +12,8 @@ export default function Sidebar({ onAddConnection }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<Tab>('catalog')
 
   return (
-    <aside className="w-64 flex flex-col border-r border-gray-800 bg-gray-950 shrink-0">
-      <div className="flex border-b border-gray-800 shrink-0">
+    <aside className="w-64 flex flex-col border-r border-app-border bg-app-surface shrink-0">
+      <div className="flex border-b border-app-border shrink-0">
         <TabButton
           label="Catalog"
           icon={<Database size={13} />}
@@ -32,7 +32,7 @@ export default function Sidebar({ onAddConnection }: SidebarProps) {
         {activeTab === 'catalog' ? (
           <CatalogTree onAddConnection={onAddConnection} />
         ) : (
-          <div className="p-4 text-xs text-gray-600">No saved queries yet.</div>
+          <div className="p-4 text-xs text-app-text-3">No saved queries yet.</div>
         )}
       </div>
     </aside>
@@ -40,10 +40,7 @@ export default function Sidebar({ onAddConnection }: SidebarProps) {
 }
 
 function TabButton({
-  label,
-  icon,
-  active,
-  onClick
+  label, icon, active, onClick,
 }: {
   label: string
   icon: React.ReactNode
@@ -55,8 +52,8 @@ function TabButton({
       onClick={onClick}
       className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs transition-colors ${
         active
-          ? 'text-indigo-400 border-b-2 border-indigo-500 bg-gray-900/40'
-          : 'text-gray-500 hover:text-gray-300'
+          ? 'text-app-accent-text border-b-2 border-app-accent bg-app-elevated/40'
+          : 'text-app-text-2 hover:text-app-text'
       }`}
     >
       {icon}

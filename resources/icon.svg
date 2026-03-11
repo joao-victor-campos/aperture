@@ -1,0 +1,34 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="blade-grad" cx="50%" cy="25%" r="75%">
+      <stop offset="0%" stop-color="#fb923c"/>
+      <stop offset="100%" stop-color="#c2410c"/>
+    </radialGradient>
+    <radialGradient id="ring-grad" cx="50%" cy="50%" r="50%">
+      <stop offset="60%" stop-color="transparent"/>
+      <stop offset="100%" stop-color="#f97316" stop-opacity="0.35"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Dark background disc -->
+  <circle cx="50" cy="50" r="50" fill="#130800"/>
+
+  <!-- 6 aperture blades — each is a lens-shaped petal rotated 60° apart -->
+  <g fill="url(#blade-grad)">
+    <path d="M50 14 Q74 32 50 50 Q26 32 50 14" transform="rotate(  0 50 50)"/>
+    <path d="M50 14 Q74 32 50 50 Q26 32 50 14" transform="rotate( 60 50 50)"/>
+    <path d="M50 14 Q74 32 50 50 Q26 32 50 14" transform="rotate(120 50 50)"/>
+    <path d="M50 14 Q74 32 50 50 Q26 32 50 14" transform="rotate(180 50 50)"/>
+    <path d="M50 14 Q74 32 50 50 Q26 32 50 14" transform="rotate(240 50 50)"/>
+    <path d="M50 14 Q74 32 50 50 Q26 32 50 14" transform="rotate(300 50 50)"/>
+  </g>
+
+  <!-- Subtle outer glow ring -->
+  <circle cx="50" cy="50" r="49" fill="url(#ring-grad)"/>
+
+  <!-- Center aperture opening -->
+  <circle cx="50" cy="50" r="13" fill="#130800"/>
+
+  <!-- Thin crisp inner ring highlight -->
+  <circle cx="50" cy="50" r="13" fill="none" stroke="#f97316" stroke-width="0.8" opacity="0.5"/>
+</svg>
