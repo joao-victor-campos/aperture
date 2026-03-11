@@ -28,7 +28,7 @@ export default function ConnectionModal({ onClose }: ConnectionModalProps) {
       projectId: projectId.trim(),
       credentialType,
       serviceAccountPath:
-        credentialType === 'service-account' ? serviceAccountPath.trim() : undefined
+        credentialType === 'service-account' ? serviceAccountPath.trim() : undefined,
     })
     setIsSaving(false)
     onClose()
@@ -38,31 +38,25 @@ export default function ConnectionModal({ onClose }: ConnectionModalProps) {
     if (!isValid) return
     setIsTesting(true)
     setTestResult(null)
-    // Save temp then test — use add + test + remove for accurate test
     const tempConn = await add({
       name: name.trim(),
       projectId: projectId.trim(),
       credentialType,
       serviceAccountPath:
-        credentialType === 'service-account' ? serviceAccountPath.trim() : undefined
+        credentialType === 'service-account' ? serviceAccountPath.trim() : undefined,
     })
     const result = await test(tempConn.id)
     setTestResult(result)
     setIsTesting(false)
-    if (result.ok) {
-      onClose()
-    }
+    if (result.ok) onClose()
   }
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-      <div className="bg-gray-900 rounded-xl shadow-2xl w-[480px] border border-gray-700/60">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
-          <h2 className="text-sm font-semibold text-gray-200">New BigQuery Connection</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-300 transition-colors"
-          >
+      <div className="bg-app-surface rounded-xl shadow-2xl w-[480px] border border-app-border">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-app-border">
+          <h2 className="text-sm font-semibold text-app-text">New BigQuery Connection</h2>
+          <button onClick={onClose} className="text-app-text-2 hover:text-app-text transition-colors">
             <X size={15} />
           </button>
         </div>
@@ -129,24 +123,24 @@ export default function ConnectionModal({ onClose }: ConnectionModalProps) {
           )}
         </div>
 
-        <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-800">
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-app-border">
           <button
             onClick={onClose}
-            className="text-xs px-3 py-1.5 rounded-lg text-gray-500 hover:text-gray-300 transition-colors"
+            className="text-xs px-3 py-1.5 rounded-lg text-app-text-2 hover:text-app-text transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleTest}
             disabled={!isValid || isTesting || isSaving}
-            className="text-xs px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-gray-200 transition-colors"
+            className="text-xs px-3 py-1.5 rounded-lg bg-app-elevated hover:bg-app-border disabled:opacity-40 disabled:cursor-not-allowed text-app-text transition-colors"
           >
             {isTesting ? 'Testing…' : 'Test & Save'}
           </button>
           <button
             onClick={handleSave}
             disabled={!isValid || isSaving || isTesting}
-            className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors font-medium"
+            className="text-xs px-3 py-1.5 rounded-lg bg-app-accent hover:bg-app-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors font-medium"
           >
             {isSaving ? 'Saving…' : 'Save'}
           </button>
@@ -157,22 +151,19 @@ export default function ConnectionModal({ onClose }: ConnectionModalProps) {
 }
 
 const inputCls =
-  'w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-indigo-500 placeholder-gray-600 transition-colors'
+  'w-full bg-app-elevated border border-app-border rounded-lg px-3 py-2 text-sm text-app-text focus:outline-none focus:border-app-accent placeholder-app-text-3 transition-colors'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-xs text-gray-400 font-medium">{label}</label>
+      <label className="text-xs text-app-text-2 font-medium">{label}</label>
       {children}
     </div>
   )
 }
 
 function CredButton({
-  label,
-  description,
-  active,
-  onClick
+  label, description, active, onClick,
 }: {
   label: string
   description: string
@@ -184,12 +175,12 @@ function CredButton({
       onClick={onClick}
       className={`flex-1 flex flex-col items-start gap-0.5 text-left py-2.5 px-3 rounded-lg border transition-colors ${
         active
-          ? 'border-indigo-500 bg-indigo-950/40 text-indigo-300'
-          : 'border-gray-700 text-gray-400 hover:border-gray-600'
+          ? 'border-app-accent bg-app-accent-subtle text-app-accent-text'
+          : 'border-app-border text-app-text-2 hover:border-app-text-3'
       }`}
     >
       <span className="text-xs font-medium">{label}</span>
-      <span className="text-[10px] text-gray-600 leading-snug">{description}</span>
+      <span className="text-[10px] text-app-text-3 leading-snug">{description}</span>
     </button>
   )
 }

@@ -15,25 +15,21 @@ const customTheme = EditorView.theme({
   '&': { height: '100%', fontSize: '13px' },
   '.cm-scroller': {
     overflow: 'auto',
-    fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace"
+    fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
   },
   '.cm-content': { padding: '12px 0' },
   '.cm-focused': { outline: 'none' },
   '.cm-gutters': { backgroundColor: '#111827', borderRight: '1px solid #1f2937' },
-  '.cm-lineNumbers .cm-gutterElement': { color: '#374151' }
+  '.cm-lineNumbers .cm-gutterElement': { color: '#374151' },
 })
 
 export default function QueryEditor({
-  value,
-  onChange,
-  onRun,
-  onCancel,
-  isRunning
+  value, onChange, onRun, onCancel, isRunning,
 }: QueryEditorProps) {
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-800 bg-gray-950 shrink-0">
-        <span className="text-[10px] uppercase tracking-widest text-gray-600 font-medium">SQL</span>
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-app-border bg-app-surface shrink-0">
+        <span className="text-[10px] uppercase tracking-widest text-app-text-3 font-medium">SQL</span>
 
         {isRunning ? (
           <button
@@ -47,10 +43,10 @@ export default function QueryEditor({
           <button
             onClick={onRun}
             disabled={!value.trim()}
-            className="flex items-center gap-1.5 text-xs px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors font-medium"
+            className="flex items-center gap-1.5 text-xs px-3 py-1 rounded bg-app-accent hover:bg-app-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors font-medium"
           >
             <span>▶ Run</span>
-            <kbd className="text-indigo-300 text-[10px] font-mono">⌘↵</kbd>
+            <kbd className="text-orange-200 text-[10px] font-mono">⌘↵</kbd>
           </button>
         )}
       </div>
@@ -76,7 +72,7 @@ export default function QueryEditor({
             highlightActiveLine: true,
             autocompletion: true,
             bracketMatching: true,
-            closeBrackets: true
+            closeBrackets: true,
           }}
         />
       </div>
