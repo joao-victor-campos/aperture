@@ -31,6 +31,7 @@
     "zustand": "^5.0.1"
   },
   "devDependencies": {
+    "@electron/notarize": "^2.5.0",
     "@electron/rebuild": "^4.0.3",
     "@types/node": "^22.9.0",
     "@types/react": "^18.3.12",

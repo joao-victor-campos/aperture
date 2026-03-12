@@ -173,7 +173,18 @@ The predefined roles **BigQuery Data Viewer** + **BigQuery Job User** cover all 
 3. Open the `.dmg`, drag **Aperture.app** to your **Applications** folder
 4. Launch Aperture from Applications or Spotlight
 
-> **macOS security note:** If you see "Aperture can't be opened because Apple cannot check it for malicious software", right-click the app → **Open** → **Open** on the first launch. This only happens with unsigned/non-notarized builds.
+> **⚠️ First launch on macOS — "Aperture is damaged" error**
+>
+> macOS blocks apps that aren't notarized by Apple, showing _"Aperture is damaged and can't be opened."_
+> This is a Gatekeeper warning — the app is not actually damaged.
+>
+> **Fix (one-time, 10 seconds):** open Terminal and run:
+> ```bash
+> xattr -cr /Applications/Aperture.app
+> ```
+> Then double-click the app normally. You will not need to do this again.
+>
+> _Alternatively_: right-click **Aperture.app** → **Open** → click **Open** in the dialog.
 
 **Requirements:** macOS 13 Ventura or later.
 

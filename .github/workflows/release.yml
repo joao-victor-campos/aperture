@@ -25,37 +25,44 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # ── Code-signing & notarization (optional — only runs when secrets exist) ──
-      # To enable:
-      #   1. Export your Developer ID certificate as a .p12 file
-      #   2. Base64-encode it:  base64 -i cert.p12 | pbcopy
-      #   3. Add GitHub secret MAC_CERTIFICATE  (the base64 string)
-      #   4. Add GitHub secret MAC_CERTIFICATE_PASSWORD  (the .p12 password)
-      #   5. Add GitHub secret APPLE_ID  (your Apple ID email)
-      #   6. Add GitHub secret APPLE_APP_SPECIFIC_PASSWORD  (app-specific password)
-      #   7. Add GitHub secret APPLE_TEAM_ID  (10-char team ID from developer.apple.com)
+      # ── Code-signing + notarization ────────────────────────────────────────
+      # Signing and notarization are required to avoid "damaged app" errors on
+      # macOS 13+ (Ventura/Sonoma). They are optional — the build produces an
+      # unsigned DMG when the secrets are absent (useful for CI smoke-testing).
+      #
+      # To enable for production releases, add these GitHub Actions secrets:
+      #   MAC_CERTIFICATE          — base64-encoded .p12:  base64 -i cert.p12 | pbcopy
+      #   MAC_CERTIFICATE_PASSWORD — password used when exporting the .p12
+      #   APPLE_ID                 — your Apple ID email (e.g. dev@example.com)
+      #   APPLE_APP_SPECIFIC_PASSWORD — app-specific password from appleid.apple.com
+      #   APPLE_TEAM_ID            — 10-char Team ID from developer.apple.com
+      #
+      # The certificate must be a "Developer ID Application" cert issued by Apple.
+      #
+      # IMPORTANT: CSC_LINK must never be set to an empty string — electron-builder
+      # resolves "" to the CWD (a directory, not a .p12 file) and fails with
+      # "not a file". The shell script below only exports CSC_LINK when the
+      # secret is actually present; otherwise it disables auto-discovery entirely.
       - name: Build & package
-        # IMPORTANT: CSC_LINK must never be set to an empty string — electron-builder
-        # resolves "" to the current working directory (a folder, not a .p12 file)
-        # and fails with "not a file". Instead, we decode the cert to a real file
-        # when the secret is present, or disable signing entirely when it is absent.
         run: |
           if [ -n "$MAC_CERTIFICATE_B64" ]; then
             echo "$MAC_CERTIFICATE_B64" | base64 --decode > /tmp/cert.p12
             export CSC_LINK=/tmp/cert.p12
+            echo "Code-signing enabled (Developer ID certificate found)"
           else
             export CSC_IDENTITY_AUTO_DISCOVERY=false
+            echo "Code-signing disabled — producing unsigned DMG"
           fi
-          # --publish never: prevent electron-builder from trying to publish to
-          # GitHub itself (it would need GH_TOKEN and would conflict with the
-          # dedicated "Publish GitHub Release" job below that uses softprops/action-gh-release).
+
+          # --publish never: electron-builder must not try to publish to GitHub
+          # itself; the dedicated "Publish GitHub Release" job below handles that.
           npm run build && npx electron-builder --mac --publish never
         env:
-          MAC_CERTIFICATE_B64: ${{ secrets.MAC_CERTIFICATE }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MAC_CERTIFICATE_B64:           ${{ secrets.MAC_CERTIFICATE }}
+          CSC_KEY_PASSWORD:              ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          APPLE_ID:                      ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD:   ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID:                 ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Upload DMG artifacts
         uses: actions/upload-artifact@v4
@@ -89,3 +96,17 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}  # e.g. v1.0.0-beta.1
+          body: |
+            ## ⚠️ First launch on macOS — "Aperture is damaged" error
+
+            macOS blocks apps that aren't notarized by Apple, showing _"Aperture is damaged and can't be opened."_ The app is **not** damaged — this is a Gatekeeper warning.
+
+            **Fix (one-time, ~10 seconds):** open Terminal and run:
+            ```bash
+            xattr -cr /Applications/Aperture.app
+            ```
+            Then double-click the app normally.
+
+            _Alternatively_: right-click **Aperture.app** → **Open** → click **Open** in the dialog.
+
+            ---

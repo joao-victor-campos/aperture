@@ -19,6 +19,13 @@ mac:
   category: public.app-category.developer-tools
   darkModeSupport: true
   minimumSystemVersion: '13.0'
+  # Hardened runtime is required for notarization (Apple mandates it since 2019).
+  hardenedRuntime: true
+  # Entitlements allow Electron's JIT and loading of unsigned native modules (duckdb.node).
+  entitlements: resources/entitlements.mac.plist
+  entitlementsInherit: resources/entitlements.mac.plist
+
+afterSign: scripts/notarize.js
 
 dmg:
   artifactName: ${productName}-${version}-${arch}.dmg
