@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Database, BookMarked } from 'lucide-react'
 import CatalogTree from '../catalog/CatalogTree'
+import SavedQueriesPanel from '../saved/SavedQueriesPanel'
 
 interface SidebarProps {
   onAddConnection: () => void
@@ -28,11 +29,11 @@ export default function Sidebar({ onAddConnection }: SidebarProps) {
         />
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto min-h-0">
         {activeTab === 'catalog' ? (
           <CatalogTree onAddConnection={onAddConnection} />
         ) : (
-          <div className="p-4 text-xs text-app-text-3">No saved queries yet.</div>
+          <SavedQueriesPanel />
         )}
       </div>
     </aside>
