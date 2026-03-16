@@ -1,4 +1,4 @@
-import type { Connection, Dataset, Table, TableField, QueryResult } from './types'
+import type { Connection, Dataset, Table, TableField, QueryResult, SavedQuery, Folder } from './types'
 
 export const CHANNELS = {
   // Connections
@@ -16,7 +16,17 @@ export const CHANNELS = {
   QUERY_CANCEL: 'query:cancel',
   QUERY_DRY_RUN: 'query:dry-run',
   // Push event: main → renderer (not request/response — use window.api.on to listen)
-  QUERY_LOG: 'query:log'
+  QUERY_LOG: 'query:log',
+  // Saved queries
+  SAVED_QUERY_LIST: 'saved-query:list',
+  SAVED_QUERY_SAVE: 'saved-query:save',
+  SAVED_QUERY_UPDATE: 'saved-query:update',
+  SAVED_QUERY_DELETE: 'saved-query:delete',
+  // Folders
+  FOLDER_LIST: 'folder:list',
+  FOLDER_CREATE: 'folder:create',
+  FOLDER_UPDATE: 'folder:update',
+  FOLDER_DELETE: 'folder:delete',
 } as const
 
 export type Channel = (typeof CHANNELS)[keyof typeof CHANNELS]
@@ -42,6 +52,17 @@ export interface IpcMap {
     req: { connectionId: string; sql: string }
     res: { bytesProcessed: number }
   }
+  [CHANNELS.SAVED_QUERY_LIST]: { req: undefined; res: SavedQuery[] }
+  [CHANNELS.SAVED_QUERY_SAVE]: {
+    req: Omit<SavedQuery, 'id' | 'createdAt' | 'updatedAt'>
+    res: SavedQuery
+  }
+  [CHANNELS.SAVED_QUERY_UPDATE]: { req: SavedQuery; res: SavedQuery }
+  [CHANNELS.SAVED_QUERY_DELETE]: { req: string; res: void }
+  [CHANNELS.FOLDER_LIST]: { req: undefined; res: Folder[] }
+  [CHANNELS.FOLDER_CREATE]: { req: Omit<Folder, 'id' | 'createdAt'>; res: Folder }
+  [CHANNELS.FOLDER_UPDATE]: { req: Folder; res: Folder }
+  [CHANNELS.FOLDER_DELETE]: { req: string; res: void }
 }
 
 // Channel is a superset of IpcMap keys (QUERY_LOG is push-only, not request/response).

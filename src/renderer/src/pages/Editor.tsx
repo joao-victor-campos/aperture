@@ -1,16 +1,23 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, X, Table2 } from 'lucide-react'
 import QueryEditor from '../components/editor/QueryEditor'
 import ResultsTable from '../components/results/ResultsTable'
 import TableDetailPanel from '../components/catalog/TableDetailPanel'
+import SaveQueryModal from '../components/editor/SaveQueryModal'
 import { useQueryStore } from '../store/queryStore'
 import { useConnectionStore } from '../store/connectionStore'
+import { useCatalogStore } from '../store/catalogStore'
+import { useSavedQueryStore } from '../store/savedQueryStore'
 
 export default function Editor() {
   const { tabs, activeTabId, openTab, closeTab, setActiveTab, updateTabSql, runQuery, cancelQuery } =
     useQueryStore()
   const { activeConnectionId } = useConnectionStore()
+  const { datasetsByConnection, tablesByDataset, schemaCache } = useCatalogStore()
+  const { updateQuery } = useSavedQueryStore()
   const [splitPct, setSplitPct] = useState(55)
+  const [savingTabId, setSavingTabId] = useState<string | null>(null)
+  const [savedFlash, setSavedFlash] = useState(false)
   const isDragging = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -27,7 +34,43 @@ export default function Editor() {
     }))
   }, [activeConnectionId, activeTabId])
 
+  // Build SQL autocomplete schema from the active connection's loaded catalog data
+  const sqlSchema = useMemo(() => {
+    if (!activeConnectionId) return {}
+    const schema: Record<string, string[]> = {}
+    const datasets = datasetsByConnection[activeConnectionId] ?? []
+    for (const ds of datasets) {
+      const tables = tablesByDataset[`${activeConnectionId}:${ds.id}`] ?? []
+      for (const t of tables) {
+        const cacheKey = `${activeConnectionId}:${ds.id}:${t.id}`
+        const fields = schemaCache[cacheKey]
+        const cols = fields ? fields.map((f) => f.name) : []
+        // Register both fully-qualified and bare names for flexible completion
+        schema[`${ds.name}.${t.name}`] = cols
+        schema[t.name] = cols
+      }
+    }
+    return schema
+  }, [activeConnectionId, datasetsByConnection, tablesByDataset, schemaCache])
+
   const activeTab = tabs.find((t) => t.id === activeTabId)
+
+  // Handle save: silent update if already saved, otherwise open modal
+  const handleSave = async () => {
+    if (!activeTab || !activeTab.sql.trim()) return
+    if (activeTab.savedQueryId) {
+      // Find and update the existing saved query
+      const { queries } = useSavedQueryStore.getState()
+      const existing = queries.find((q) => q.id === activeTab.savedQueryId)
+      if (existing) {
+        await updateQuery({ ...existing, sql: activeTab.sql })
+        setSavedFlash(true)
+        setTimeout(() => setSavedFlash(false), 1500)
+      }
+    } else {
+      setSavingTabId(activeTabId)
+    }
+  }
 
   const handleDividerMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -110,7 +153,10 @@ export default function Editor() {
                 onChange={(sql) => updateTabSql(activeTab.id, sql)}
                 onRun={() => runQuery(activeTab.id)}
                 onCancel={() => cancelQuery(activeTab.id)}
+                onSave={handleSave}
                 isRunning={activeTab.isRunning}
+                savedQueryId={activeTab.savedQueryId}
+                sqlSchema={sqlSchema}
               />
             </div>
 
@@ -131,6 +177,21 @@ export default function Editor() {
           </>
         )}
       </div>
+
+      {/* "Saved" flash indicator */}
+      {savedFlash && (
+        <div className="fixed bottom-4 right-4 z-50 bg-app-elevated border border-app-border text-app-text text-xs px-3 py-2 rounded shadow-lg animate-fade-in">
+          ✓ Query updated
+        </div>
+      )}
+
+      {/* Save modal (only shown when saving a new query) */}
+      {savingTabId && (
+        <SaveQueryModal
+          tabId={savingTabId}
+          onClose={() => setSavingTabId(null)}
+        />
+      )}
     </div>
   )
 }

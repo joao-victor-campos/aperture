@@ -5,6 +5,7 @@ import type { Dataset, Table, TableField } from '@shared/types'
 interface CatalogState {
   datasetsByConnection: Record<string, Dataset[]>
   tablesByDataset: Record<string, Table[]>
+  schemaCache: Record<string, TableField[]>   // key: "${connectionId}:${datasetId}:${tableId}"
   expandedDatasets: Set<string>
   isLoading: Record<string, boolean>
   loadDatasets: (connectionId: string) => Promise<void>
@@ -21,6 +22,7 @@ interface CatalogState {
 export const useCatalogStore = create<CatalogState>((set, get) => ({
   datasetsByConnection: {},
   tablesByDataset: {},
+  schemaCache: {},
   expandedDatasets: new Set(),
   isLoading: {},
 
@@ -43,13 +45,19 @@ export const useCatalogStore = create<CatalogState>((set, get) => ({
     }))
   },
 
-  loadSchema: (connectionId, projectId, datasetId, tableId) =>
-    window.api.invoke(CHANNELS.CATALOG_TABLE_SCHEMA, {
+  loadSchema: async (connectionId, projectId, datasetId, tableId) => {
+    const cacheKey = `${connectionId}:${datasetId}:${tableId}`
+    const cached = get().schemaCache[cacheKey]
+    if (cached) return cached
+    const fields = await window.api.invoke(CHANNELS.CATALOG_TABLE_SCHEMA, {
       connectionId,
       projectId,
       datasetId,
       tableId
-    }),
+    })
+    set((s) => ({ schemaCache: { ...s.schemaCache, [cacheKey]: fields } }))
+    return fields
+  },
 
   toggleDataset: (datasetId) => {
     const next = new Set(get().expandedDatasets)

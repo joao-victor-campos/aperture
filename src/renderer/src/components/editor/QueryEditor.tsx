@@ -1,14 +1,19 @@
+import { useMemo } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { sql } from '@codemirror/lang-sql'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { EditorView } from '@codemirror/view'
+import { Bookmark, BookmarkCheck } from 'lucide-react'
 
 interface QueryEditorProps {
   value: string
   onChange: (value: string) => void
   onRun: () => void
   onCancel: () => void
+  onSave: () => void
   isRunning: boolean
+  savedQueryId?: string
+  sqlSchema?: Record<string, string[]>
 }
 
 const customTheme = EditorView.theme({
@@ -24,31 +29,53 @@ const customTheme = EditorView.theme({
 })
 
 export default function QueryEditor({
-  value, onChange, onRun, onCancel, isRunning,
+  value, onChange, onRun, onCancel, onSave, isRunning, savedQueryId, sqlSchema,
 }: QueryEditorProps) {
+  const sqlExtension = useMemo(
+    () => sql({ schema: sqlSchema ?? {} }),
+    [sqlSchema]
+  )
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-app-border bg-app-surface shrink-0">
         <span className="text-[10px] uppercase tracking-widest text-app-text-3 font-medium">SQL</span>
 
-        {isRunning ? (
+        <div className="flex items-center gap-2">
+          {/* Save button */}
           <button
-            onClick={onCancel}
-            className="flex items-center gap-1.5 text-xs px-3 py-1 rounded bg-red-700 hover:bg-red-600 text-white transition-colors font-medium"
-          >
-            <span className="w-2 h-2 rounded-sm bg-white inline-block shrink-0" />
-            Cancel
-          </button>
-        ) : (
-          <button
-            onClick={onRun}
+            onClick={onSave}
             disabled={!value.trim()}
-            className="flex items-center gap-1.5 text-xs px-3 py-1 rounded bg-app-accent hover:bg-app-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors font-medium"
+            title={savedQueryId ? 'Update saved query (⌘S)' : 'Save query (⌘S)'}
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            <span>▶ Run</span>
-            <kbd className="text-orange-200 text-[10px] font-mono">⌘↵</kbd>
+            {savedQueryId
+              ? <BookmarkCheck size={13} className="text-app-accent" />
+              : <Bookmark size={13} />
+            }
+            <span className="text-[11px]">{savedQueryId ? 'Saved' : 'Save'}</span>
           </button>
-        )}
+
+          {/* Run / Cancel button */}
+          {isRunning ? (
+            <button
+              onClick={onCancel}
+              className="flex items-center gap-1.5 text-xs px-3 py-1 rounded bg-red-700 hover:bg-red-600 text-white transition-colors font-medium"
+            >
+              <span className="w-2 h-2 rounded-sm bg-white inline-block shrink-0" />
+              Cancel
+            </button>
+          ) : (
+            <button
+              onClick={onRun}
+              disabled={!value.trim()}
+              className="flex items-center gap-1.5 text-xs px-3 py-1 rounded bg-app-accent hover:bg-app-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors font-medium"
+            >
+              <span>▶ Run</span>
+              <kbd className="text-orange-200 text-[10px] font-mono">⌘↵</kbd>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-hidden selectable">
@@ -56,13 +83,17 @@ export default function QueryEditor({
           value={value}
           height="100%"
           theme={oneDark}
-          extensions={[sql(), customTheme]}
+          extensions={[sqlExtension, customTheme]}
           onChange={onChange}
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
               e.preventDefault()
               if (isRunning) onCancel()
               else onRun()
+            }
+            if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+              e.preventDefault()
+              onSave()
             }
           }}
           style={{ height: '100%' }}
