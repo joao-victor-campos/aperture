@@ -94,11 +94,10 @@ export default function ResultsTable({
 
   const { columns, rows, executionTimeMs, bytesProcessed } = result
   const totalRows = rows.length
-  const totalPages = Math.ceil(totalRows / pageSize)
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
   const pageRows = rows.slice(page * pageSize, (page + 1) * pageSize)
-  const startRow = page * pageSize + 1
+  const startRow = totalRows === 0 ? 0 : page * pageSize + 1
   const endRow = Math.min((page + 1) * pageSize, totalRows)
-  const showPagination = totalRows > PAGE_SIZES[0]
 
   return (
     <div className="flex flex-col h-full">
@@ -148,51 +147,51 @@ export default function ResultsTable({
         </table>
       </div>
 
-      {/* Pagination bar */}
-      {showPagination && (
-        <div className="flex items-center justify-between px-3 py-1.5 border-t border-app-border bg-app-surface shrink-0">
-          <span className="text-xs text-app-text-3">
-            {startRow.toLocaleString()}–{endRow.toLocaleString()} of {totalRows.toLocaleString()}
-          </span>
+      {/* Pagination bar — always visible */}
+      <div className="flex items-center justify-between px-3 py-1.5 border-t border-app-border bg-app-surface shrink-0">
+        <span className="text-xs text-app-text-3">
+          {totalRows === 0
+            ? 'No rows'
+            : `${startRow.toLocaleString()}–${endRow.toLocaleString()} of ${totalRows.toLocaleString()}`}
+        </span>
 
-          <div className="flex items-center gap-3">
-            {/* Page size selector */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-app-text-3">Rows per page</span>
-              <select
-                value={pageSize}
-                onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0) }}
-                className="bg-app-elevated text-app-text text-xs rounded px-1.5 py-0.5 border border-app-border focus:outline-none focus:border-app-accent cursor-pointer"
-              >
-                {PAGE_SIZES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            </div>
+        <div className="flex items-center gap-3">
+          {/* Page size selector */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-app-text-3">Rows per page</span>
+            <select
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0) }}
+              className="bg-app-elevated text-app-text text-xs rounded px-1.5 py-0.5 border border-app-border focus:outline-none focus:border-app-accent cursor-pointer"
+            >
+              {PAGE_SIZES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
 
-            {/* Prev / Next */}
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setPage((p) => p - 1)}
-                disabled={page === 0}
-                className="p-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft size={14} />
-              </button>
-              <span className="text-xs text-app-text-2 min-w-[60px] text-center">
-                {page + 1} / {totalPages}
-              </span>
-              <button
-                onClick={() => setPage((p) => p + 1)}
-                disabled={page >= totalPages - 1}
-                className="p-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronRight size={14} />
-              </button>
-            </div>
+          {/* Prev / Next */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage((p) => p - 1)}
+              disabled={page === 0}
+              className="p-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <span className="text-xs text-app-text-2 min-w-[60px] text-center">
+              {page + 1} / {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => p + 1)}
+              disabled={page >= totalPages - 1}
+              className="p-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight size={14} />
+            </button>
           </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }

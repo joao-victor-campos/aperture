@@ -7,25 +7,27 @@
  *    install script) as `duckdb-system.node`.  This binary is compiled for
  *    the current system Node.js ABI and is what Vitest needs to run tests.
  *
- * 2. Run electron-rebuild to replace `duckdb.node` with the Electron-ABI
- *    binary.  This is what the Electron app needs at runtime.
+ * 2. Download the Electron-ABI DuckDB binary directly from the DuckDB CDN.
+ *    electron-rebuild fails for DuckDB >=1.4 (no pre-built, source compile
+ *    breaks), so we download the correct pre-built binary by computing the
+ *    Electron Node ABI version ourselves.
  *
  * Result after postinstall:
  *   duckdb.node         ← Electron ABI binary  (used by `just dev` / app)
  *   duckdb-system.node  ← system Node ABI binary (used by `npm test`)
  *
- * In CI (process.env.CI === 'true') we skip electron-rebuild entirely.
+ * In CI (process.env.CI === 'true') we skip the Electron binary entirely.
  * npm install leaves the system-Node binary in place, which is all tests need.
  */
 
 'use strict'
 
 const { execSync } = require('child_process')
-const { copyFileSync, existsSync } = require('fs')
+const { copyFileSync, existsSync, mkdirSync } = require('fs')
 const path = require('path')
 
 if (process.env.CI) {
-  console.log('postinstall: CI detected — skipping electron-rebuild')
+  console.log('postinstall: CI detected — skipping Electron binary download')
   process.exit(0)
 }
 
@@ -33,14 +35,53 @@ const bindingDir = path.join(__dirname, '..', 'node_modules', 'duckdb', 'lib', '
 const currentBin = path.join(bindingDir, 'duckdb.node')
 const systemBin  = path.join(bindingDir, 'duckdb-system.node')
 
-// Save the system-Node binary before electron-rebuild overwrites it.
+mkdirSync(bindingDir, { recursive: true })
+
+// Save the system-Node binary before we overwrite it.
 if (existsSync(currentBin)) {
   copyFileSync(currentBin, systemBin)
   console.log('postinstall: saved system-Node DuckDB binary → duckdb-system.node')
 } else {
-  console.warn('postinstall: duckdb.node not found before electron-rebuild — tests may fail')
+  console.warn('postinstall: duckdb.node not found — downloading system binary first')
+  try {
+    execSync(
+      'node node_modules/.bin/node-pre-gyp install --directory node_modules/duckdb --fallback-to-build',
+      { stdio: 'inherit', cwd: path.join(__dirname, '..') }
+    )
+    if (existsSync(currentBin)) {
+      copyFileSync(currentBin, systemBin)
+      console.log('postinstall: downloaded and saved system-Node binary → duckdb-system.node')
+    }
+  } catch (e) {
+    console.warn('postinstall: failed to download system binary — tests may fail')
+  }
 }
 
-// Install the Electron-ABI binary (overwrites duckdb.node).
-execSync('npm run rebuild', { stdio: 'inherit' })
-console.log('postinstall: Electron DuckDB binary installed → duckdb.node')
+// Download the Electron-ABI binary directly from DuckDB CDN.
+// electron-rebuild fails for DuckDB >=1.4, so we fetch it ourselves.
+const duckdbPkg = require(path.join(__dirname, '..', 'node_modules', 'duckdb', 'package.json'))
+const electronPkg = require(path.join(__dirname, '..', 'node_modules', 'electron', 'package.json'))
+const duckdbVersion = duckdbPkg.version
+
+// Map Electron major version → Node ABI version
+// Electron 33 = Node 20 = ABI 115, Electron 34 = Node 20 = ABI 115
+const electronMajor = parseInt(electronPkg.version.split('.')[0], 10)
+const electronAbiMap = { 31: 115, 32: 115, 33: 115, 34: 115, 35: 121 }
+const abi = electronAbiMap[electronMajor] || 115
+
+const arch = process.arch === 'x64' ? 'x64' : 'arm64'
+const url = `https://npm.duckdb.org/duckdb/duckdb-v${duckdbVersion}-node-v${abi}-darwin-${arch}.tar.gz`
+
+console.log(`postinstall: downloading Electron ABI binary (ABI ${abi}, ${arch})`)
+console.log(`postinstall: ${url}`)
+
+try {
+  execSync(
+    `curl -sL "${url}" | tar xz -C "${path.join(__dirname, '..', 'node_modules', 'duckdb', 'lib')}"`,
+    { stdio: 'inherit' }
+  )
+  console.log('postinstall: Electron DuckDB binary installed → duckdb.node')
+} catch (e) {
+  console.error('postinstall: failed to download Electron binary. Run `just rebuild` manually.')
+  process.exit(1)
+}
