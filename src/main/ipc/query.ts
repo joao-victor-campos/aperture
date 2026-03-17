@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import { CHANNELS } from '../../shared/ipc'
 import { store } from '../db/store'
-import { runQuery, cancelRunningQuery, dryRunQuery } from '../db/bigquery'
+import { runQuery, getQueryPage, cancelRunningQuery, dryRunQuery } from '../db/bigquery'
 
 export function registerQueryHandlers(): void {
   ipcMain.handle(
@@ -9,8 +9,14 @@ export function registerQueryHandlers(): void {
     async (event, req: { connectionId: string; sql: string; tabId: string }) => {
       const conn = store.get('connections').find((c) => c.id === req.connectionId)
       if (!conn) throw new Error(`Connection not found: ${req.connectionId}`)
-      // event.sender is the renderer's webContents — used to push QUERY_LOG events
       return runQuery(conn, req.sql, req.tabId, event.sender)
+    }
+  )
+
+  ipcMain.handle(
+    CHANNELS.QUERY_GET_PAGE,
+    async (_event, req: { tabId: string; pageToken: string }) => {
+      return getQueryPage(req.tabId, req.pageToken)
     }
   )
 

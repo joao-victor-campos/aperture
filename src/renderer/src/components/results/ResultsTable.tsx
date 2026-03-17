@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import type { QueryResult } from '@shared/types'
 
 interface ResultsTableProps {
@@ -8,23 +8,31 @@ interface ResultsTableProps {
   isRunning?: boolean
   cancelled?: boolean
   logs?: string[]
+  onFetchPage?: () => Promise<void>
 }
 
 const PAGE_SIZES = [50, 100, 250, 500]
 
 export default function ResultsTable({
-  result, error, isRunning, cancelled, logs = [],
+  result, error, isRunning, cancelled, logs = [], onFetchPage,
 }: ResultsTableProps) {
   const logEndRef = useRef<HTMLDivElement>(null)
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(100)
+  const [loadingMore, setLoadingMore] = useState(false)
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [logs])
 
-  // Reset to first page whenever results change
-  useEffect(() => { setPage(0) }, [result])
+  // Reset to first page whenever a new result set arrives (new query run)
+  const resultIdRef = useRef(result)
+  useEffect(() => {
+    if (result !== resultIdRef.current) {
+      setPage(0)
+      resultIdRef.current = result
+    }
+  }, [result])
 
   if (isRunning) {
     return (
@@ -92,23 +100,56 @@ export default function ResultsTable({
     )
   }
 
-  const { columns, rows, executionTimeMs, bytesProcessed } = result
-  const totalRows = rows.length
-  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
+  const { columns, rows, executionTimeMs, bytesProcessed, totalRows: serverTotal, hasMore } = result
+  const fetchedRows = rows.length
+  const totalPages = Math.max(1, Math.ceil(fetchedRows / pageSize))
   const pageRows = rows.slice(page * pageSize, (page + 1) * pageSize)
-  const startRow = totalRows === 0 ? 0 : page * pageSize + 1
-  const endRow = Math.min((page + 1) * pageSize, totalRows)
+  const startRow = fetchedRows === 0 ? 0 : page * pageSize + 1
+  const endRow = Math.min((page + 1) * pageSize, fetchedRows)
+
+  // Are we on the last page of locally fetched data AND there are more pages on the server?
+  const onLastFetchedPage = page >= totalPages - 1
+  const canLoadMore = hasMore && onFetchPage
+
+  const handleNextPage = async () => {
+    if (page < totalPages - 1) {
+      // We already have the data locally
+      setPage((p) => p + 1)
+    } else if (canLoadMore) {
+      // Need to fetch more from BigQuery
+      setLoadingMore(true)
+      try {
+        await onFetchPage()
+        // After fetch, advance to the next page (new data will be appended to rows)
+        setPage((p) => p + 1)
+      } finally {
+        setLoadingMore(false)
+      }
+    }
+  }
+
+  // Display total: use server total if available, otherwise show fetched count
+  const displayTotal = serverTotal != null ? serverTotal : fetchedRows
+  const displayTotalStr = serverTotal != null
+    ? `${serverTotal.toLocaleString()}`
+    : `${fetchedRows.toLocaleString()}`
 
   return (
     <div className="flex flex-col h-full">
       {/* Status bar */}
       <div className="flex items-center gap-4 px-3 py-1.5 border-b border-app-border bg-app-surface shrink-0">
         <span className="text-xs text-app-text-2">
-          {totalRows.toLocaleString()} {totalRows === 1 ? 'row' : 'rows'}
+          {displayTotal === 1 ? '1 row' : `${displayTotalStr} rows`}
+          {hasMore && serverTotal == null && '+'}
         </span>
         <span className="text-xs text-app-text-3">{executionTimeMs}ms</span>
         {bytesProcessed !== undefined && (
           <span className="text-xs text-app-text-3">{formatBytes(bytesProcessed)} processed</span>
+        )}
+        {fetchedRows < (serverTotal ?? fetchedRows) && (
+          <span className="text-xs text-app-text-3">
+            ({fetchedRows.toLocaleString()} fetched)
+          </span>
         )}
       </div>
 
@@ -150,9 +191,10 @@ export default function ResultsTable({
       {/* Pagination bar — always visible */}
       <div className="flex items-center justify-between px-3 py-1.5 border-t border-app-border bg-app-surface shrink-0">
         <span className="text-xs text-app-text-3">
-          {totalRows === 0
+          {fetchedRows === 0
             ? 'No rows'
-            : `${startRow.toLocaleString()}–${endRow.toLocaleString()} of ${totalRows.toLocaleString()}`}
+            : `${startRow.toLocaleString()}–${endRow.toLocaleString()} of ${displayTotalStr}`}
+          {hasMore && serverTotal == null && '+'}
         </span>
 
         <div className="flex items-center gap-3">
@@ -180,11 +222,15 @@ export default function ResultsTable({
               <ChevronLeft size={14} />
             </button>
             <span className="text-xs text-app-text-2 min-w-[60px] text-center">
-              {page + 1} / {totalPages}
+              {loadingMore ? (
+                <Loader2 size={12} className="inline animate-spin" />
+              ) : (
+                `${page + 1} / ${totalPages}${hasMore ? '+' : ''}`
+              )}
             </span>
             <button
-              onClick={() => setPage((p) => p + 1)}
-              disabled={page >= totalPages - 1}
+              onClick={handleNextPage}
+              disabled={onLastFetchedPage && !canLoadMore}
               className="p-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <ChevronRight size={14} />

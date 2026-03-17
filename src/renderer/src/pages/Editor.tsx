@@ -10,7 +10,7 @@ import { useCatalogStore } from '../store/catalogStore'
 import { useSavedQueryStore } from '../store/savedQueryStore'
 
 export default function Editor() {
-  const { tabs, activeTabId, openTab, closeTab, setActiveTab, updateTabSql, runQuery, cancelQuery } =
+  const { tabs, activeTabId, openTab, closeTab, setActiveTab, updateTabSql, runQuery, cancelQuery, fetchPage } =
     useQueryStore()
   const { activeConnectionId } = useConnectionStore()
   const { datasetsByConnection, tablesByDataset, schemaCache } = useCatalogStore()
@@ -179,6 +179,7 @@ export default function Editor() {
                 isRunning={activeTab.isRunning}
                 cancelled={activeTab.cancelled}
                 logs={activeTab.logs}
+                onFetchPage={() => fetchPage(activeTab.id)}
               />
             </div>
           </>

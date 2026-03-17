@@ -16,6 +16,11 @@ interface RunningJob {
 }
 const runningJobs = new Map<string, RunningJob>()
 
+// Completed jobs, keyed by tab ID — used for fetching subsequent pages
+const completedJobs = new Map<string, Job>()
+
+const DEFAULT_PAGE_SIZE = 100
+
 function getClient(connection: Connection): BigQuery {
   if (clients.has(connection.id)) return clients.get(connection.id)!
   const options: ConstructorParameters<typeof BigQuery>[0] = { projectId: connection.projectId }
@@ -124,24 +129,35 @@ export async function runQuery(
     log(`Still running… ${elapsed(start)} elapsed`)
   }, HEARTBEAT_INTERVAL_MS)
 
-  // ── 4. Core query promise ────────────────────────────────────────────────
+  // ── 4. Core query promise (fetch first page only) ───────────────────────
   const queryPromise = job
-    .getQueryResults({ autoPaginate: true })
-    .then(([rows]) => {
+    .getQueryResults({ autoPaginate: false, maxResults: DEFAULT_PAGE_SIZE })
+    .then(([rows, nextQuery, apiResponse]) => {
       cleanup()
       const columns = rows.length > 0 ? Object.keys(rows[0] as object) : []
-      // Statistics live in job.metadata after the job completes, not in the response payload
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const statsBytes = (job.metadata as any)?.statistics?.query?.totalBytesProcessed
       const bytes = statsBytes != null ? Number(statsBytes) : undefined
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const totalRowsStr = (apiResponse as any)?.totalRows
+      const totalRows = totalRowsStr != null ? Number(totalRowsStr) : undefined
+      const pageToken = nextQuery?.pageToken ?? null
       const byteLabel = bytes != null ? ` · ${formatBytes(bytes)} processed` : ''
-      log(`Done · ${rows.length.toLocaleString()} rows · ${elapsed(start)}${byteLabel}`)
+      const totalLabel = totalRows != null ? ` (${totalRows.toLocaleString()} total)` : ''
+      log(`Done · ${rows.length.toLocaleString()} rows fetched${totalLabel} · ${elapsed(start)}${byteLabel}`)
+
+      // Store job for subsequent page fetches
+      completedJobs.set(tabId, job)
+
       return {
         columns,
         rows: rows as Record<string, unknown>[],
         rowCount: rows.length,
         executionTimeMs: Date.now() - start,
-        bytesProcessed: bytes
+        bytesProcessed: bytes,
+        totalRows,
+        pageToken,
+        hasMore: pageToken != null
       } satisfies QueryResult
     })
     .catch((err: Error) => {
@@ -167,6 +183,36 @@ export async function runQuery(
   })
 
   return Promise.race([queryPromise, timeoutPromise])
+}
+
+export async function getQueryPage(
+  tabId: string,
+  pageToken: string
+): Promise<QueryResult> {
+  const job = completedJobs.get(tabId)
+  if (!job) throw new Error('No completed job found for this tab. Re-run the query.')
+
+  const [rows, nextQuery, apiResponse] = await job.getQueryResults({
+    autoPaginate: false,
+    maxResults: DEFAULT_PAGE_SIZE,
+    pageToken
+  })
+
+  const columns = rows.length > 0 ? Object.keys(rows[0] as object) : []
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const totalRowsStr = (apiResponse as any)?.totalRows
+  const totalRows = totalRowsStr != null ? Number(totalRowsStr) : undefined
+  const nextPageToken = nextQuery?.pageToken ?? null
+
+  return {
+    columns,
+    rows: rows as Record<string, unknown>[],
+    rowCount: rows.length,
+    executionTimeMs: 0,
+    totalRows,
+    pageToken: nextPageToken,
+    hasMore: nextPageToken != null
+  }
 }
 
 export async function cancelRunningQuery(tabId: string): Promise<void> {

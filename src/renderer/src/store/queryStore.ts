@@ -18,6 +18,7 @@ interface QueryState {
   updateTabSql: (id: string, sql: string) => void
   runQuery: (id: string) => Promise<void>
   cancelQuery: (id: string) => Promise<void>
+  fetchPage: (id: string) => Promise<void>
 }
 
 export const useQueryStore = create<QueryState>((set, get) => ({
@@ -116,6 +117,37 @@ export const useQueryStore = create<QueryState>((set, get) => ({
       tabs: s.tabs.map((t) => (t.id === id ? { ...t, cancelled: true } : t))
     }))
     await window.api.invoke(CHANNELS.QUERY_CANCEL, id)
+  },
+
+  fetchPage: async (id) => {
+    const tab = get().tabs.find((t) => t.id === id)
+    if (!tab?.result?.pageToken) return
+
+    try {
+      const page: QueryResult = await window.api.invoke(CHANNELS.QUERY_GET_PAGE, {
+        tabId: id,
+        pageToken: tab.result.pageToken
+      })
+      set((s) => ({
+        tabs: s.tabs.map((t) => {
+          if (t.id !== id || !t.result) return t
+          return {
+            ...t,
+            result: {
+              ...t.result,
+              rows: [...t.result.rows, ...page.rows],
+              rowCount: t.result.rows.length + page.rows.length,
+              pageToken: page.pageToken,
+              hasMore: page.hasMore,
+              totalRows: page.totalRows ?? t.result.totalRows
+            }
+          }
+        })
+      }))
+    } catch (err) {
+      // Silently ignore page fetch errors — user can retry
+      console.error('Failed to fetch page:', err)
+    }
   }
 }))
 

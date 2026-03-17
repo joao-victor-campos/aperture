@@ -13,6 +13,7 @@ export const CHANNELS = {
   CATALOG_TABLE_SCHEMA: 'catalog:table-schema',
   // Query
   QUERY_EXECUTE: 'query:execute',
+  QUERY_GET_PAGE: 'query:get-page',
   QUERY_CANCEL: 'query:cancel',
   QUERY_DRY_RUN: 'query:dry-run',
   // Push event: main → renderer (not request/response — use window.api.on to listen)
@@ -45,6 +46,10 @@ export interface IpcMap {
   }
   [CHANNELS.QUERY_EXECUTE]: {
     req: { connectionId: string; sql: string; tabId: string }
+    res: QueryResult
+  }
+  [CHANNELS.QUERY_GET_PAGE]: {
+    req: { tabId: string; pageToken: string }
     res: QueryResult
   }
   [CHANNELS.QUERY_CANCEL]: { req: string; res: void }
