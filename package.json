@@ -8,7 +8,7 @@
     "build": "electron-vite build",
     "build:mac": "npm run build && electron-builder --mac",
     "preview": "electron-vite preview",
-    "rebuild": "electron-rebuild -f -w duckdb",
+    "rebuild": "node scripts/postinstall.js",
     "postinstall": "node scripts/postinstall.js",
     "pretest": "node scripts/pretest.js",
     "test": "vitest run",

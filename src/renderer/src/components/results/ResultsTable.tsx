@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import type { QueryResult } from '@shared/types'
 
 interface ResultsTableProps {
@@ -7,16 +8,31 @@ interface ResultsTableProps {
   isRunning?: boolean
   cancelled?: boolean
   logs?: string[]
+  onFetchPage?: () => Promise<void>
 }
 
+const PAGE_SIZES = [50, 100, 250, 500]
+
 export default function ResultsTable({
-  result, error, isRunning, cancelled, logs = [],
+  result, error, isRunning, cancelled, logs = [], onFetchPage,
 }: ResultsTableProps) {
   const logEndRef = useRef<HTMLDivElement>(null)
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(100)
+  const [loadingMore, setLoadingMore] = useState(false)
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [logs])
+
+  // Reset to first page whenever a new result set arrives (new query run)
+  const resultIdRef = useRef(result)
+  useEffect(() => {
+    if (result !== resultIdRef.current) {
+      setPage(0)
+      resultIdRef.current = result
+    }
+  }, [result])
 
   if (isRunning) {
     return (
@@ -84,21 +100,61 @@ export default function ResultsTable({
     )
   }
 
-  const { columns, rows, rowCount, executionTimeMs, bytesProcessed } = result
+  const { columns, rows, executionTimeMs, bytesProcessed, totalRows: serverTotal, hasMore } = result
+  const fetchedRows = rows.length
+  const totalPages = Math.max(1, Math.ceil(fetchedRows / pageSize))
+  const pageRows = rows.slice(page * pageSize, (page + 1) * pageSize)
+  const startRow = fetchedRows === 0 ? 0 : page * pageSize + 1
+  const endRow = Math.min((page + 1) * pageSize, fetchedRows)
+
+  // Are we on the last page of locally fetched data AND there are more pages on the server?
+  const onLastFetchedPage = page >= totalPages - 1
+  const canLoadMore = hasMore && onFetchPage
+
+  const handleNextPage = async () => {
+    if (page < totalPages - 1) {
+      // We already have the data locally
+      setPage((p) => p + 1)
+    } else if (canLoadMore) {
+      // Need to fetch more from BigQuery
+      setLoadingMore(true)
+      try {
+        await onFetchPage()
+        // After fetch, advance to the next page (new data will be appended to rows)
+        setPage((p) => p + 1)
+      } finally {
+        setLoadingMore(false)
+      }
+    }
+  }
+
+  // Display total: use server total if available, otherwise show fetched count
+  const displayTotal = serverTotal != null ? serverTotal : fetchedRows
+  const displayTotalStr = serverTotal != null
+    ? `${serverTotal.toLocaleString()}`
+    : `${fetchedRows.toLocaleString()}`
 
   return (
     <div className="flex flex-col h-full">
+      {/* Status bar */}
       <div className="flex items-center gap-4 px-3 py-1.5 border-b border-app-border bg-app-surface shrink-0">
         <span className="text-xs text-app-text-2">
-          {rowCount.toLocaleString()} {rowCount === 1 ? 'row' : 'rows'}
+          {displayTotal === 1 ? '1 row' : `${displayTotalStr} rows`}
+          {hasMore && serverTotal == null && '+'}
         </span>
         <span className="text-xs text-app-text-3">{executionTimeMs}ms</span>
         {bytesProcessed !== undefined && (
           <span className="text-xs text-app-text-3">{formatBytes(bytesProcessed)} processed</span>
         )}
+        {fetchedRows < (serverTotal ?? fetchedRows) && (
+          <span className="text-xs text-app-text-3">
+            ({fetchedRows.toLocaleString()} fetched)
+          </span>
+        )}
       </div>
 
-      <div className="flex-1 overflow-auto selectable">
+      {/* Table */}
+      <div className="flex-1 overflow-auto selectable results-area">
         <table className="w-full text-xs border-collapse">
           <thead className="sticky top-0 bg-app-bg z-10">
             <tr>
@@ -113,7 +169,7 @@ export default function ResultsTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, i) => (
+            {pageRows.map((row, i) => (
               <tr
                 key={i}
                 className={`hover:bg-app-elevated/40 transition-colors ${i % 2 === 0 ? '' : 'bg-app-surface/30'}`}
@@ -130,6 +186,57 @@ export default function ResultsTable({
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Pagination bar — always visible */}
+      <div className="flex items-center justify-between px-3 py-1.5 border-t border-app-border bg-app-surface shrink-0">
+        <span className="text-xs text-app-text-3">
+          {fetchedRows === 0
+            ? 'No rows'
+            : `${startRow.toLocaleString()}–${endRow.toLocaleString()} of ${displayTotalStr}`}
+          {hasMore && serverTotal == null && '+'}
+        </span>
+
+        <div className="flex items-center gap-3">
+          {/* Page size selector */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-app-text-3">Rows per page</span>
+            <select
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0) }}
+              className="bg-app-elevated text-app-text text-xs rounded px-1.5 py-0.5 border border-app-border focus:outline-none focus:border-app-accent cursor-pointer"
+            >
+              {PAGE_SIZES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Prev / Next */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage((p) => p - 1)}
+              disabled={page === 0}
+              className="p-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <span className="text-xs text-app-text-2 min-w-[60px] text-center">
+              {loadingMore ? (
+                <Loader2 size={12} className="inline animate-spin" />
+              ) : (
+                `${page + 1} / ${totalPages}${hasMore ? '+' : ''}`
+              )}
+            </span>
+            <button
+              onClick={handleNextPage}
+              disabled={onLastFetchedPage && !canLoadMore}
+              className="p-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

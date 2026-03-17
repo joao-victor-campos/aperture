@@ -14,7 +14,10 @@ export default function Sidebar({ onAddConnection }: SidebarProps) {
 
   return (
     <aside className="w-64 flex flex-col border-r border-app-border bg-app-surface shrink-0">
-      <div className="flex border-b border-app-border shrink-0">
+      <div
+        className="flex border-b border-app-border shrink-0"
+        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      >
         <TabButton
           label="Catalog"
           icon={<Database size={13} />}
@@ -51,6 +54,7 @@ function TabButton({
   return (
     <button
       onClick={onClick}
+      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs transition-colors ${
         active
           ? 'text-app-accent-text border-b-2 border-app-accent bg-app-elevated/40'

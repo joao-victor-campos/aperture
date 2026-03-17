@@ -41,6 +41,12 @@ export interface QueryResult {
   rowCount: number
   executionTimeMs: number
   bytesProcessed?: number
+  /** Total rows produced by the query (from BigQuery metadata) */
+  totalRows?: number
+  /** Opaque token for fetching the next page of results */
+  pageToken?: string | null
+  /** True when more pages exist */
+  hasMore?: boolean
 }
 
 export interface QueryTab {

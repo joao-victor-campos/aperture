@@ -10,7 +10,7 @@ import { useCatalogStore } from '../store/catalogStore'
 import { useSavedQueryStore } from '../store/savedQueryStore'
 
 export default function Editor() {
-  const { tabs, activeTabId, openTab, closeTab, setActiveTab, updateTabSql, runQuery, cancelQuery } =
+  const { tabs, activeTabId, openTab, closeTab, setActiveTab, updateTabSql, runQuery, cancelQuery, fetchPage } =
     useQueryStore()
   const { activeConnectionId } = useConnectionStore()
   const { datasetsByConnection, tablesByDataset, schemaCache } = useCatalogStore()
@@ -92,39 +92,46 @@ export default function Editor() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Tab bar */}
-      <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-app-border bg-app-surface overflow-x-auto shrink-0">
-        {tabs.map((tab) => (
-          <div
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs cursor-default transition-colors shrink-0 ${
-              activeTabId === tab.id
-                ? 'bg-app-elevated text-app-text'
-                : 'text-app-text-2 hover:text-app-text hover:bg-app-elevated/50'
-            }`}
-          >
-            {tab.type === 'table'
-              ? <Table2 size={11} className="text-emerald-500 shrink-0" />
-              : tab.isRunning && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-app-accent animate-pulse shrink-0" />
-                )
-            }
-            <span className="max-w-[120px] truncate">{tab.title}</span>
-            <button
-              onClick={(e) => { e.stopPropagation(); closeTab(tab.id) }}
-              className="text-app-text-3 hover:text-app-text transition-colors ml-0.5"
+      {/* Tab bar — entire bar is draggable; tabs and buttons opt out */}
+      <div
+        className="flex items-center gap-0.5 px-2 py-2 border-b border-app-border bg-app-surface shrink-0"
+        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      >
+        <div className="flex items-center gap-0.5 overflow-x-auto" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          {tabs.map((tab) => (
+            <div
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs cursor-default transition-colors shrink-0 ${
+                activeTabId === tab.id
+                  ? 'bg-app-elevated text-app-text'
+                  : 'text-app-text-2 hover:text-app-text hover:bg-app-elevated/50'
+              }`}
             >
-              <X size={10} />
-            </button>
-          </div>
-        ))}
-        <button
-          onClick={() => openTab({ connectionId: activeConnectionId ?? undefined })}
-          className="p-1.5 text-app-text-3 hover:text-app-text transition-colors shrink-0"
-        >
-          <Plus size={13} />
-        </button>
+              {tab.type === 'table'
+                ? <Table2 size={11} className="text-emerald-500 shrink-0" />
+                : tab.isRunning && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-app-accent animate-pulse shrink-0" />
+                  )
+              }
+              <span className="max-w-[120px] truncate">{tab.title}</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); closeTab(tab.id) }}
+                className="text-app-text-3 hover:text-app-text transition-colors ml-0.5"
+              >
+                <X size={10} />
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={() => openTab({ connectionId: activeConnectionId ?? undefined })}
+            className="p-1.5 text-app-text-3 hover:text-app-text transition-colors shrink-0"
+          >
+            <Plus size={13} />
+          </button>
+        </div>
+        {/* Remaining space is drag area */}
+        <div className="flex-1 min-h-[20px]" />
       </div>
 
       {/* Main content */}
@@ -172,6 +179,7 @@ export default function Editor() {
                 isRunning={activeTab.isRunning}
                 cancelled={activeTab.cancelled}
                 logs={activeTab.logs}
+                onFetchPage={() => fetchPage(activeTab.id)}
               />
             </div>
           </>

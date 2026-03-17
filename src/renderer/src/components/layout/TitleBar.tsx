@@ -13,7 +13,7 @@ export default function TitleBar({ onAddConnection, isDark, onToggleTheme }: Tit
 
   return (
     <div
-      className="h-11 flex items-center px-4 gap-4 border-b border-app-border bg-app-surface shrink-0"
+      className="h-12 flex items-center px-4 gap-4 border-b border-app-border bg-app-surface shrink-0"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
       {/* Space for macOS traffic lights */}
