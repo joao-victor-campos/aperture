@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { QueryResult } from '@shared/types'
 
 interface ResultsTableProps {
@@ -9,14 +10,21 @@ interface ResultsTableProps {
   logs?: string[]
 }
 
+const PAGE_SIZES = [50, 100, 250, 500]
+
 export default function ResultsTable({
   result, error, isRunning, cancelled, logs = [],
 }: ResultsTableProps) {
   const logEndRef = useRef<HTMLDivElement>(null)
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(100)
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [logs])
+
+  // Reset to first page whenever results change
+  useEffect(() => { setPage(0) }, [result])
 
   if (isRunning) {
     return (
@@ -84,13 +92,20 @@ export default function ResultsTable({
     )
   }
 
-  const { columns, rows, rowCount, executionTimeMs, bytesProcessed } = result
+  const { columns, rows, executionTimeMs, bytesProcessed } = result
+  const totalRows = rows.length
+  const totalPages = Math.ceil(totalRows / pageSize)
+  const pageRows = rows.slice(page * pageSize, (page + 1) * pageSize)
+  const startRow = page * pageSize + 1
+  const endRow = Math.min((page + 1) * pageSize, totalRows)
+  const showPagination = totalRows > PAGE_SIZES[0]
 
   return (
     <div className="flex flex-col h-full">
+      {/* Status bar */}
       <div className="flex items-center gap-4 px-3 py-1.5 border-b border-app-border bg-app-surface shrink-0">
         <span className="text-xs text-app-text-2">
-          {rowCount.toLocaleString()} {rowCount === 1 ? 'row' : 'rows'}
+          {totalRows.toLocaleString()} {totalRows === 1 ? 'row' : 'rows'}
         </span>
         <span className="text-xs text-app-text-3">{executionTimeMs}ms</span>
         {bytesProcessed !== undefined && (
@@ -98,7 +113,8 @@ export default function ResultsTable({
         )}
       </div>
 
-      <div className="flex-1 overflow-auto selectable">
+      {/* Table */}
+      <div className="flex-1 overflow-auto selectable results-area">
         <table className="w-full text-xs border-collapse">
           <thead className="sticky top-0 bg-app-bg z-10">
             <tr>
@@ -113,7 +129,7 @@ export default function ResultsTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, i) => (
+            {pageRows.map((row, i) => (
               <tr
                 key={i}
                 className={`hover:bg-app-elevated/40 transition-colors ${i % 2 === 0 ? '' : 'bg-app-surface/30'}`}
@@ -131,6 +147,52 @@ export default function ResultsTable({
           </tbody>
         </table>
       </div>
+
+      {/* Pagination bar */}
+      {showPagination && (
+        <div className="flex items-center justify-between px-3 py-1.5 border-t border-app-border bg-app-surface shrink-0">
+          <span className="text-xs text-app-text-3">
+            {startRow.toLocaleString()}–{endRow.toLocaleString()} of {totalRows.toLocaleString()}
+          </span>
+
+          <div className="flex items-center gap-3">
+            {/* Page size selector */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-app-text-3">Rows per page</span>
+              <select
+                value={pageSize}
+                onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0) }}
+                className="bg-app-elevated text-app-text text-xs rounded px-1.5 py-0.5 border border-app-border focus:outline-none focus:border-app-accent cursor-pointer"
+              >
+                {PAGE_SIZES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Prev / Next */}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage((p) => p - 1)}
+                disabled={page === 0}
+                className="p-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <span className="text-xs text-app-text-2 min-w-[60px] text-center">
+                {page + 1} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => p + 1)}
+                disabled={page >= totalPages - 1}
+                className="p-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

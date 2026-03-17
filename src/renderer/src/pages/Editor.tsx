@@ -93,11 +93,15 @@ export default function Editor() {
   return (
     <div className="flex flex-col h-full">
       {/* Tab bar */}
-      <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-app-border bg-app-surface overflow-x-auto shrink-0">
+      <div
+        className="flex items-center gap-0.5 px-2 py-1.5 border-b border-app-border bg-app-surface overflow-x-auto shrink-0"
+        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      >
         {tabs.map((tab) => (
           <div
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs cursor-default transition-colors shrink-0 ${
               activeTabId === tab.id
                 ? 'bg-app-elevated text-app-text'
@@ -121,6 +125,7 @@ export default function Editor() {
         ))}
         <button
           onClick={() => openTab({ connectionId: activeConnectionId ?? undefined })}
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           className="p-1.5 text-app-text-3 hover:text-app-text transition-colors shrink-0"
         >
           <Plus size={13} />
