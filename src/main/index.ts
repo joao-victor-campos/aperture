@@ -3,9 +3,12 @@ import { join } from 'path'
 import { registerIpcHandlers } from './ipc'
 import { closeDB } from './db/duckdb'
 
+// Set the app name early — in dev mode Electron defaults to "Electron"
+app.setName('Aperture')
+
 // Handle Windows squirrel install events
 if (process.platform === 'win32') {
-  app.setAppUserModelId(app.getName())
+  app.setAppUserModelId('Aperture')
 }
 
 let mainWindow: BrowserWindow | null = null
@@ -19,7 +22,7 @@ function createWindow(): void {
     minWidth: 960,
     minHeight: 600,
     show: false,
-    icon: join(__dirname, '../../resources/icon.png'),
+    icon: join(__dirname, process.platform === 'darwin' ? '../../resources/icon.icns' : '../../resources/icon.png'),
     titleBarStyle: 'hiddenInset',
     vibrancy: 'sidebar',
     backgroundColor: '#111827',
@@ -97,12 +100,13 @@ function buildAppMenu(): void {
 }
 
 app.whenReady().then(() => {
-  // Set dock icon in dev mode (production uses the icon bundled in the .app)
+  // Set dock icon in dev mode — use .icns so macOS renders it correctly
+  // (production uses the icon bundled in the .app by electron-builder)
   if (process.platform === 'darwin' && process.env['ELECTRON_RENDERER_URL']) {
     const { nativeImage } = require('electron')
-    const iconPath = join(__dirname, '../../resources/icon.png')
+    const icnsPath = join(__dirname, '../../resources/icon.icns')
     try {
-      app.dock.setIcon(nativeImage.createFromPath(iconPath))
+      app.dock.setIcon(nativeImage.createFromPath(icnsPath))
     } catch {
       // ignore if dock API is unavailable
     }
