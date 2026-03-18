@@ -33,8 +33,10 @@ if (!existsSync(systemBin)) {
   process.exit(0)
 }
 
-// Back up the Electron binary so posttest can restore it.
-if (existsSync(currentBin)) {
+// Only back up duckdb.node as the Electron binary if we don't already have
+// a pristine duckdb-electron.node from postinstall.  This prevents saving a
+// corrupted/wrong-arch binary that something else dropped in.
+if (!existsSync(electronBin) && existsSync(currentBin)) {
   copyFileSync(currentBin, electronBin)
 }
 

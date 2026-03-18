@@ -75,12 +75,19 @@ const url = `https://npm.duckdb.org/duckdb/duckdb-v${duckdbVersion}-node-v${abi}
 console.log(`postinstall: downloading Electron ABI binary (ABI ${abi}, ${arch})`)
 console.log(`postinstall: ${url}`)
 
+const electronBin = path.join(bindingDir, 'duckdb-electron.node')
+
 try {
   execSync(
     `curl -sL "${url}" | tar xz -C "${path.join(__dirname, '..', 'node_modules', 'duckdb', 'lib')}"`,
     { stdio: 'inherit' }
   )
-  console.log('postinstall: Electron DuckDB binary installed → duckdb.node')
+  // Save a pristine copy of the Electron binary so posttest.js can always
+  // restore the correct one, even if something overwrites duckdb.node later.
+  if (existsSync(currentBin)) {
+    copyFileSync(currentBin, electronBin)
+  }
+  console.log('postinstall: Electron DuckDB binary installed → duckdb.node + duckdb-electron.node')
 } catch (e) {
   console.error('postinstall: failed to download Electron binary. Run `just rebuild` manually.')
   process.exit(1)
