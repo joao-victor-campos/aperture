@@ -92,3 +92,10 @@ try {
   console.error('postinstall: failed to download Electron binary. Run `just rebuild` manually.')
   process.exit(1)
 }
+
+// Patch the Electron bundle icon + name for dev mode
+try {
+  require('./patch-electron-dev.js')
+} catch {
+  // non-fatal — just means dev icon won't update until next `just dev`
+}
