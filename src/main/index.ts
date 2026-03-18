@@ -19,6 +19,7 @@ function createWindow(): void {
     minWidth: 960,
     minHeight: 600,
     show: false,
+    icon: join(__dirname, '../../resources/icon.png'),
     titleBarStyle: 'hiddenInset',
     vibrancy: 'sidebar',
     backgroundColor: '#111827',
@@ -96,6 +97,17 @@ function buildAppMenu(): void {
 }
 
 app.whenReady().then(() => {
+  // Set dock icon in dev mode (production uses the icon bundled in the .app)
+  if (process.platform === 'darwin' && process.env['ELECTRON_RENDERER_URL']) {
+    const { nativeImage } = require('electron')
+    const iconPath = join(__dirname, '../../resources/icon.png')
+    try {
+      app.dock.setIcon(nativeImage.createFromPath(iconPath))
+    } catch {
+      // ignore if dock API is unavailable
+    }
+  }
+
   registerIpcHandlers()
   createWindow()
   app.on('activate', () => {
