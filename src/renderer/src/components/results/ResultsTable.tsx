@@ -12,6 +12,8 @@ interface ResultsTableProps {
 }
 
 const PAGE_SIZES = [50, 100, 250, 500]
+const MIN_COL_WIDTH = 60
+const DEFAULT_COL_WIDTH = 160
 
 export default function ResultsTable({
   result, error, isRunning, cancelled, logs = [], onFetchPage,
@@ -20,19 +22,47 @@ export default function ResultsTable({
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(100)
   const [loadingMore, setLoadingMore] = useState(false)
+  // colWidths: column name → px width (only set when user has dragged)
+  const [colWidths, setColWidths] = useState<Record<string, number>>({})
+  const resizingCol = useRef<{ col: string; startX: number; startWidth: number } | null>(null)
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [logs])
 
-  // Reset to first page whenever a new result set arrives (new query run)
-  const resultIdRef = useRef(result)
+  // Reset to first page + col widths whenever a new result set arrives
+  const resultColumnsRef = useRef<string[]>([])
   useEffect(() => {
-    if (result !== resultIdRef.current) {
+    if (!result) return
+    const cols = result.columns.join(',')
+    if (cols !== resultColumnsRef.current.join(',')) {
       setPage(0)
-      resultIdRef.current = result
+      setColWidths({})
+      resultColumnsRef.current = result.columns
     }
   }, [result])
+
+  // ── Column resize handlers ───────────────────────────────────────────────
+  const handleResizeMouseDown = (e: React.MouseEvent, col: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const currentWidth = colWidths[col] ?? DEFAULT_COL_WIDTH
+    resizingCol.current = { col, startX: e.clientX, startWidth: currentWidth }
+
+    const onMove = (ev: MouseEvent) => {
+      if (!resizingCol.current) return
+      const delta = ev.clientX - resizingCol.current.startX
+      const newWidth = Math.max(MIN_COL_WIDTH, resizingCol.current.startWidth + delta)
+      setColWidths((prev) => ({ ...prev, [resizingCol.current!.col]: newWidth }))
+    }
+    const onUp = () => {
+      resizingCol.current = null
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
 
   if (isRunning) {
     return (
@@ -107,20 +137,16 @@ export default function ResultsTable({
   const startRow = fetchedRows === 0 ? 0 : page * pageSize + 1
   const endRow = Math.min((page + 1) * pageSize, fetchedRows)
 
-  // Are we on the last page of locally fetched data AND there are more pages on the server?
   const onLastFetchedPage = page >= totalPages - 1
   const canLoadMore = hasMore && onFetchPage
 
   const handleNextPage = async () => {
     if (page < totalPages - 1) {
-      // We already have the data locally
       setPage((p) => p + 1)
     } else if (canLoadMore) {
-      // Need to fetch more from BigQuery
       setLoadingMore(true)
       try {
         await onFetchPage()
-        // After fetch, advance to the next page (new data will be appended to rows)
         setPage((p) => p + 1)
       } finally {
         setLoadingMore(false)
@@ -128,7 +154,6 @@ export default function ResultsTable({
     }
   }
 
-  // Display total: use server total if available, otherwise show fetched count
   const displayTotal = serverTotal != null ? serverTotal : fetchedRows
   const displayTotalStr = serverTotal != null
     ? `${serverTotal.toLocaleString()}`
@@ -155,15 +180,28 @@ export default function ResultsTable({
 
       {/* Table */}
       <div className="flex-1 overflow-auto selectable results-area">
-        <table className="w-full text-xs border-collapse">
+        <table className="text-xs border-collapse" style={{ tableLayout: 'fixed', width: 'max-content', minWidth: '100%' }}>
+          <colgroup>
+            {columns.map((col) => (
+              <col key={col} style={{ width: colWidths[col] ?? DEFAULT_COL_WIDTH }} />
+            ))}
+          </colgroup>
           <thead className="sticky top-0 bg-app-bg z-10">
             <tr>
               {columns.map((col) => (
                 <th
                   key={col}
-                  className="px-3 py-2 text-left text-app-text-2 font-medium border-b border-app-border whitespace-nowrap"
+                  className="relative px-3 py-2 text-left text-app-text-2 font-medium border-b border-app-border whitespace-nowrap select-none"
+                  style={{ width: colWidths[col] ?? DEFAULT_COL_WIDTH }}
                 >
-                  {col}
+                  <span className="block truncate pr-2">{col}</span>
+                  {/* Resize handle */}
+                  <div
+                    onMouseDown={(e) => handleResizeMouseDown(e, col)}
+                    className="absolute right-0 top-0 h-full w-3 flex items-center justify-center cursor-col-resize group z-20"
+                  >
+                    <div className="w-px h-4 bg-app-border group-hover:bg-app-accent transition-colors" />
+                  </div>
                 </th>
               ))}
             </tr>
@@ -177,9 +215,11 @@ export default function ResultsTable({
                 {columns.map((col) => (
                   <td
                     key={col}
-                    className="px-3 py-1.5 text-app-text font-mono border-b border-app-border/40 whitespace-nowrap max-w-xs truncate"
+                    className="px-3 py-1.5 text-app-text font-mono border-b border-app-border/40 overflow-hidden"
+                    style={{ width: colWidths[col] ?? DEFAULT_COL_WIDTH, maxWidth: colWidths[col] ?? DEFAULT_COL_WIDTH }}
+                    title={formatCell(row[col])}
                   >
-                    {formatCell(row[col])}
+                    <span className="block truncate">{formatCell(row[col])}</span>
                   </td>
                 ))}
               </tr>
@@ -188,7 +228,7 @@ export default function ResultsTable({
         </table>
       </div>
 
-      {/* Pagination bar — always visible */}
+      {/* Pagination bar */}
       <div className="flex items-center justify-between px-3 py-1.5 border-t border-app-border bg-app-surface shrink-0">
         <span className="text-xs text-app-text-3">
           {fetchedRows === 0
@@ -198,7 +238,6 @@ export default function ResultsTable({
         </span>
 
         <div className="flex items-center gap-3">
-          {/* Page size selector */}
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-app-text-3">Rows per page</span>
             <select
@@ -212,7 +251,6 @@ export default function ResultsTable({
             </select>
           </div>
 
-          {/* Prev / Next */}
           <div className="flex items-center gap-1">
             <button
               onClick={() => setPage((p) => p - 1)}
@@ -242,9 +280,15 @@ export default function ResultsTable({
   )
 }
 
+// ── Cell formatter ───────────────────────────────────────────────────────────
 function formatCell(value: unknown): string {
   if (value === null || value === undefined) return 'NULL'
-  if (typeof value === 'object') return JSON.stringify(value)
+  if (typeof value === 'object') {
+    // BigQuery wraps DATE / DATETIME / TIMESTAMP / NUMERIC as { value: "..." }
+    const v = value as Record<string, unknown>
+    if ('value' in v && typeof v.value === 'string') return v.value
+    return JSON.stringify(value)
+  }
   return String(value)
 }
 

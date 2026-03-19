@@ -69,7 +69,11 @@ const electronMajor = parseInt(electronPkg.version.split('.')[0], 10)
 const electronAbiMap = { 31: 115, 32: 115, 33: 115, 34: 115, 35: 121 }
 const abi = electronAbiMap[electronMajor] || 115
 
-const arch = process.arch === 'x64' ? 'x64' : 'arm64'
+// Always use the NATIVE machine architecture, not process.arch.
+// process.arch can return 'x64' when Node runs under Rosetta on Apple Silicon,
+// which would cause us to download the wrong (x86_64) binary.
+const nativeMachine = execSync('uname -m').toString().trim()
+const arch = nativeMachine === 'x86_64' ? 'x64' : 'arm64'
 const url = `https://npm.duckdb.org/duckdb/duckdb-v${duckdbVersion}-node-v${abi}-darwin-${arch}.tar.gz`
 
 console.log(`postinstall: downloading Electron ABI binary (ABI ${abi}, ${arch})`)
