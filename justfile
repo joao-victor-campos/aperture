@@ -105,18 +105,18 @@ tag-release:
 
 # Create a new feature branch from the latest main (e.g. just branch feat/my-thing)
 branch name:
-    git checkout main
-    git pull origin main
+    git checkout master
+    git pull origin master
     git checkout -b {{name}}
-    @echo "✓ Created branch '{{name}}' from main"
+    @echo "✓ Created branch '{{name}}' from master"
 
 # Push the current branch and open a PR (requires gh CLI)
 pr title='':
     #!/usr/bin/env bash
     set -euo pipefail
     BRANCH=$(git rev-parse --abbrev-ref HEAD)
-    if [[ "$BRANCH" == "main" ]]; then
-        echo "❌  You're on main. Create a branch first: just branch feat/my-thing"
+    if [[ "$BRANCH" == "master" ]]; then
+        echo "❌  You're on master. Create a branch first: just branch feat/my-thing"
         exit 1
     fi
     git push -u origin "$BRANCH"
