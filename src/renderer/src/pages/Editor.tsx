@@ -10,8 +10,9 @@ import { useCatalogStore } from '../store/catalogStore'
 import { useSavedQueryStore } from '../store/savedQueryStore'
 
 export default function Editor() {
-  const { tabs, activeTabId, openTab, closeTab, setActiveTab, updateTabSql, runQuery, cancelQuery, fetchPage } =
+  const { tabs, activeTabId, openTab, closeTab, setActiveTab, updateTabSql, runQuery, cancelQuery, fetchPage, reorderTabs } =
     useQueryStore()
+  const dragTabId = useRef<string | null>(null)
   const { activeConnectionId } = useConnectionStore()
   const { datasetsByConnection, tablesByDataset, schemaCache } = useCatalogStore()
   const { updateQuery } = useSavedQueryStore()
@@ -101,8 +102,25 @@ export default function Editor() {
           {tabs.map((tab) => (
             <div
               key={tab.id}
+              draggable
+              onDragStart={(e) => {
+                dragTabId.current = tab.id
+                e.dataTransfer.effectAllowed = 'move'
+              }}
+              onDragOver={(e) => {
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'move'
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                if (dragTabId.current && dragTabId.current !== tab.id) {
+                  reorderTabs(dragTabId.current, tab.id)
+                }
+                dragTabId.current = null
+              }}
+              onDragEnd={() => { dragTabId.current = null }}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs cursor-default transition-colors shrink-0 ${
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs cursor-grab active:cursor-grabbing transition-colors shrink-0 ${
                 activeTabId === tab.id
                   ? 'bg-app-elevated text-app-text'
                   : 'text-app-text-2 hover:text-app-text hover:bg-app-elevated/50'

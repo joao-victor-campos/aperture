@@ -1,0 +1,53 @@
+name: Changelog Release
+
+# Creates (or updates) a GitHub Release from CHANGELOG.md whenever a
+# version tag is pushed — WITHOUT building a DMG.
+# This uses only ubuntu-latest (~1 min) so it works even when macOS
+# Actions minutes are exhausted.
+#
+# Usage:
+#   git tag v1.2.3 && git push --tags
+#
+# The release body is extracted from the matching ## [1.2.3] section in
+# CHANGELOG.md. If no matching section is found the job fails loudly.
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release-notes:
+    name: Publish Changelog Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # required to create/update releases
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract changelog section
+        id: changelog
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"   # strip leading 'v'
+          echo "Extracting changelog section for version: $VERSION"
+
+          # Pull the lines between ## [VERSION] and the next ## [
+          NOTES=$(awk "/^## \[$VERSION\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
+
+          if [ -z "$NOTES" ]; then
+            echo "ERROR: No section found for ## [$VERSION] in CHANGELOG.md"
+            exit 1
+          fi
+
+          # Write to a temp file to preserve newlines safely
+          echo "$NOTES" > /tmp/release_notes.md
+          echo "Extracted $(wc -l < /tmp/release_notes.md) lines of release notes"
+          cat /tmp/release_notes.md
+
+      - name: Create / update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          body_path: /tmp/release_notes.md

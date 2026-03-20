@@ -8,10 +8,41 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [0.7.0] — 2026-03-17
+
+### Added
+- **Server-side BigQuery pagination** — queries now fetch only the first 100 rows on execution; subsequent pages are loaded on demand via the Next button. No more multi-minute waits for large tables without a LIMIT clause. The pagination bar shows the total row count from BigQuery metadata and a `+` indicator when more pages exist.
+- **Custom macOS app icon** — camera aperture logo (`.icns` + `.png`) replaces the default Electron icon in the dock, Finder, DMG, and ⌘Tab switcher. All required sizes (16 × 16 through 1024 × 1024 @2x) generated from the existing SVG.
+- **Save queries with folders** — save the current query tab with a name and optional folder, re-save silently with ⌘S, browse and search saved queries in the sidebar Saved panel.
+- **SQL autocomplete for BigQuery** — the CodeMirror editor now suggests table names (e.g. `dataset.table`) and column names (populated lazily as schemas are inspected).
+
+### Changed
+- App name now shows **Aperture** (not "Electron") in the macOS dock, menu bar, and ⌘Tab switcher in dev mode.
+- `QUERY_GET_PAGE` IPC channel added for fetching subsequent result pages without re-running the query.
+- `QueryResult` type extended with `totalRows`, `pageToken`, and `hasMore` fields.
+
+### Fixed
+- DuckDB Electron binary repeatedly reverting to x86_64 after test runs: `postinstall.js` now saves a pristine arm64 `duckdb-electron.node` immediately after downloading, so `pretest.js` can no longer overwrite it with a corrupt backup.
+- macOS dock showing the Electron rocket icon in dev mode: `scripts/patch-electron-dev.js` (run via `predev` hook) replaces `electron.icns` inside the Electron app bundle and patches `Info.plist` before each `just dev`.
+
+---
+
+## [0.3.0] — 2026-03-12
+
+### Fixed
+- **"Aperture is damaged" on macOS 13+** — added notarization infrastructure (`scripts/notarize.js`, `resources/entitlements.mac.plist`), `hardenedRuntime: true` in `electron-builder.yml`, and documented the `xattr -cr` immediate workaround in the README and every GitHub Release body.
+
+---
+
+## [0.2.0] — 2026-03-10
+
 ### Added
 - Search bar in the sidebar catalog tree — filter datasets and tables by name in real time
 - Light theme (orange + off-white) and dark theme (orange accent) with a toggle in the title bar
-- Camera aperture logo replacing the generic database icon
+- Camera aperture SVG logo (`resources/icon.svg`) and React component (`ApertureIcon.tsx`)
+- `CHANGELOG.md` following Keep a Changelog conventions
 
 ### Changed
 - Accent colour changed from indigo to orange across the entire UI

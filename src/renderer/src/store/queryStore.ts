@@ -19,6 +19,7 @@ interface QueryState {
   runQuery: (id: string) => Promise<void>
   cancelQuery: (id: string) => Promise<void>
   fetchPage: (id: string) => Promise<void>
+  reorderTabs: (fromId: string, toId: string) => void
 }
 
 export const useQueryStore = create<QueryState>((set, get) => ({
@@ -117,6 +118,19 @@ export const useQueryStore = create<QueryState>((set, get) => ({
       tabs: s.tabs.map((t) => (t.id === id ? { ...t, cancelled: true } : t))
     }))
     await window.api.invoke(CHANNELS.QUERY_CANCEL, id)
+  },
+
+  reorderTabs: (fromId, toId) => {
+    if (fromId === toId) return
+    set((s) => {
+      const tabs = [...s.tabs]
+      const fromIdx = tabs.findIndex((t) => t.id === fromId)
+      const toIdx = tabs.findIndex((t) => t.id === toId)
+      if (fromIdx === -1 || toIdx === -1) return s
+      const [moved] = tabs.splice(fromIdx, 1)
+      tabs.splice(toIdx, 0, moved)
+      return { tabs }
+    })
   },
 
   fetchPage: async (id) => {
