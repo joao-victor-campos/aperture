@@ -2,7 +2,8 @@ import { useMemo } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { sql } from '@codemirror/lang-sql'
 import { oneDark } from '@codemirror/theme-one-dark'
-import { EditorView } from '@codemirror/view'
+import { EditorView, keymap } from '@codemirror/view'
+import { Prec } from '@codemirror/state'
 import { Bookmark, BookmarkCheck } from 'lucide-react'
 
 interface QueryEditorProps {
@@ -34,6 +35,25 @@ export default function QueryEditor({
   const sqlExtension = useMemo(
     () => sql({ schema: sqlSchema ?? {} }),
     [sqlSchema]
+  )
+
+  // Keymap registered inside CodeMirror so Prec.highest prevents the default
+  // Enter handler from also inserting a newline when ⌘↵ is pressed.
+  const keymapExtension = useMemo(
+    () => Prec.highest(keymap.of([
+      {
+        key: 'Mod-Enter',
+        run: () => {
+          if (isRunning) onCancel(); else onRun()
+          return true
+        },
+      },
+      {
+        key: 'Mod-s',
+        run: () => { onSave(); return true },
+      },
+    ])),
+    [isRunning, onCancel, onRun, onSave]
   )
 
   return (
@@ -83,19 +103,8 @@ export default function QueryEditor({
           value={value}
           height="100%"
           theme={oneDark}
-          extensions={[sqlExtension, customTheme]}
+          extensions={[sqlExtension, keymapExtension, customTheme]}
           onChange={onChange}
-          onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-              e.preventDefault()
-              if (isRunning) onCancel()
-              else onRun()
-            }
-            if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-              e.preventDefault()
-              onSave()
-            }
-          }}
           style={{ height: '100%' }}
           basicSetup={{
             lineNumbers: true,

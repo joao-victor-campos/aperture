@@ -13,6 +13,7 @@ interface ResultsTableProps {
 
 const PAGE_SIZES = [50, 100, 250, 500]
 const MIN_COL_WIDTH = 60
+const MAX_COL_WIDTH = 1200
 const DEFAULT_COL_WIDTH = 160
 
 export default function ResultsTable({
@@ -52,8 +53,9 @@ export default function ResultsTable({
     const onMove = (ev: MouseEvent) => {
       if (!resizingCol.current) return
       const delta = ev.clientX - resizingCol.current.startX
-      const newWidth = Math.max(MIN_COL_WIDTH, resizingCol.current.startWidth + delta)
-      setColWidths((prev) => ({ ...prev, [resizingCol.current!.col]: newWidth }))
+      const newWidth = Math.min(MAX_COL_WIDTH, Math.max(MIN_COL_WIDTH, resizingCol.current.startWidth + delta))
+      const col = resizingCol.current.col
+      setColWidths((prev) => ({ ...prev, [col]: newWidth }))
     }
     const onUp = () => {
       resizingCol.current = null
