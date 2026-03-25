@@ -10,6 +10,22 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.8.0] — 2026-03-25
+
+### Added
+- **Draggable tabs** — query tabs can be dragged left and right to reorder them. Uses native HTML5 drag-and-drop with no extra dependencies.
+- **Resizable columns** — every column header has a drag handle on its right edge; dragging resizes the column. Widths reset when a new query is run. Truncated cell values show a tooltip on hover.
+- **Changelog-based GitHub Releases** — new workflow (`.github/workflows/changelog-release.yml`) triggers on any `v*.*.*` tag push, extracts the matching section from `CHANGELOG.md`, and creates the GitHub Release on `ubuntu-latest` only (~1 min, no macOS minutes consumed). Works independently of the DMG build.
+
+### Fixed
+- **BigQuery date/datetime display** — `DATE`, `DATETIME`, `TIMESTAMP`, and `NUMERIC` columns were shown as raw JSON (`{"value":"2026-02-01T00:00:00"}`). The cell formatter now extracts the string value directly.
+- **⌘↵ inserting a newline** — `onKeyDown` on the CodeMirror wrapper div fired after CodeMirror had already processed the key, so `preventDefault()` did not stop the newline from being inserted. Fixed by registering the keybinding inside CodeMirror via `keymap.of()` + `Prec.highest()`, which intercepts the key before all built-in handlers.
+- **Column resize crashing the app** — dragging a column very wide caused WebKit's table layout engine to crash (white screen). Fixed by capping column width at 1200px and capturing the column name in a local variable before the state updater to eliminate a ref-after-cleanup race.
+- **DuckDB x86_64 binary on Apple Silicon** — `postinstall.js` was using `process.arch` to choose the download URL, which returns `'x64'` when Node runs under Rosetta. Switched to `uname -m` (native machine architecture) so the correct `arm64` binary is always downloaded.
+- **GitHub Release body** — `release.yml` now reads the release body from `CHANGELOG.md` instead of the hardcoded Gatekeeper workaround text.
+
+---
+
 ## [0.7.0] — 2026-03-17
 
 ### Added
