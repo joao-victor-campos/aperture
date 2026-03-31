@@ -1,35 +1,45 @@
 import { useState } from 'react'
 import { X, CheckCircle, XCircle } from 'lucide-react'
 import { useConnectionStore } from '../../store/connectionStore'
-import type { BigQueryConnection } from '@shared/types'
 
-interface ConnectionModalProps {
+interface PostgresConnectionModalProps {
   onClose: () => void
 }
 
-export default function ConnectionModal({ onClose }: ConnectionModalProps) {
+export default function PostgresConnectionModal({ onClose }: PostgresConnectionModalProps) {
   const { add, test } = useConnectionStore()
 
   const [name, setName] = useState('')
-  const [projectId, setProjectId] = useState('')
-  const [credentialType, setCredentialType] = useState<BigQueryConnection['credentialType']>('adc')
-  const [serviceAccountPath, setServiceAccountPath] = useState('')
+  const [host, setHost] = useState('')
+  const [port, setPort] = useState('5432')
+  const [database, setDatabase] = useState('')
+  const [user, setUser] = useState('')
+  const [password, setPassword] = useState('')
+
   const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
 
-  const isValid = name.trim().length > 0 && projectId.trim().length > 0
+  const isValid =
+    name.trim().length > 0 &&
+    host.trim().length > 0 &&
+    database.trim().length > 0 &&
+    user.trim().length > 0 &&
+    password.trim().length > 0 &&
+    Number.isFinite(Number(port)) &&
+    Number(port) > 0
 
   const handleSave = async () => {
     if (!isValid) return
     setIsSaving(true)
     await add({
-      engine: 'bigquery',
+      engine: 'postgres',
       name: name.trim(),
-      projectId: projectId.trim(),
-      credentialType,
-      serviceAccountPath:
-        credentialType === 'service-account' ? serviceAccountPath.trim() : undefined,
+      host: host.trim(),
+      port: Number(port),
+      database: database.trim(),
+      user: user.trim(),
+      password: password,
     })
     setIsSaving(false)
     onClose()
@@ -40,12 +50,13 @@ export default function ConnectionModal({ onClose }: ConnectionModalProps) {
     setIsTesting(true)
     setTestResult(null)
     const tempConn = await add({
-      engine: 'bigquery',
+      engine: 'postgres',
       name: name.trim(),
-      projectId: projectId.trim(),
-      credentialType,
-      serviceAccountPath:
-        credentialType === 'service-account' ? serviceAccountPath.trim() : undefined,
+      host: host.trim(),
+      port: Number(port),
+      database: database.trim(),
+      user: user.trim(),
+      password: password,
     })
     const result = await test(tempConn.id)
     setTestResult(result)
@@ -55,9 +66,9 @@ export default function ConnectionModal({ onClose }: ConnectionModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-      <div className="bg-app-surface rounded-xl shadow-2xl w-[480px] border border-app-border">
+      <div className="bg-app-surface rounded-xl shadow-2xl w-[520px] border border-app-border">
         <div className="flex items-center justify-between px-5 py-4 border-b border-app-border">
-          <h2 className="text-sm font-semibold text-app-text">New BigQuery Connection</h2>
+          <h2 className="text-sm font-semibold text-app-text">New Postgres Connection</h2>
           <button onClick={onClose} className="text-app-text-2 hover:text-app-text transition-colors">
             <X size={15} />
           </button>
@@ -65,51 +76,43 @@ export default function ConnectionModal({ onClose }: ConnectionModalProps) {
 
         <div className="p-5 flex flex-col gap-4">
           <Field label="Connection name">
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="My Project"
-              autoFocus
-              className={inputCls}
-            />
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="My Connection" autoFocus className={inputCls} />
           </Field>
 
-          <Field label="GCP Project ID">
-            <input
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-              placeholder="my-gcp-project-id"
-              className={inputCls}
-            />
+          <Field label="Host">
+            <input value={host} onChange={(e) => setHost(e.target.value)} placeholder="localhost" className={inputCls} />
           </Field>
 
-          <Field label="Authentication">
-            <div className="flex gap-2">
-              <CredButton
-                label="Application Default Credentials"
-                description="Uses gcloud auth or GOOGLE_APPLICATION_CREDENTIALS env var"
-                active={credentialType === 'adc'}
-                onClick={() => setCredentialType('adc')}
-              />
-              <CredButton
-                label="Service Account JSON"
-                description="Provide a path to a key file"
-                active={credentialType === 'service-account'}
-                onClick={() => setCredentialType('service-account')}
-              />
-            </div>
-          </Field>
+          <div className="flex gap-4">
+            <Field label="Port">
+              <input value={port} onChange={(e) => setPort(e.target.value)} placeholder="5432" className={inputCls} />
+            </Field>
 
-          {credentialType === 'service-account' && (
-            <Field label="Key file path">
+            <Field label="Database">
               <input
-                value={serviceAccountPath}
-                onChange={(e) => setServiceAccountPath(e.target.value)}
-                placeholder="/Users/you/keys/service-account.json"
+                value={database}
+                onChange={(e) => setDatabase(e.target.value)}
+                placeholder="my_database"
                 className={inputCls}
               />
             </Field>
-          )}
+          </div>
+
+          <div className="flex gap-4">
+            <Field label="User">
+              <input value={user} onChange={(e) => setUser(e.target.value)} placeholder="my_user" className={inputCls} />
+            </Field>
+
+            <Field label="Password">
+              <input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                type="password"
+                placeholder="••••••••"
+                className={inputCls}
+              />
+            </Field>
+          </div>
 
           {testResult && (
             <div
@@ -126,12 +129,10 @@ export default function ConnectionModal({ onClose }: ConnectionModalProps) {
         </div>
 
         <div className="flex justify-end gap-2 px-5 py-4 border-t border-app-border">
-          <button
-            onClick={onClose}
-            className="text-xs px-3 py-1.5 rounded-lg text-app-text-2 hover:text-app-text transition-colors"
-          >
+          <button onClick={onClose} className="text-xs px-3 py-1.5 rounded-lg text-app-text-2 hover:text-app-text transition-colors">
             Cancel
           </button>
+
           <button
             onClick={handleTest}
             disabled={!isValid || isTesting || isSaving}
@@ -139,6 +140,7 @@ export default function ConnectionModal({ onClose }: ConnectionModalProps) {
           >
             {isTesting ? 'Testing…' : 'Test & Save'}
           </button>
+
           <button
             onClick={handleSave}
             disabled={!isValid || isSaving || isTesting}
@@ -164,25 +166,3 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-function CredButton({
-  label, description, active, onClick,
-}: {
-  label: string
-  description: string
-  active: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex-1 flex flex-col items-start gap-0.5 text-left py-2.5 px-3 rounded-lg border transition-colors ${
-        active
-          ? 'border-app-accent bg-app-accent-subtle text-app-accent-text'
-          : 'border-app-border text-app-text-2 hover:border-app-text-3'
-      }`}
-    >
-      <span className="text-xs font-medium">{label}</span>
-      <span className="text-[10px] text-app-text-3 leading-snug">{description}</span>
-    </button>
-  )
-}

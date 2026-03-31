@@ -1,7 +1,7 @@
 import { Pool, Client, PoolClient } from 'pg'
 import type { WebContents } from 'electron'
 import { CHANNELS } from '../../shared/ipc'
-import type { Connection, PostgresConnection, Dataset, Table, TableField, QueryResult } from '../../shared/types'
+import type { PostgresConnection, Dataset, Table, TableField, QueryResult } from '../../shared/types'
 
 const QUERY_TIMEOUT_MS = 180_000
 const HEARTBEAT_INTERVAL_MS = 10_000
@@ -13,6 +13,7 @@ const pools = new Map<string, Pool>()
 interface RunningQuery {
   client: PoolClient
   pid: number
+  connectionId: string
   webContents: WebContents
 }
 const runningQueries = new Map<string, RunningQuery>()
@@ -119,7 +120,7 @@ export async function runQuery(
     // Get backend PID so we can cancel this specific query if needed
     const pidRes = await client.query('SELECT pg_backend_pid()')
     const pid = pidRes.rows[0].pg_backend_pid
-    runningQueries.set(tabId, { client, pid, webContents })
+    runningQueries.set(tabId, { client, pid, connectionId: connection.id, webContents })
 
     log(`Query started · PID: ${pid}`)
     
@@ -181,14 +182,12 @@ export async function cancelRunningQuery(tabId: string): Promise<void> {
   const running = runningQueries.get(tabId)
   if (!running) return
 
-  const { pid, webContents } = running
+  const { pid, webContents, connectionId } = running
   logToWebContents(webContents, tabId, 'Cancelling Postgres process...')
   
   // We need a separate connection to issue the cancel command
-  const pool = Array.from(pools.values())[0] // Simplified: gets the first pool
-  if (pool) {
-    await pool.query('SELECT pg_cancel_backend($1)', [pid])
-  }
+  const pool = pools.get(connectionId)
+  if (pool) await pool.query('SELECT pg_cancel_backend($1)', [pid])
   
   runningQueries.delete(tabId)
 }
@@ -198,6 +197,14 @@ export async function dryRunQuery(connection: PostgresConnection, sql: string): 
   // Postgres doesn't have "bytes processed" metrics like BQ, but we can use EXPLAIN
   await pool.query(`EXPLAIN ${sql}`)
   return { bytesProcessed: 0 } // Always 0 as Postgres is not a billing-per-byte model
+}
+
+export function invalidateClient(connectionId: string): void {
+  const pool = pools.get(connectionId)
+  if (!pool) return
+  pools.delete(connectionId)
+  // Fire and forget; we only need to drop the pool from cache.
+  void pool.end().catch(() => {})
 }
 
 function logToWebContents(webContents: WebContents, tabId: string, message: string) {

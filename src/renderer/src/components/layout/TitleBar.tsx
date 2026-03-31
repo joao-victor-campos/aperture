@@ -38,7 +38,7 @@ export default function TitleBar({ onAddConnection, isDark, onToggleTheme }: Tit
           >
             {connections.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name} — {c.projectId}
+                {c.name} — {c.engine === 'bigquery' ? c.projectId : c.database}
               </option>
             ))}
           </select>

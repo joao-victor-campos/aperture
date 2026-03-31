@@ -3,6 +3,7 @@ import { Copy, Check } from 'lucide-react'
 import { CHANNELS } from '@shared/ipc'
 import type { TableField, QueryResult } from '@shared/types'
 import { useCatalogStore } from '../../store/catalogStore'
+import { useConnectionStore } from '../../store/connectionStore'
 
 interface TableDetailPanelProps {
   connectionId: string
@@ -30,11 +31,16 @@ export default function TableDetailPanel({
   const [copied, setCopied] = useState(false)
 
   const { loadSchema } = useCatalogStore()
+  const { connections } = useConnectionStore()
+  const engine = connections.find((c) => c.id === connectionId)?.engine ?? 'bigquery'
 
-  const previewTabId = useMemo(() => crypto.randomUUID(), [tableId, datasetId])
+  const previewTabId = useMemo(() => crypto.randomUUID(), [connectionId, projectId, datasetId, tableId])
 
   const tableRef = `${datasetId}.${tableId}`
-  const fullRef = `\`${projectId}.${datasetId}.${tableId}\``
+  const previewRef =
+    engine === 'bigquery'
+      ? `\`${projectId}.${datasetId}.${tableId}\``
+      : `${quoteIdent(datasetId)}.${quoteIdent(tableId)}`
 
   useEffect(() => {
     setSchema(null)
@@ -59,7 +65,7 @@ export default function TableDetailPanel({
     try {
       const result = await window.api.invoke(CHANNELS.QUERY_EXECUTE, {
         connectionId,
-        sql: `SELECT * FROM ${fullRef} LIMIT 50`,
+        sql: `SELECT * FROM ${previewRef} LIMIT 50`,
         tabId: previewTabId,
       })
       setPreview(result)
@@ -87,7 +93,7 @@ export default function TableDetailPanel({
         </div>
         <button
           onClick={handleCopy}
-          title="Copy dataset.table reference"
+          title={engine === 'postgres' ? 'Copy schema.table reference' : 'Copy dataset.table reference'}
           className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md bg-app-elevated hover:bg-app-border text-app-text-2 hover:text-app-text transition-colors border border-app-border"
         >
           {copied ? (
@@ -251,4 +257,10 @@ function formatCell(value: unknown): string {
   if (value === null || value === undefined) return 'NULL'
   if (typeof value === 'object') return JSON.stringify(value)
   return String(value)
+}
+
+function quoteIdent(ident: string): string {
+  // Minimal identifier quoting for Postgres.
+  // Escape embedded quotes to avoid malformed SQL.
+  return `"${ident.replace(/"/g, '""')}"`
 }

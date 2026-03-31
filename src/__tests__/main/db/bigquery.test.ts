@@ -44,6 +44,7 @@ vi.mock('electron', () => ({}))
 const conn: Connection = {
   id: 'conn-1',
   name: 'Test',
+  engine: 'bigquery',
   projectId: 'my-project',
   credentialType: 'adc',
   createdAt: '2024-01-01T00:00:00.000Z'

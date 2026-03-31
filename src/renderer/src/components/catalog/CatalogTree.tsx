@@ -39,6 +39,12 @@ export default function CatalogTree({ onAddConnection }: CatalogTreeProps) {
   }
 
   const activeConn = connections.find((c) => c.id === activeConnectionId)
+  const activeEngine = activeConn?.engine ?? 'bigquery'
+  const projectContextId = activeConn
+    ? activeConn.engine === 'bigquery'
+      ? activeConn.projectId
+      : activeConn.database
+    : ''
   const isLoadingDatasets = !!isLoading[activeConnectionId]
   const datasets = datasetsByConnection[activeConnectionId] ?? []
   const query = search.trim().toLowerCase()
@@ -137,11 +143,11 @@ export default function CatalogTree({ onAddConnection }: CatalogTreeProps) {
                       table={table}
                       datasetId={dataset.id}
                       connectionId={activeConnectionId}
-                      projectId={activeConn?.projectId ?? ''}
                       onOpen={() =>
                         openTableTab(
                           activeConnectionId,
-                          activeConn?.projectId ?? '',
+                          activeEngine,
+                          projectContextId,
                           dataset.id,
                           table.id,
                           table.name
@@ -165,7 +171,6 @@ interface TableRowProps {
   table: Table
   datasetId: string
   connectionId: string
-  projectId: string
   onOpen: () => void
 }
 
