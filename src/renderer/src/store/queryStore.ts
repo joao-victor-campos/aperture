@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { CHANNELS } from '@shared/ipc'
-import type { QueryTab, QueryResult } from '@shared/types'
+import type { ConnectionEngine, QueryTab, QueryResult } from '@shared/types'
 
 interface QueryState {
   tabs: QueryTab[]
@@ -8,6 +8,7 @@ interface QueryState {
   openTab: (partial?: Partial<Omit<QueryTab, 'id' | 'isRunning' | 'logs'>>) => string
   openTableTab: (
     connectionId: string,
+    engine: ConnectionEngine,
     projectId: string,
     datasetId: string,
     tableId: string,
@@ -33,11 +34,16 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     return id
   },
 
-  openTableTab: (connectionId, projectId, datasetId, tableId, tableName) => {
+  openTableTab: (connectionId, engine, projectId, datasetId, tableId, tableName) => {
     const { tabs } = get()
     // If a table tab for this exact table already exists, just focus it
     const existing = tabs.find(
-      (t) => t.type === 'table' && t.tableRef?.tableId === tableId && t.tableRef?.datasetId === datasetId
+      (t) =>
+        t.type === 'table' &&
+        t.connectionId === connectionId &&
+        t.tableRef?.engine === engine &&
+        t.tableRef?.tableId === tableId &&
+        t.tableRef?.datasetId === datasetId
     )
     if (existing) {
       set({ activeTabId: existing.id })
@@ -50,7 +56,7 @@ export const useQueryStore = create<QueryState>((set, get) => ({
       title: tableName,
       sql: '',
       connectionId,
-      tableRef: { projectId, datasetId, tableId },
+      tableRef: { engine, projectId, datasetId, tableId },
       isRunning: false,
       logs: []
     }

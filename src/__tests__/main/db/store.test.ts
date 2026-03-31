@@ -18,7 +18,7 @@ vi.mock('electron', () => ({
 
 // Helper: a minimal valid Connection object
 function makeConn(id = 'c1'): Connection {
-  return { id, name: 'Test', projectId: 'my-project', credentialType: 'adc', createdAt: '2024-01-01T00:00:00.000Z' }
+  return { id, name: 'Test', engine: 'bigquery', projectId: 'my-project', credentialType: 'adc', createdAt: '2024-01-01T00:00:00.000Z' }
 }
 
 describe('store', () => {

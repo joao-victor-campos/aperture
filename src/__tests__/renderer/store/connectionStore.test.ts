@@ -9,7 +9,7 @@ import type { Connection } from '../../../shared/types'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function makeConn(id: string, name = 'Conn'): Connection {
-  return { id, name, projectId: 'proj', credentialType: 'adc', createdAt: '2024-01-01T00:00:00Z' }
+  return { id, name, engine: 'bigquery', projectId: 'proj', credentialType: 'adc', createdAt: '2024-01-01T00:00:00Z' }
 }
 
 const invoke = () => window.api.invoke as ReturnType<typeof vi.fn>
@@ -71,7 +71,10 @@ describe('connectionStore', () => {
 
       // Act
       const result = await useConnectionStore.getState().add({
-        name: 'New', projectId: 'p', credentialType: 'adc'
+        engine: 'bigquery',
+        name: 'New',
+        projectId: 'p',
+        credentialType: 'adc'
       })
 
       // Assert
@@ -84,7 +87,7 @@ describe('connectionStore', () => {
       invoke().mockResolvedValueOnce(makeConn('first'))
 
       // Act
-      await useConnectionStore.getState().add({ name: 'First', projectId: 'p', credentialType: 'adc' })
+      await useConnectionStore.getState().add({ engine: 'bigquery', name: 'First', projectId: 'p', credentialType: 'adc' })
 
       // Assert
       expect(useConnectionStore.getState().activeConnectionId).toBe('first')

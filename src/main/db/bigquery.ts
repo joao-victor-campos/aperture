@@ -1,7 +1,7 @@
 import { BigQuery, Job } from '@google-cloud/bigquery'
 import type { WebContents } from 'electron'
 import { CHANNELS } from '../../shared/ipc'
-import type { Connection, Dataset, Table, TableField, QueryResult } from '../../shared/types'
+import type { BigQueryConnection, Dataset, Table, TableField, QueryResult } from '../../shared/types'
 
 const QUERY_TIMEOUT_MS = 180_000
 const HEARTBEAT_INTERVAL_MS = 10_000
@@ -21,7 +21,7 @@ const completedJobs = new Map<string, Job>()
 
 const DEFAULT_PAGE_SIZE = 100
 
-function getClient(connection: Connection): BigQuery {
+function getClient(connection: BigQueryConnection): BigQuery {
   if (clients.has(connection.id)) return clients.get(connection.id)!
   const options: ConstructorParameters<typeof BigQuery>[0] = { projectId: connection.projectId }
   if (connection.credentialType === 'service-account' && connection.serviceAccountPath) {
@@ -39,7 +39,7 @@ function elapsed(startMs: number): string {
 }
 
 export async function testConnection(
-  connection: Connection
+  connection: BigQueryConnection
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const client = getClient(connection)
@@ -51,7 +51,7 @@ export async function testConnection(
   }
 }
 
-export async function listDatasets(connection: Connection): Promise<Dataset[]> {
+export async function listDatasets(connection: BigQueryConnection): Promise<Dataset[]> {
   const client = getClient(connection)
   const [datasets] = await client.getDatasets()
   return datasets.map((d) => ({
@@ -63,7 +63,7 @@ export async function listDatasets(connection: Connection): Promise<Dataset[]> {
   }))
 }
 
-export async function listTables(connection: Connection, datasetId: string): Promise<Table[]> {
+export async function listTables(connection: BigQueryConnection, datasetId: string): Promise<Table[]> {
   const client = getClient(connection)
   const [tables] = await client.dataset(datasetId).getTables()
   return tables.map((t) => ({
@@ -79,7 +79,7 @@ export async function listTables(connection: Connection, datasetId: string): Pro
 }
 
 export async function getTableSchema(
-  connection: Connection,
+  connection: BigQueryConnection,
   datasetId: string,
   tableId: string
 ): Promise<TableField[]> {
@@ -89,7 +89,7 @@ export async function getTableSchema(
 }
 
 export async function runQuery(
-  connection: Connection,
+  connection: BigQueryConnection,
   sql: string,
   tabId: string,
   webContents: WebContents
@@ -231,7 +231,7 @@ export async function cancelRunningQuery(tabId: string): Promise<void> {
 }
 
 export async function dryRunQuery(
-  connection: Connection,
+  connection: BigQueryConnection,
   sql: string
 ): Promise<{ bytesProcessed: number }> {
   const client = getClient(connection)

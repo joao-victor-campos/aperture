@@ -1,11 +1,33 @@
-export interface Connection {
+export type ConnectionEngine = 'bigquery' | 'postgres'
+
+interface ConnectionBase {
   id: string
   name: string
+  createdAt: string
+  engine: ConnectionEngine
+}
+
+export interface BigQueryConnection extends ConnectionBase {
+  engine: 'bigquery'
   projectId: string
   credentialType: 'adc' | 'service-account'
   serviceAccountPath?: string
-  createdAt: string
 }
+
+export interface PostgresConnection extends ConnectionBase {
+  engine: 'postgres'
+  host: string
+  port: number
+  database: string
+  user: string
+  password: string
+}
+
+export type Connection = BigQueryConnection | PostgresConnection
+
+export type ConnectionCreate =
+  | Omit<BigQueryConnection, 'id' | 'createdAt'>
+  | Omit<PostgresConnection, 'id' | 'createdAt'>
 
 export interface Dataset {
   id: string
@@ -57,7 +79,7 @@ export interface QueryTab {
   sql: string
   connectionId?: string
   /** Populated when type === 'table' */
-  tableRef?: { projectId: string; datasetId: string; tableId: string }
+  tableRef?: { engine: ConnectionEngine; projectId: string; datasetId: string; tableId: string }
   result?: QueryResult
   error?: string
   isRunning: boolean

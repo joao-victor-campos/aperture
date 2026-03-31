@@ -17,6 +17,23 @@ vi.mock('electron', () => ({
   }
 }))
 
+// ── Mock: adapter registry (engine dispatch) ────────────────────────────────
+const bigAdapter = {
+  testConnection: vi.fn(),
+  invalidateClient: vi.fn()
+}
+
+const pgAdapter = {
+  testConnection: vi.fn(),
+  invalidateClient: vi.fn()
+}
+
+vi.mock('../../../main/db/adapterRegistry', () => ({
+  getAdapterForEngine: (engine: 'bigquery' | 'postgres') => (engine === 'bigquery' ? bigAdapter : pgAdapter),
+  getAdapterForConnection: (connection: Connection) =>
+    connection.engine === 'bigquery' ? bigAdapter : pgAdapter
+}))
+
 // ── Mock: store ──────────────────────────────────────────────────────────────
 const storedConnections: Connection[] = []
 
@@ -29,15 +46,16 @@ vi.mock('../../../main/db/store', () => ({
   }
 }))
 
-// ── Mock: bigquery (only testConnection and invalidateClient are used) ───────
-vi.mock('../../../main/db/bigquery', () => ({
-  testConnection: vi.fn(),
-  invalidateClient: vi.fn()
-}))
-
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function makeConn(id = 'c1'): Connection {
-  return { id, name: 'Prod', projectId: 'proj', credentialType: 'adc', createdAt: '2024-01-01T00:00:00Z' }
+  return {
+    id,
+    name: 'Prod',
+    engine: 'bigquery',
+    projectId: 'proj',
+    credentialType: 'adc',
+    createdAt: '2024-01-01T00:00:00Z'
+  }
 }
 
 describe('Connection IPC handlers', () => {
@@ -69,7 +87,7 @@ describe('Connection IPC handlers', () => {
     it('creates a connection with a generated id and createdAt timestamp', async () => {
       // Arrange
       const handler = handlers.get(CHANNELS.CONNECTIONS_ADD)!
-      const payload = { name: 'Dev', projectId: 'dev-proj', credentialType: 'adc' as const }
+      const payload = { engine: 'bigquery' as const, name: 'Dev', projectId: 'dev-proj', credentialType: 'adc' as const }
 
       // Act
       const newConn = await handler({}, payload) as Connection
@@ -87,7 +105,7 @@ describe('Connection IPC handlers', () => {
       const handler = handlers.get(CHANNELS.CONNECTIONS_ADD)!
 
       // Act
-      await handler({}, { name: 'New', projectId: 'p', credentialType: 'adc' as const })
+      await handler({}, { engine: 'bigquery' as const, name: 'New', projectId: 'p', credentialType: 'adc' as const })
 
       // Assert
       expect(storedConnections).toHaveLength(2)
@@ -108,8 +126,7 @@ describe('Connection IPC handlers', () => {
       expect(result.name).toBe('Updated')
       expect(storedConnections[0].name).toBe('Updated')
 
-      const { invalidateClient } = await import('../../../main/db/bigquery')
-      expect(invalidateClient).toHaveBeenCalledWith('c1')
+      expect(bigAdapter.invalidateClient).toHaveBeenCalledWith('c1')
     })
   })
 
@@ -126,8 +143,7 @@ describe('Connection IPC handlers', () => {
       expect(storedConnections).toHaveLength(1)
       expect(storedConnections[0].id).toBe('c2')
 
-      const { invalidateClient } = await import('../../../main/db/bigquery')
-      expect(invalidateClient).toHaveBeenCalledWith('c1')
+      expect(bigAdapter.invalidateClient).toHaveBeenCalledWith('c1')
     })
   })
 
@@ -135,8 +151,7 @@ describe('Connection IPC handlers', () => {
     it('returns the result from testConnection when the connection exists', async () => {
       // Arrange
       storedConnections.push(makeConn('c1'))
-      const { testConnection } = await import('../../../main/db/bigquery')
-      ;(testConnection as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true })
+      bigAdapter.testConnection.mockResolvedValueOnce({ ok: true })
       const handler = handlers.get(CHANNELS.CONNECTIONS_TEST)!
 
       // Act
@@ -144,6 +159,31 @@ describe('Connection IPC handlers', () => {
 
       // Assert
       expect(result).toEqual({ ok: true })
+    })
+
+    it('dispatches to the Postgres adapter for CONNECTIONS_TEST', async () => {
+      // Arrange
+      const pgConn: Connection = {
+        id: 'conn-pg',
+        name: 'PG',
+        engine: 'postgres',
+        host: 'localhost',
+        port: 5432,
+        database: 'db',
+        user: 'user',
+        password: 'pw',
+        createdAt: '2024-01-01T00:00:00Z'
+      }
+      storedConnections.push(pgConn)
+      pgAdapter.testConnection.mockResolvedValueOnce({ ok: true })
+      const handler = handlers.get(CHANNELS.CONNECTIONS_TEST)!
+
+      // Act
+      const result = await handler({}, 'conn-pg')
+
+      // Assert
+      expect(result).toEqual({ ok: true })
+      expect(pgAdapter.testConnection).toHaveBeenCalledWith(pgConn)
     })
 
     it('returns ok:false with error when the connection id is not found', async () => {

@@ -16,29 +16,56 @@ vi.mock('electron', () => ({
   }
 }))
 
-// ── Mock: store ──────────────────────────────────────────────────────────────
-const conn: Connection = {
-  id: 'conn-1', name: 'Test', projectId: 'proj',
-  credentialType: 'adc', createdAt: '2024-01-01T00:00:00Z'
-}
-
-vi.mock('../../../main/db/store', () => ({
-  store: {
-    get: vi.fn((_key: string) => [conn])
-  }
-}))
-
-// ── Mock: bigquery catalog functions ─────────────────────────────────────────
-vi.mock('../../../main/db/bigquery', () => ({
+// ── Mock: adapter registry (engine dispatch) ────────────────────────────────
+const bigAdapter = {
   listDatasets: vi.fn(),
   listTables: vi.fn(),
   getTableSchema: vi.fn()
+}
+
+const pgAdapter = {
+  listDatasets: vi.fn(),
+  listTables: vi.fn(),
+  getTableSchema: vi.fn()
+}
+
+vi.mock('../../../main/db/adapterRegistry', () => ({
+  getAdapterForConnection: (connection: Connection) =>
+    connection.engine === 'bigquery' ? bigAdapter : pgAdapter
+}))
+
+// ── Mock: store ──────────────────────────────────────────────────────────────
+const bigConn: Connection = {
+  id: 'conn-1',
+  name: 'BigQuery Conn',
+  engine: 'bigquery',
+  projectId: 'proj',
+  credentialType: 'adc',
+  createdAt: '2024-01-01T00:00:00Z'
+}
+
+const pgConn: Connection = {
+  id: 'conn-pg-1',
+  name: 'Postgres Conn',
+  engine: 'postgres',
+  host: 'localhost',
+  port: 5432,
+  database: 'db',
+  user: 'user',
+  password: 'pw',
+  createdAt: '2024-01-01T00:00:00Z'
+}
+
+let storedConnections: Connection[] = [bigConn]
+vi.mock('../../../main/db/store', () => ({
+  store: { get: vi.fn(() => storedConnections) }
 }))
 
 describe('Catalog IPC handlers', () => {
   beforeEach(async () => {
     handlers.clear()
     vi.clearAllMocks()
+    storedConnections = [bigConn]
 
     const { registerCatalogHandlers } = await import('../../../main/ipc/catalog')
     registerCatalogHandlers()
@@ -47,9 +74,8 @@ describe('Catalog IPC handlers', () => {
   describe(CHANNELS.CATALOG_DATASETS, () => {
     it('returns datasets for a known connection', async () => {
       // Arrange
-      const { listDatasets } = await import('../../../main/db/bigquery')
       const mockDs = [{ id: 'ds1', projectId: 'proj', name: 'ds1' }]
-      ;(listDatasets as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mockDs)
+      bigAdapter.listDatasets.mockResolvedValueOnce(mockDs)
       const handler = handlers.get(CHANNELS.CATALOG_DATASETS)!
 
       // Act
@@ -57,7 +83,22 @@ describe('Catalog IPC handlers', () => {
 
       // Assert
       expect(result).toEqual(mockDs)
-      expect(listDatasets).toHaveBeenCalledWith(conn)
+      expect(bigAdapter.listDatasets).toHaveBeenCalledWith(bigConn)
+    })
+
+    it('dispatches to the Postgres adapter for datasets', async () => {
+      // Arrange
+      storedConnections = [pgConn]
+      const mockDs = [{ id: 'schema1', projectId: 'db', name: 'schema1' }]
+      pgAdapter.listDatasets.mockResolvedValueOnce(mockDs)
+      const handler = handlers.get(CHANNELS.CATALOG_DATASETS)!
+
+      // Act
+      const result = await handler({}, 'conn-pg-1')
+
+      // Assert
+      expect(result).toEqual(mockDs)
+      expect(pgAdapter.listDatasets).toHaveBeenCalledWith(pgConn)
     })
 
     it('throws when the connection id is unknown', async () => {
@@ -72,9 +113,8 @@ describe('Catalog IPC handlers', () => {
   describe(CHANNELS.CATALOG_TABLES, () => {
     it('returns tables for a known connection and dataset', async () => {
       // Arrange
-      const { listTables } = await import('../../../main/db/bigquery')
       const mockTables = [{ id: 'tbl1', datasetId: 'ds1', projectId: 'proj', name: 'tbl1', type: 'TABLE' as const }]
-      ;(listTables as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mockTables)
+      bigAdapter.listTables.mockResolvedValueOnce(mockTables)
       const handler = handlers.get(CHANNELS.CATALOG_TABLES)!
 
       // Act
@@ -82,7 +122,7 @@ describe('Catalog IPC handlers', () => {
 
       // Assert
       expect(result).toEqual(mockTables)
-      expect(listTables).toHaveBeenCalledWith(conn, 'ds1')
+      expect(bigAdapter.listTables).toHaveBeenCalledWith(bigConn, 'ds1')
     })
 
     it('throws when the connection id is unknown', async () => {
@@ -97,9 +137,8 @@ describe('Catalog IPC handlers', () => {
   describe(CHANNELS.CATALOG_TABLE_SCHEMA, () => {
     it('returns schema fields for a known table', async () => {
       // Arrange
-      const { getTableSchema } = await import('../../../main/db/bigquery')
       const mockFields = [{ name: 'id', type: 'INTEGER', mode: 'REQUIRED' as const }]
-      ;(getTableSchema as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mockFields)
+      bigAdapter.getTableSchema.mockResolvedValueOnce(mockFields)
       const handler = handlers.get(CHANNELS.CATALOG_TABLE_SCHEMA)!
 
       // Act
@@ -107,7 +146,7 @@ describe('Catalog IPC handlers', () => {
 
       // Assert
       expect(result).toEqual(mockFields)
-      expect(getTableSchema).toHaveBeenCalledWith(conn, 'ds1', 'tbl1')
+      expect(bigAdapter.getTableSchema).toHaveBeenCalledWith(bigConn, 'ds1', 'tbl1')
     })
 
     it('throws when the connection id is unknown', async () => {

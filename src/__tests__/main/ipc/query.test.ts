@@ -16,21 +16,53 @@ vi.mock('electron', () => ({
   }
 }))
 
-// ── Mock: store ──────────────────────────────────────────────────────────────
-const conn: Connection = {
-  id: 'conn-1', name: 'Test', projectId: 'proj',
-  credentialType: 'adc', createdAt: '2024-01-01T00:00:00Z'
-}
-
-vi.mock('../../../main/db/store', () => ({
-  store: { get: vi.fn(() => [conn]) }
-}))
-
-// ── Mock: bigquery query functions ───────────────────────────────────────────
-vi.mock('../../../main/db/bigquery', () => ({
+// ── Mock: adapter registry (engine dispatch) ────────────────────────────────
+const bigAdapter = {
   runQuery: vi.fn(),
+  getQueryPage: vi.fn(),
   cancelRunningQuery: vi.fn(),
   dryRunQuery: vi.fn()
+}
+
+const pgAdapter = {
+  runQuery: vi.fn(),
+  getQueryPage: vi.fn(),
+  cancelRunningQuery: vi.fn(),
+  dryRunQuery: vi.fn()
+}
+
+vi.mock('../../../main/db/adapterRegistry', () => ({
+  getAdapterForConnection: (connection: Connection) =>
+    connection.engine === 'bigquery' ? bigAdapter : pgAdapter,
+  getAdapterForEngine: (engine: 'bigquery' | 'postgres') =>
+    engine === 'bigquery' ? bigAdapter : pgAdapter
+}))
+
+// ── Mock: store ──────────────────────────────────────────────────────────────
+const bigConn: Connection = {
+  id: 'conn-1',
+  name: 'BigQuery Conn',
+  engine: 'bigquery',
+  projectId: 'proj',
+  credentialType: 'adc',
+  createdAt: '2024-01-01T00:00:00Z'
+}
+
+const pgConn: Connection = {
+  id: 'conn-pg-1',
+  name: 'Postgres Conn',
+  engine: 'postgres',
+  host: 'localhost',
+  port: 5432,
+  database: 'db',
+  user: 'user',
+  password: 'pw',
+  createdAt: '2024-01-01T00:00:00Z'
+}
+
+let storedConnections: Connection[] = [bigConn]
+vi.mock('../../../main/db/store', () => ({
+  store: { get: vi.fn(() => storedConnections) }
 }))
 
 // ── Mock event with sender (webContents) ─────────────────────────────────────
@@ -40,6 +72,7 @@ describe('Query IPC handlers', () => {
   beforeEach(async () => {
     handlers.clear()
     vi.clearAllMocks()
+    storedConnections = [bigConn]
 
     const { registerQueryHandlers } = await import('../../../main/ipc/query')
     registerQueryHandlers()
@@ -49,8 +82,7 @@ describe('Query IPC handlers', () => {
     it('calls runQuery and returns the result', async () => {
       // Arrange
       const mockResult: QueryResult = { columns: ['a'], rows: [{ a: 1 }], rowCount: 1, executionTimeMs: 50 }
-      const { runQuery } = await import('../../../main/db/bigquery')
-      ;(runQuery as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mockResult)
+      bigAdapter.runQuery.mockResolvedValueOnce(mockResult)
       const handler = handlers.get(CHANNELS.QUERY_EXECUTE)!
 
       // Act
@@ -58,7 +90,22 @@ describe('Query IPC handlers', () => {
 
       // Assert
       expect(result).toEqual(mockResult)
-      expect(runQuery).toHaveBeenCalledWith(conn, 'SELECT 1', 'tab-1', mockEvent.sender)
+      expect(bigAdapter.runQuery).toHaveBeenCalledWith(bigConn, 'SELECT 1', 'tab-1', mockEvent.sender)
+    })
+
+    it('dispatches to the Postgres adapter based on connection engine', async () => {
+      // Arrange
+      storedConnections = [pgConn]
+      const mockResult: QueryResult = { columns: ['a'], rows: [{ a: 1 }], rowCount: 1, executionTimeMs: 50 }
+      pgAdapter.runQuery.mockResolvedValueOnce(mockResult)
+      const handler = handlers.get(CHANNELS.QUERY_EXECUTE)!
+
+      // Act
+      const result = await handler(mockEvent, { connectionId: 'conn-pg-1', sql: 'SELECT 1', tabId: 'tab-pg-1' })
+
+      // Assert
+      expect(result).toEqual(mockResult)
+      expect(pgAdapter.runQuery).toHaveBeenCalledWith(pgConn, 'SELECT 1', 'tab-pg-1', mockEvent.sender)
     })
 
     it('throws when the connection id is unknown', async () => {
@@ -75,22 +122,38 @@ describe('Query IPC handlers', () => {
   describe(CHANNELS.QUERY_CANCEL, () => {
     it('delegates to cancelRunningQuery with the tabId', async () => {
       // Arrange
-      const { cancelRunningQuery } = await import('../../../main/db/bigquery')
+      bigAdapter.cancelRunningQuery.mockResolvedValueOnce(undefined)
       const handler = handlers.get(CHANNELS.QUERY_CANCEL)!
 
       // Act
       await handler({}, 'tab-to-cancel')
 
       // Assert
-      expect(cancelRunningQuery).toHaveBeenCalledWith('tab-to-cancel')
+      expect(bigAdapter.cancelRunningQuery).toHaveBeenCalledWith('tab-to-cancel')
+    })
+
+    it('routes QUERY_CANCEL by tabId engine mapping', async () => {
+      // Arrange — execute a Postgres query first to populate tabEngines
+      storedConnections = [pgConn]
+      const mockResult: QueryResult = { columns: ['a'], rows: [{ a: 1 }], rowCount: 1, executionTimeMs: 50 }
+      pgAdapter.runQuery.mockResolvedValueOnce(mockResult)
+      const execHandler = handlers.get(CHANNELS.QUERY_EXECUTE)!
+      const cancelHandler = handlers.get(CHANNELS.QUERY_CANCEL)!
+
+      // Act
+      await execHandler(mockEvent, { connectionId: 'conn-pg-1', sql: 'SELECT 1', tabId: 'tab-pg-cancel' })
+      pgAdapter.cancelRunningQuery.mockResolvedValueOnce(undefined)
+      await cancelHandler({}, 'tab-pg-cancel')
+
+      // Assert
+      expect(pgAdapter.cancelRunningQuery).toHaveBeenCalledWith('tab-pg-cancel')
     })
   })
 
   describe(CHANNELS.QUERY_DRY_RUN, () => {
     it('calls dryRunQuery and returns the estimate', async () => {
       // Arrange
-      const { dryRunQuery } = await import('../../../main/db/bigquery')
-      ;(dryRunQuery as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ bytesProcessed: 2048 })
+      bigAdapter.dryRunQuery.mockResolvedValueOnce({ bytesProcessed: 2048 })
       const handler = handlers.get(CHANNELS.QUERY_DRY_RUN)!
 
       // Act
@@ -98,7 +161,21 @@ describe('Query IPC handlers', () => {
 
       // Assert
       expect(result).toEqual({ bytesProcessed: 2048 })
-      expect(dryRunQuery).toHaveBeenCalledWith(conn, 'SELECT *')
+      expect(bigAdapter.dryRunQuery).toHaveBeenCalledWith(bigConn, 'SELECT *')
+    })
+
+    it('dispatches to the Postgres adapter for dry-run by connection engine', async () => {
+      // Arrange
+      storedConnections = [pgConn]
+      pgAdapter.dryRunQuery.mockResolvedValueOnce({ bytesProcessed: 0 })
+      const handler = handlers.get(CHANNELS.QUERY_DRY_RUN)!
+
+      // Act
+      const result = await handler({}, { connectionId: 'conn-pg-1', sql: 'SELECT *' })
+
+      // Assert
+      expect(result).toEqual({ bytesProcessed: 0 })
+      expect(pgAdapter.dryRunQuery).toHaveBeenCalledWith(pgConn, 'SELECT *')
     })
 
     it('throws when the connection id is unknown', async () => {

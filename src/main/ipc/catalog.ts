@@ -1,13 +1,13 @@
 import { ipcMain } from 'electron'
 import { CHANNELS } from '../../shared/ipc'
 import { store } from '../db/store'
-import { listDatasets, listTables, getTableSchema } from '../db/bigquery'
+import { getAdapterForConnection } from '../db/adapterRegistry'
 
 export function registerCatalogHandlers(): void {
   ipcMain.handle(CHANNELS.CATALOG_DATASETS, async (_event, connectionId: string) => {
     const conn = store.get('connections').find((c) => c.id === connectionId)
     if (!conn) throw new Error(`Connection not found: ${connectionId}`)
-    return listDatasets(conn)
+    return getAdapterForConnection(conn).listDatasets(conn)
   })
 
   ipcMain.handle(
@@ -15,7 +15,7 @@ export function registerCatalogHandlers(): void {
     async (_event, req: { connectionId: string; datasetId: string }) => {
       const conn = store.get('connections').find((c) => c.id === req.connectionId)
       if (!conn) throw new Error(`Connection not found: ${req.connectionId}`)
-      return listTables(conn, req.datasetId)
+      return getAdapterForConnection(conn).listTables(conn, req.datasetId)
     }
   )
 
@@ -27,7 +27,7 @@ export function registerCatalogHandlers(): void {
     ) => {
       const conn = store.get('connections').find((c) => c.id === req.connectionId)
       if (!conn) throw new Error(`Connection not found: ${req.connectionId}`)
-      return getTableSchema(conn, req.datasetId, req.tableId)
+      return getAdapterForConnection(conn).getTableSchema(conn, req.datasetId, req.tableId)
     }
   )
 }

@@ -1,4 +1,4 @@
-import type { Connection, Dataset, Table, TableField, QueryResult, SavedQuery, Folder } from './types'
+import type { Connection, ConnectionCreate, Dataset, Table, TableField, QueryResult, SavedQuery, Folder } from './types'
 
 export const CHANNELS = {
   // Connections
@@ -34,7 +34,7 @@ export type Channel = (typeof CHANNELS)[keyof typeof CHANNELS]
 
 export interface IpcMap {
   [CHANNELS.CONNECTIONS_LIST]: { req: undefined; res: Connection[] }
-  [CHANNELS.CONNECTIONS_ADD]: { req: Omit<Connection, 'id' | 'createdAt'>; res: Connection }
+  [CHANNELS.CONNECTIONS_ADD]: { req: ConnectionCreate; res: Connection }
   [CHANNELS.CONNECTIONS_UPDATE]: { req: Connection; res: Connection }
   [CHANNELS.CONNECTIONS_DELETE]: { req: string; res: void }
   [CHANNELS.CONNECTIONS_TEST]: { req: string; res: { ok: boolean; error?: string } }

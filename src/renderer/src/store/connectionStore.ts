@@ -1,13 +1,13 @@
 import { create } from 'zustand'
 import { CHANNELS } from '@shared/ipc'
-import type { Connection } from '@shared/types'
+import type { Connection, ConnectionCreate } from '@shared/types'
 
 interface ConnectionState {
   connections: Connection[]
   activeConnectionId: string | null
   isLoading: boolean
   load: () => Promise<void>
-  add: (conn: Omit<Connection, 'id' | 'createdAt'>) => Promise<Connection>
+  add: (conn: ConnectionCreate) => Promise<Connection>
   update: (conn: Connection) => Promise<void>
   remove: (id: string) => Promise<void>
   setActive: (id: string) => void

@@ -73,18 +73,23 @@ describe('queryStore', () => {
   describe('openTableTab', () => {
     it('creates a table-type tab with the correct tableRef', () => {
       // Act
-      useQueryStore.getState().openTableTab('c1', 'proj', 'ds1', 'tbl1', 'My Table')
+      useQueryStore.getState().openTableTab('c1', 'bigquery', 'proj', 'ds1', 'tbl1', 'My Table')
 
       // Assert
       const tab = useQueryStore.getState().tabs[0]
       expect(tab.type).toBe('table')
       expect(tab.title).toBe('My Table')
-      expect(tab.tableRef).toEqual({ projectId: 'proj', datasetId: 'ds1', tableId: 'tbl1' })
+      expect(tab.tableRef).toEqual({
+        engine: 'bigquery',
+        projectId: 'proj',
+        datasetId: 'ds1',
+        tableId: 'tbl1'
+      })
     })
 
     it('focuses the existing tab instead of opening a duplicate', () => {
       // Arrange — open table tab once
-      useQueryStore.getState().openTableTab('c1', 'proj', 'ds1', 'tbl1', 'My Table')
+      useQueryStore.getState().openTableTab('c1', 'bigquery', 'proj', 'ds1', 'tbl1', 'My Table')
       const firstId = useQueryStore.getState().activeTabId
 
       // Open another query tab to shift focus
@@ -92,7 +97,7 @@ describe('queryStore', () => {
       expect(useQueryStore.getState().activeTabId).not.toBe(firstId)
 
       // Act — open same table tab again
-      useQueryStore.getState().openTableTab('c1', 'proj', 'ds1', 'tbl1', 'My Table')
+      useQueryStore.getState().openTableTab('c1', 'bigquery', 'proj', 'ds1', 'tbl1', 'My Table')
 
       // Assert — exactly one table tab, focus moved back to it
       const { tabs, activeTabId } = useQueryStore.getState()
