@@ -4,6 +4,7 @@ import { CHANNELS } from '../../shared/ipc'
 import type { Connection } from '../../shared/types'
 import { store } from '../db/store'
 import { testConnection, invalidateClient } from '../db/bigquery'
+import { runQuery } from '../db/postgres'
 
 export function registerConnectionHandlers(): void {
   ipcMain.handle(CHANNELS.CONNECTIONS_LIST, async () => {

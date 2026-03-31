@@ -7,6 +7,16 @@ export interface Connection {
   createdAt: string
 }
 
+export interface PostgresConnection {
+  id: string
+  name: string
+  host: string
+  port: number
+  database: string
+  user: string
+  password: string
+}
+
 export interface Dataset {
   id: string
   projectId: string

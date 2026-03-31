@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { CHANNELS } from '../../shared/ipc'
 import { store } from '../db/store'
 import { listDatasets, listTables, getTableSchema } from '../db/bigquery'
+import { listDatasets as listPostgresDatasets } from '../db/postgres'
 
 export function registerCatalogHandlers(): void {
   ipcMain.handle(CHANNELS.CATALOG_DATASETS, async (_event, connectionId: string) => {
