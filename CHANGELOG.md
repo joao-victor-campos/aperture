@@ -6,7 +6,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [1.0.0] - 2026-03-30
+
+### Added
+- **PostgreSQL connections** — save and connect to Postgres alongside BigQuery. New connection flow (`PostgresConnectionModal`) for host, port, database, and credentials. Catalog browsing treats schemas as datasets; table inspection and SQL queries use the same editor and results UI as BigQuery.
+- **Postgres query execution** — `pg` driver with connection pooling, 180s timeout, live heartbeat logs, cancel via backend PID, and paginated results (100 rows per page) consistent with BigQuery behavior.
+
+### Changed
+- **Multi-engine IPC** — main process uses an adapter registry (`adapterRegistry`) so catalog, query, and connection handlers dispatch to BigQuery or Postgres based on the active connection’s engine. Shared types and tests cover both connection kinds.
 
 ---
 
