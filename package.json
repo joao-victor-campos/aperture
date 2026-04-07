@@ -1,6 +1,6 @@
 {
   "name": "aperture",
-  "version": "0.8.0",
+  "version": "1.0.0",
   "description": "A modern, friendly UI tool for querying BigQuery",
   "main": "out/main/index.js",
   "scripts": {
