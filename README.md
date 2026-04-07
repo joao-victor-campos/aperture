@@ -1,5 +1,7 @@
 # Aperture
 
+![image](asset/screenshot.png)
+
 > A modern, friendly desktop app for querying BigQuery — navigate your catalog, write SQL, and organise saved queries. macOS-native, keyboard-first.
 
 ---

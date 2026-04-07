@@ -149,6 +149,21 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-04-06] Decision: MIT open-source license
+
+**Type:** Decision
+**Context:** The repository had no `LICENSE` file or SPDX license in `package.json`, so the project was not clearly classified as open source for GitHub, npm, or downstream packagers.
+**Problem / Change:** Add standard permissive licensing and wire it into package metadata and the macOS app copyright string.
+**Solution / Outcome:**
+- **`LICENSE`**: MIT License text (OSI-approved, SPDX identifier `MIT`).
+- **`package.json`**: `"license": "MIT"`.
+- **`electron-builder.yml`**: `copyright` set so packaged `.app` / DMG metadata matches.
+
+**Files affected:**
+- `LICENSE` — created
+- `package.json` — added `license`
+- `electron-builder.yml` — `copyright`
+
 ### [2026-03-17] Error: macOS dock shows Electron icon and "Electron" name in dev mode
 
 **Type:** Error
