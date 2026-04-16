@@ -8,13 +8,9 @@ default:
 
 # ── Dependencies ──────────────────────────────────────────────────────────────
 
-# Install npm dependencies and rebuild native modules for Electron
+# Install npm dependencies
 install:
     npm ci
-
-# Rebuild native modules for the current Electron version (run after Electron upgrades)
-rebuild:
-    npm run rebuild
 
 # ── Development ───────────────────────────────────────────────────────────────
 

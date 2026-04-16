@@ -11,7 +11,7 @@ Aperture makes database access intuitive: connect to BigQuery, navigate the cata
 | Layer | Technology |
 |---|---|
 | Frontend | [Electron](https://www.electronjs.org/) (macOS-first, responsive) |
-| Query engine | [DuckDB](https://duckdb.org/) with BigQuery extension |
+| Query engine | Native SDK adapters — `@google-cloud/bigquery`, `pg`, `snowflake-sdk` |
 | BigQuery auth | Google Application Default Credentials (ADC) / Service Account |
 | Containerization | Docker (for development and packaging) |
 | Language | TypeScript (main + renderer processes) |
@@ -27,7 +27,7 @@ aperture/
 │   ├── main/          # Electron main process (Node.js)
 │   │   ├── index.ts   # App entry, window management
 │   │   ├── ipc/       # IPC handlers (query, catalog, connections)
-│   │   └── db/        # DuckDB bridge, BigQuery connector
+│   │   └── db/        # DB adapters (BigQuery, Postgres, Snowflake) + adapter registry
 │   ├── renderer/      # React UI (runs in Electron renderer)
 │   │   ├── components/
 │   │   ├── pages/
@@ -55,7 +55,7 @@ aperture/
 ### General
 - Keep the UI clean and minimal — prioritize clarity over feature density
 - macOS-first: follow macOS HIG conventions (keyboard shortcuts, native menus, window chrome)
-- All database work happens in the **main process** via IPC; the renderer never touches DuckDB directly
+- All database work happens in the **main process** via IPC; the renderer never calls database adapters directly
 - Use TypeScript strict mode everywhere
 - Prefer explicit types over `any`
 - **All changes must be made on a branch** — never commit directly to `main` (`just branch feat/…`)
@@ -64,12 +64,12 @@ aperture/
 ### IPC Pattern
 - All renderer → main communication goes through typed IPC channels defined in `src/shared/ipc.ts`
 - Main process handlers live in `src/main/ipc/`
-- Always validate input in main process handlers before touching DuckDB
+- Always validate input in main process handlers
 
-### DuckDB / BigQuery
-- Use the `duckdb` npm package with the `httpfs` and `bigquery` extensions
-- Authenticate via Google ADC or a service account JSON path stored in the app's secure config
-- Run queries in a worker thread to keep the main process responsive
+### DB Adapters
+- Each engine (`bigquery`, `postgres`, `snowflake`) has a dedicated adapter in `src/main/db/`
+- All adapters implement the `DbAdapter<TConnection>` interface from `src/main/db/adapterRegistry.ts`
+- Dispatch always goes through `getAdapterForConnection(conn)` — never reference an engine adapter directly
 
 ### State Management
 - Use Zustand for global UI state (active connection, open tabs, catalog tree)
@@ -88,10 +88,9 @@ aperture/
 ### Testing
 - Unit tests: Vitest
 - E2E tests: Playwright (Electron mode)
-- All DuckDB/IPC logic must have unit tests before merging
+- All IPC/adapter logic must have unit tests before merging
 - **All tests must pass before merging a PR — never ship with a broken test suite**
-- The `pretest`/`posttest` npm hooks automatically swap the DuckDB native binary to the system-Node ABI before running tests and restore the Electron ABI binary afterwards. Both `npm test` and `just dev` work after a `just install` without any manual binary management.
-- If `duckdb.test.ts` fails with a `dlopen` / architecture error locally, run `just rebuild` to restore the Electron binary, then re-run `npm test` (pretest will fix the swap automatically). If the system-Node binary (`duckdb-system.node`) was deleted, re-run `just install` to regenerate both binaries.
+- Coverage threshold: 70% lines/functions/branches/statements enforced by `vitest run --coverage`
 
 ## Commands
 
@@ -225,25 +224,6 @@ The project already had `resources/icon.svg` (camera aperture logo) used only as
 
 ---
 
-### [2026-03-17] Error: DuckDB Electron binary repeatedly reverts to x86_64 after tests
-
-**Type:** Error
-**Context:** Running `just dev` after `npm test` always failed with the `dlopen … incompatible architecture (have 'x86_64', need 'arm64')` error, even though the binary had been correctly set to arm64 before the test run.
-**Problem / Change:**
-Two compounding bugs in the binary-management scripts:
-1. `pretest.js` backed up `duckdb.node` (whatever it was at the time) as `duckdb-electron.node` before swapping to the system binary. If something had already replaced `duckdb.node` with an x86_64 binary (e.g. DuckDB's own `node-pre-gyp install` ran under Rosetta), `duckdb-electron.node` became a corrupt x86_64 backup.
-2. `posttest.js` then dutifully restored the corrupt x86_64 `duckdb-electron.node` → `duckdb.node`, locking in the bad state permanently.
-**Solution / Outcome:**
-- **`scripts/postinstall.js`**: immediately after downloading the correct arm64 Electron binary via `curl`, save it as `duckdb-electron.node` as well. This creates a pristine, arch-verified backup that cannot be overwritten by `pretest.js`.
-- **`scripts/pretest.js`**: changed to only write `duckdb-electron.node` when it does not already exist (`if (!existsSync(electronBin))`), preserving the pristine backup from `postinstall`.
-- Net result: `duckdb-electron.node` is written once at install time from a known-good download, and is never overwritten by test lifecycle scripts.
-
-**Files affected:**
-- `scripts/postinstall.js` — save electron binary immediately after curl
-- `scripts/pretest.js` — guard: only back up if pristine copy absent
-
----
-
 ### [2026-03-17] Feature: Server-side pagination for BigQuery query results
 
 **Type:** Change
@@ -275,7 +255,7 @@ Two compounding bugs in the binary-management scripts:
 **Type:** Error
 **Context:** A user downloaded the DMG from a GitHub Release and got "Aperture is damaged and can't be opened." on macOS 13+ (Ventura/Sonoma).
 **Problem / Change:**
-macOS Gatekeeper requires apps distributed outside the App Store to be both (a) **code-signed** with a Developer ID Application certificate and (b) **notarized** (submitted to Apple's scan service). The release workflow handled signing conditionally but had no notarization step. On macOS 13+, notarization is effectively mandatory — even a signed but un-notarized app triggers the "damaged" error when downloaded via a browser (the OS applies a quarantine extended attribute automatically). Additionally, `hardenedRuntime` and entitlements were missing from `electron-builder.yml`; hardened runtime is a prerequisite for notarization, and the three entitlements (`allow-jit`, `allow-unsigned-executable-memory`, `disable-library-validation`) are required for Electron's V8 JIT and for loading unsigned native modules such as `duckdb.node`.
+macOS Gatekeeper requires apps distributed outside the App Store to be both (a) **code-signed** with a Developer ID Application certificate and (b) **notarized** (submitted to Apple's scan service). The release workflow handled signing conditionally but had no notarization step. On macOS 13+, notarization is effectively mandatory — even a signed but un-notarized app triggers the "damaged" error when downloaded via a browser (the OS applies a quarantine extended attribute automatically). Additionally, `hardenedRuntime` and entitlements were missing from `electron-builder.yml`; hardened runtime is a prerequisite for notarization, and the three entitlements (`allow-jit`, `allow-unsigned-executable-memory`, `disable-library-validation`) are required for Electron's V8 JIT and for loading unsigned native modules.
 **Solution / Outcome:**
 - **`scripts/notarize.js`** (new): electron-builder `afterSign` hook. Uses `@electron/notarize` to submit the signed `.app` to Apple via `xcrun notarytool`. Skips silently if `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID` are not set, so unsigned local builds keep working.
 - **`resources/entitlements.mac.plist`** (new): three entitlements required for Electron + notarization.
@@ -290,32 +270,6 @@ macOS Gatekeeper requires apps distributed outside the App Store to be both (a) 
 - `electron-builder.yml` — hardenedRuntime, entitlements, afterSign
 - `.github/workflows/release.yml` — notarization env vars, improved comments
 - `package.json` — added `@electron/notarize`
-
-### [2026-03-10] Error: DuckDB native binary architecture and ABI mismatch — tests and app both failing
-
-**Type:** Error
-**Context:** Running `npm test` and `just dev` after a fresh install on Apple Silicon (arm64). Both failed with `dlopen … incompatible architecture (have 'x86_64', need 'arm64')`.
-**Problem / Change:**
-Two distinct problems compounded each other:
-1. **Wrong architecture**: The `duckdb.node` binary in `node_modules` was `x86_64`, likely installed at some point via a Rosetta terminal. Both Electron (arm64) and the system Node (arm64) need an arm64 binary, so both the app and tests crashed at load time.
-2. **ABI version mismatch**: Even with the correct architecture, Electron 33 embeds Node 20 (ABI 115) while the developer's system Node is 22 (ABI 127). They require different pre-built binaries. Previously, `electron-rebuild` replaced the system-Node binary with the Electron binary, which meant tests always failed after a `just install`.
-
-**Solution / Outcome:**
-- **Binary management scripts** added in `scripts/`:
-  - `scripts/postinstall.js` — runs after `npm install`. Saves the freshly downloaded system-Node binary (`duckdb.node`) as `duckdb-system.node`, then runs `electron-rebuild` to install the Electron-ABI binary as `duckdb.node`. Both binaries are now available. Skipped in CI (`process.env.CI`).
-  - `scripts/pretest.js` — runs before every `npm test` (via `pretest` lifecycle hook). If `duckdb-system.node` exists, backs up the current binary as `duckdb-electron.node` then copies `duckdb-system.node` → `duckdb.node` so Vitest can load it. No-op in CI.
-  - `scripts/posttest.js` — runs after every `npm test`. Restores `duckdb-electron.node` → `duckdb.node` so `just dev` continues to work without a manual rebuild.
-- **`package.json`** updated: `postinstall` → `node scripts/postinstall.js`; added `pretest` and `posttest` lifecycle hooks.
-- **Immediate fix**: Deleted the bad x86_64 binary, downloaded the correct arm64 system-Node binary via `node-pre-gyp` directly, saved it as `duckdb-system.node`, then ran `npm run rebuild` to install the Electron binary.
-- **CLAUDE.md Testing guideline** updated: "All tests must pass before merging a PR"; documented the binary management behaviour and recovery steps.
-- Result: **85/85 tests pass**; `just dev` loads the app correctly; no manual binary management required.
-
-**Files affected:**
-- `scripts/postinstall.js` — created
-- `scripts/pretest.js` — created
-- `scripts/posttest.js` — created
-- `package.json` — updated `postinstall`, added `pretest` and `posttest` scripts
-- `CLAUDE.md` — updated Testing guideline + this log entry
 
 ### [2026-03-10] Feature: Search bar, design token theme system, and camera aperture logo
 
