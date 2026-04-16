@@ -40,6 +40,9 @@ export default function TableDetailPanel({
   const previewRef =
     engine === 'bigquery'
       ? `\`${projectId}.${datasetId}.${tableId}\``
+      : engine === 'snowflake'
+      // datasetId is "DATABASE.SCHEMA" — split so each part is quoted individually
+      ? [...datasetId.split('.'), tableId].map(quoteIdent).join('.')
       : `${quoteIdent(datasetId)}.${quoteIdent(tableId)}`
 
   useEffect(() => {
