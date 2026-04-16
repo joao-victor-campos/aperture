@@ -26,7 +26,7 @@ export function registerConnectionHandlers(): void {
 
   ipcMain.handle(CHANNELS.CONNECTIONS_UPDATE, async (_event, req: Connection) => {
     const connections = store.get('connections')
-    getAdapterForEngine(req.engine).invalidateClient(req.id)
+    getAdapterForEngine(req.engine ?? 'bigquery').invalidateClient(req.id)
     store.set(
       'connections',
       connections.map((c) => (c.id === req.id ? req : c))
@@ -37,7 +37,7 @@ export function registerConnectionHandlers(): void {
   ipcMain.handle(CHANNELS.CONNECTIONS_DELETE, async (_event, id: string) => {
     const connections = store.get('connections')
     const conn = connections.find((c) => c.id === id)
-    if (conn) getAdapterForEngine(conn.engine).invalidateClient(id)
+    if (conn) getAdapterForEngine(conn.engine ?? 'bigquery').invalidateClient(id)
     store.set(
       'connections',
       connections.filter((c) => c.id !== id)

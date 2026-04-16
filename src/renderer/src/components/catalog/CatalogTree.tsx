@@ -43,7 +43,9 @@ export default function CatalogTree({ onAddConnection }: CatalogTreeProps) {
   const projectContextId = activeConn
     ? activeConn.engine === 'bigquery'
       ? activeConn.projectId
-      : activeConn.database
+      : activeConn.engine === 'snowflake'
+      ? activeConn.account
+      : activeConn.database ?? ''
     : ''
   const isLoadingDatasets = !!isLoading[activeConnectionId]
   const datasets = datasetsByConnection[activeConnectionId] ?? []
