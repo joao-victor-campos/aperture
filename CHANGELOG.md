@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
+## [1.1.0] - 2026-04-16
+
+### Added
+- Snowflake connections — support for listing schemas/tables and fetching table schemas in the catalog browser.
+- Snowflake query execution — adapter wiring with live query logs, server-side pagination, and cancel support consistent with the existing engines.
+- Snowflake UI integration — a dedicated Snowflake connection modal wired into the app flow.
+
+### Changed
+- Adapter registry now dispatches by `connection.engine` (engine-agnostic lookup), and new Snowflake tests were added to cover the adapter wiring.
+
 
 ## [1.0.0] - 2026-03-30
 
