@@ -73,15 +73,22 @@ export default function ResultsTable({
           <span className="w-1.5 h-1.5 rounded-full bg-app-accent animate-pulse" />
           <span className="text-xs text-app-text-2">Running…</span>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 font-mono text-xs space-y-0.5 selectable">
-          {logs.length === 0 && (
-            <span className="text-app-text-3 animate-pulse">Connecting to BigQuery…</span>
-          )}
-          {logs.map((line, i) => (
-            <div key={i} className={i === logs.length - 1 ? 'text-app-text' : 'text-app-text-3'}>
-              {line}
+        <div className="flex-1 overflow-y-auto p-4 font-mono text-xs selectable">
+          {logs.length === 0 ? (
+            <span className="text-app-text-3 animate-pulse">Connecting…</span>
+          ) : (
+            <div className="space-y-1">
+              {logs.map((line, i) => (
+                <div
+                  key={i}
+                  className={`flex items-start gap-2 ${i === logs.length - 1 ? 'text-app-text' : 'text-app-text-3'}`}
+                >
+                  <span className="shrink-0 mt-px text-app-text-3/50">›</span>
+                  <span>{line}</span>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
           <div ref={logEndRef} />
         </div>
       </div>
@@ -92,10 +99,15 @@ export default function ResultsTable({
     return (
       <div className="flex flex-col h-full">
         {logs.length > 0 && (
-          <div className="flex-1 overflow-y-auto p-4 font-mono text-xs space-y-0.5 selectable">
-            {logs.map((line, i) => (
-              <div key={i} className="text-app-text-3">{line}</div>
-            ))}
+          <div className="flex-1 overflow-y-auto p-4 font-mono text-xs selectable">
+            <div className="space-y-1">
+              {logs.map((line, i) => (
+                <div key={i} className="flex items-start gap-2 text-app-text-3">
+                  <span className="shrink-0 mt-px text-app-text-3/50">›</span>
+                  <span>{line}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
         <div className="flex items-center justify-center py-6 text-app-text-3 text-xs border-t border-app-border">
@@ -109,10 +121,15 @@ export default function ResultsTable({
     return (
       <div className="flex flex-col h-full">
         {logs.length > 0 && (
-          <div className="overflow-y-auto max-h-24 p-3 font-mono text-xs space-y-0.5 border-b border-app-border selectable">
-            {logs.map((line, i) => (
-              <div key={i} className="text-app-text-3">{line}</div>
-            ))}
+          <div className="overflow-y-auto max-h-32 p-3 font-mono text-xs border-b border-app-border selectable">
+            <div className="space-y-1">
+              {logs.map((line, i) => (
+                <div key={i} className="flex items-start gap-2 text-app-text-3">
+                  <span className="shrink-0 mt-px text-app-text-3/50">›</span>
+                  <span>{line}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
         <div className="p-4">

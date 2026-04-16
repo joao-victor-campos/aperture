@@ -6,6 +6,9 @@ export default defineConfig({
     globals: true,
     clearMocks: true, // auto-clear mock call history between tests (keeps implementations)
 
+    // Exclude git worktrees — they live inside the repo but should not be tested here
+    exclude: ['node_modules/**', '.claude/worktrees/**'],
+
     // jsdom for renderer tests (window / DOM APIs); node is the default for everything else
     environmentMatchGlobs: [['src/__tests__/renderer/**', 'jsdom']],
 

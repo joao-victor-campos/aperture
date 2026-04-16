@@ -1,4 +1,4 @@
-export type ConnectionEngine = 'bigquery' | 'postgres'
+export type ConnectionEngine = 'bigquery' | 'postgres' | 'snowflake'
 
 interface ConnectionBase {
   id: string
@@ -23,11 +23,28 @@ export interface PostgresConnection extends ConnectionBase {
   password: string
 }
 
-export type Connection = BigQueryConnection | PostgresConnection
+export interface SnowflakeConnection extends ConnectionBase {
+  engine: 'snowflake'
+  /** Account identifier, e.g. "xy12345.us-east-1" or "orgname-accountname" */
+  account: string
+  username: string
+  password: string
+  /** Warehouse to use for compute, e.g. "COMPUTE_WH" */
+  warehouse: string
+  /** Optional default database to scope the catalog browser */
+  database?: string
+  /** Optional default schema */
+  schema?: string
+  /** Optional role override */
+  role?: string
+}
+
+export type Connection = BigQueryConnection | PostgresConnection | SnowflakeConnection
 
 export type ConnectionCreate =
   | Omit<BigQueryConnection, 'id' | 'createdAt'>
   | Omit<PostgresConnection, 'id' | 'createdAt'>
+  | Omit<SnowflakeConnection, 'id' | 'createdAt'>
 
 export interface Dataset {
   id: string

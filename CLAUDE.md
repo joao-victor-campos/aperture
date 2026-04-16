@@ -149,6 +149,30 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-04-15] Feature: Snowflake database connector
+
+**Type:** Change
+**Context:** The app supported BigQuery and Postgres. Snowflake was not wired up. The spec required a fully functional adapter mirroring the BigQuery pattern, including live query logging, cancellation, server-side pagination, and a redesigned connection modal that supports all three engines.
+**Problem / Change:**
+- No `SnowflakeConnection` type existed in shared types.
+- No Snowflake adapter existed; the adapter registry only handled `bigquery` and `postgres`.
+- `ConnectionModal` was BigQuery-only with no engine selector.
+- `getAdapterForConnection` had a hardcoded ternary instead of using the registry.
+
+**Solution / Outcome:**
+- **`src/shared/types.ts`**: Added `SnowflakeConnection` interface (account, username, password, warehouse, optional database/schema/role). Added `'snowflake'` to `ConnectionEngine` union. Added `SnowflakeConnection` to `Connection` and `ConnectionCreate` unions.
+- **`src/main/db/snowflake.ts`** (new): Full adapter implementing `testConnection`, `listDatasets` (`SHOW SCHEMAS IN ACCOUNT` or scoped to `connection.database`; IDs = `DATABASE.SCHEMA`), `listTables` (`SHOW TABLES + SHOW VIEWS IN SCHEMA`), `getTableSchema` (`DESCRIBE TABLE`), `runQuery` (with `streamResult: true`, heartbeat, 180s timeout, statement stored for cancellation and pagination), `getQueryPage` (uses `stmt.streamRows({ start, end })` with numeric offset page tokens), `cancelRunningQuery` (`stmt.cancel()`), `dryRunQuery` (`EXPLAIN`), `invalidateClient` (`conn.destroy()`). Uppercase/lowercase Snowflake column names normalized via `pick()` helper. `Date` and `BigInt` values serialized for IPC.
+- **`src/main/db/adapterRegistry.ts`**: Imported all Snowflake functions, registered `snowflakeAdapter`, updated `registry` to include `snowflake`, changed `getAdapterForConnection` to use `registry[connection.engine]` (engine-agnostic lookup).
+- **`src/renderer/src/components/connections/ConnectionModal.tsx`**: Refactored from a BigQuery-only form to a multi-engine modal. Added an engine selector row (BigQuery / Snowflake / PostgreSQL). Each engine renders its own sub-form component (`BigQueryForm`, `SnowflakeForm`, `PostgresForm`). Validation and payload construction are engine-specific. Switching engine resets field state.
+- **`package.json`**: Added `snowflake-sdk` as a production dependency.
+
+**Files affected:**
+- `src/shared/types.ts` — `SnowflakeConnection`, `ConnectionEngine`, `Connection`, `ConnectionCreate`
+- `src/main/db/snowflake.ts` — created
+- `src/main/db/adapterRegistry.ts` — Snowflake imports, registration, registry lookup fix
+- `src/renderer/src/components/connections/ConnectionModal.tsx` — multi-engine refactor
+- `package.json` — added `snowflake-sdk`
+
 ### [2026-04-06] Decision: MIT open-source license
 
 **Type:** Decision

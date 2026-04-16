@@ -4,10 +4,11 @@ import Sidebar from './components/layout/Sidebar'
 import Editor from './pages/Editor'
 import ConnectionModal from './components/connections/ConnectionModal'
 import PostgresConnectionModal from './components/connections/PostgresConnectionModal'
+import SnowflakeConnectionModal from './components/connections/SnowflakeConnectionModal'
 import { useConnectionStore } from './store/connectionStore'
 
 export default function App() {
-  const [connectionModal, setConnectionModal] = useState<null | 'chooser' | 'bigquery' | 'postgres'>(null)
+  const [connectionModal, setConnectionModal] = useState<null | 'chooser' | 'bigquery' | 'postgres' | 'snowflake'>(null)
   const { connections, load } = useConnectionStore()
 
   // Theme — persisted in localStorage; dark is the default
@@ -56,6 +57,9 @@ export default function App() {
       {connectionModal === 'postgres' && (
         <PostgresConnectionModal onClose={() => setConnectionModal(null)} />
       )}
+      {connectionModal === 'snowflake' && (
+        <SnowflakeConnectionModal onClose={() => setConnectionModal(null)} />
+      )}
     </div>
   )
 }
@@ -65,7 +69,7 @@ function ConnectionTypeChooserModal({
   onChoose
 }: {
   onClose: () => void
-  onChoose: (engine: 'bigquery' | 'postgres') => void
+  onChoose: (engine: 'bigquery' | 'postgres' | 'snowflake') => void
 }) {
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
@@ -88,6 +92,14 @@ function ConnectionTypeChooserModal({
           >
             <div className="font-medium text-app-text">BigQuery</div>
             <div className="text-[10px] text-app-text-3 mt-1">Projects, datasets, tables</div>
+          </button>
+
+          <button
+            onClick={() => onChoose('snowflake')}
+            className="text-left text-xs px-4 py-3 rounded-lg border border-app-border hover:bg-app-elevated/40 transition-colors"
+          >
+            <div className="font-medium text-app-text">Snowflake</div>
+            <div className="text-[10px] text-app-text-3 mt-1">Account, warehouse, schemas</div>
           </button>
 
           <button

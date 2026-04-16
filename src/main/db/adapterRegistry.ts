@@ -5,6 +5,7 @@ import type {
   ConnectionEngine,
   Dataset,
   PostgresConnection,
+  SnowflakeConnection,
   QueryResult,
   Table,
   TableField
@@ -33,6 +34,18 @@ import {
   dryRunQuery as dryRunPostgres,
   invalidateClient as invalidatePostgres
 } from './postgres'
+
+import {
+  testConnection as testSnowflake,
+  listDatasets as listSnowflakeDatasets,
+  listTables as listSnowflakeTables,
+  getTableSchema as getSnowflakeTableSchema,
+  runQuery as runSnowflakeQuery,
+  getQueryPage as getSnowflakePage,
+  cancelRunningQuery as cancelSnowflake,
+  dryRunQuery as dryRunSnowflake,
+  invalidateClient as invalidateSnowflake
+} from './snowflake'
 
 export interface DbAdapter<TConnection extends Connection> {
   testConnection(connection: TConnection): Promise<{ ok: boolean; error?: string }>
@@ -78,9 +91,22 @@ const postgresAdapter: DbAdapter<PostgresConnection> = {
   invalidateClient: invalidatePostgres
 }
 
+const snowflakeAdapter: DbAdapter<SnowflakeConnection> = {
+  testConnection: testSnowflake,
+  listDatasets: listSnowflakeDatasets,
+  listTables: listSnowflakeTables,
+  getTableSchema: getSnowflakeTableSchema,
+  runQuery: runSnowflakeQuery,
+  getQueryPage: getSnowflakePage,
+  cancelRunningQuery: cancelSnowflake,
+  dryRunQuery: dryRunSnowflake,
+  invalidateClient: invalidateSnowflake
+}
+
 const registry: Record<ConnectionEngine, DbAdapter<Connection>> = {
   bigquery: bigQueryAdapter as DbAdapter<Connection>,
-  postgres: postgresAdapter as DbAdapter<Connection>
+  postgres: postgresAdapter as DbAdapter<Connection>,
+  snowflake: snowflakeAdapter as DbAdapter<Connection>
 }
 
 export function getAdapterForEngine(engine: ConnectionEngine): DbAdapter<Connection> {
@@ -88,6 +114,7 @@ export function getAdapterForEngine(engine: ConnectionEngine): DbAdapter<Connect
 }
 
 export function getAdapterForConnection(connection: Connection): DbAdapter<Connection> {
-  return connection.engine === 'bigquery' ? getAdapterForEngine('bigquery') : getAdapterForEngine('postgres')
+  // Connections saved before the engine field was added default to BigQuery
+  return registry[connection.engine ?? 'bigquery']
 }
 
