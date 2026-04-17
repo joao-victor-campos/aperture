@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
+## [1.2.0] - 2026-04-17
+
+### Removed
+- **DuckDB dependency** — DuckDB was included in the original scaffold as a planned query engine but was never wired into any IPC handler or adapter. All query execution already went through the native SDK adapters (`@google-cloud/bigquery`, `pg`, `snowflake-sdk`). Removed the `duckdb` npm package, `@electron/rebuild` devDependency, the three binary-management scripts (`scripts/postinstall.js`, `scripts/pretest.js`, `scripts/posttest.js`), the `rebuild`/`postinstall`/`pretest`/`posttest` npm lifecycle hooks, and the `just rebuild` recipe. `npm install` no longer triggers `electron-rebuild` and tests run without any binary-swapping ceremony.
+
+---
 ## [1.1.0] - 2026-04-16
 
 ### Added

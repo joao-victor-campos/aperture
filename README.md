@@ -34,7 +34,7 @@ Aperture is an Electron app split into three processes that communicate through 
 │  │  (React + Vite)  │◄────►│  (Node.js)          │ │
 │  │                  │      │                    │ │
 │  │  • React 18      │      │  • BigQuery client  │ │
-│  │  • Tailwind CSS  │      │  • DuckDB engine    │ │
+│  │  • Tailwind CSS  │      │  • DB SDK adapters  │ │
 │  │  • Zustand store │      │  • JSON config store│ │
 │  │  • CodeMirror 6  │      │  • IPC handlers     │ │
 │  └─────────────────┘      └────────────────────┘ │
@@ -57,9 +57,11 @@ aperture/
 │   │   ├── index.ts        # App entry, BrowserWindow creation, native menu
 │   │   ├── ipc/            # One handler file per domain (connections, catalog, query)
 │   │   └── db/
-│   │       ├── bigquery.ts # @google-cloud/bigquery client, runQuery, cancelRunningQuery
-│   │       ├── duckdb.ts   # DuckDB in-memory engine (ready for BQ extension)
-│   │       └── store.ts    # Lightweight JSON persistence (replaces electron-store)
+│   │       ├── adapterRegistry.ts # Dispatches to the right engine by connection.engine
+│   │       ├── bigquery.ts        # @google-cloud/bigquery adapter
+│   │       ├── postgres.ts        # pg adapter
+│   │       ├── snowflake.ts       # snowflake-sdk adapter
+│   │       └── store.ts           # Lightweight JSON persistence (replaces electron-store)
 │   ├── preload/
 │   │   └── index.ts        # contextBridge — exposes window.api to renderer
 │   ├── renderer/           # React SPA (compiled by Vite, runs in Chromium sandbox)
@@ -230,7 +232,7 @@ The app opens with hot-reload enabled. Changes to renderer code refresh the wind
 Run `just` with no arguments to list all recipes.
 
 ```
-just install        Install npm dependencies
+just install        Install npm dependencies (no native rebuild needed)
 just dev            Start app in dev mode (hot-reload)
 
 just typecheck      Type-check main + renderer
@@ -300,7 +302,7 @@ The project uses **Vitest** with a **70 % coverage minimum** enforced in CI.
 
 | Layer | Environment | What is tested |
 |---|---|---|
-| `src/main/db/` | Node | Store persistence, DuckDB engine, BigQuery bridge |
+| `src/main/db/` | Node | Store persistence, DB adapter registry, BigQuery/Postgres/Snowflake adapters |
 | `src/main/ipc/` | Node | IPC handlers (connections, catalog, query) |
 | `src/renderer/src/store/` | jsdom | Zustand stores (connection, catalog, query) |
 
@@ -322,8 +324,7 @@ Coverage is measured only over the core logic files (`src/main/db/**`, `src/main
 #### Mocking strategy
 
 - **`electron`** — mocked via `vi.mock('electron', ...)` so main-process code can run in plain Node.
-- **`@google-cloud/bigquery`** — fully mocked; no real GCP calls in tests.
-- **`duckdb`** — uses the real native module (integration tests).
+- **`@google-cloud/bigquery`** / **`pg`** / **`snowflake-sdk`** — fully mocked; no real network calls in tests.
 - **`window.api`** — stubbed in `src/__tests__/setup.ts` for renderer store tests.
 
 ---
