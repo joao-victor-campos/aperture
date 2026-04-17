@@ -1,7 +1,6 @@
 import { app, BrowserWindow, shell, nativeTheme, Menu } from 'electron'
 import { join } from 'path'
 import { registerIpcHandlers } from './ipc'
-import { closeDB } from './db/duckdb'
 
 // Set the app name early — in dev mode Electron defaults to "Electron"
 app.setName('Aperture')
@@ -121,11 +120,6 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    closeDB()
     app.quit()
   }
-})
-
-app.on('before-quit', () => {
-  closeDB()
 })
