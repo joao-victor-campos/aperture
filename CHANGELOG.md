@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
+## [1.3.0] - 2026-04-17
+
+### Added
+- **Unified connection modal** — "Add Connection" and "Edit Connection" now open a single modal with a BigQuery / Snowflake / Postgres tab bar at the top. The old two-step flow (chooser → engine-specific modal) is gone; one click, one modal.
+- **Edit existing connections** — each connection in the title-bar dropdown now has a pencil icon that reopens the modal pre-filled with the current values. Saving calls `CONNECTIONS_UPDATE`; the adapter cache is invalidated so the next query uses the new credentials.
+- **Delete confirmation** — the trash icon no longer deletes immediately. Clicking it shows an inline "Delete? No / Yes" prompt that auto-dismisses after 3 seconds, preventing accidental deletions.
+- **Connection health badge** — a small colour dot appears next to each connection: grey (untested), green (last test OK), red (last test failed). Tests run in the background on app start (non-blocking) and after every explicit "Test & Save" or save+update.
+- **Column search in schema view** — a filter input above the schema table in the table-detail panel lets you search column names in real time. Shows a match counter (`n / total`) and a clear button; non-matching rows are hidden with a "No columns match" empty state.
+
+### Removed
+- `PostgresConnectionModal.tsx` and `SnowflakeConnectionModal.tsx` — absorbed into the unified `ConnectionModal`.
+
+---
 ## [1.2.0] - 2026-04-17
 
 ### Removed

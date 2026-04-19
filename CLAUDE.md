@@ -148,6 +148,35 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-04-17] Feature: UX improvements — unified connection modal, edit, delete confirmation, health badge, column search
+
+**Type:** Change
+**Context:** The connection manager required two clicks to add a connection (chooser → engine modal), offered no way to edit saved connections without deleting and re-adding them, deleted connections without confirmation, gave no visual indication of whether a connection was healthy, and had no way to search columns in a wide schema.
+**Problem / Change:**
+- "Add Connection" opened a `ConnectionTypeChooserModal` → then one of three separate engine modals — two modals, two clicks.
+- No edit flow: changing a project ID required delete + re-add.
+- Trash icon deleted immediately — no undo.
+- No health feedback: you had to run a query to know if a connection still worked.
+- Schema tab showed all columns in a flat list with no way to filter by name.
+
+**Solution / Outcome:**
+- **`src/renderer/src/components/connections/ConnectionModal.tsx`** (rewrite): Unified single modal with a BigQuery / Snowflake / Postgres tab bar at the top. Accepts optional `initialConnection?: Connection`; when provided, the modal is pre-filled and tabs are locked to the connection's engine (edit mode). In edit mode, "Save" calls `update()`; "Test & Save" calls `update()` then `test()`. In add mode behaviour is unchanged.
+- **`src/renderer/src/App.tsx`** (simplify): `connectionModal` state collapses from `null | 'chooser' | 'bigquery' | 'postgres' | 'snowflake'` to `null | { mode: 'add' } | { mode: 'edit'; connection: Connection }`. A single `<ConnectionModal>` is rendered for both modes. `onEditConnection` prop added to `TitleBar`.
+- **`src/renderer/src/components/layout/TitleBar.tsx`** (update): Added `Pencil` icon button per dropdown row that calls `onEditConnection(conn)`. Trash now triggers an inline "Delete? No / Yes" prompt with a 3-second auto-dismiss (using `confirmTimeoutRef`). `statuses` from the store drive a `StatusDot` component (grey/green/red) shown in the button and in each dropdown row.
+- **`src/renderer/src/store/connectionStore.ts`** (update): Added `statuses: Record<string, 'unknown' | 'ok' | 'error'>` field and exported `ConnectionStatus` type. `load()` kicks off background `CONNECTIONS_TEST` calls for every loaded connection (wrapped in `Promise.resolve()` so test stubs that return `undefined` don't crash). `test()` is now `async` and updates `statuses` on every call. `update()` resets the status to `'unknown'` so the badge reflects the new credentials. `remove()` deletes the entry from `statuses`.
+- **`src/renderer/src/components/catalog/TableDetailPanel.tsx`** (update): `SchemaSection` gained a `filter` state and a search bar (Search icon + clear button). `flattenFields(schema)` is filtered by `.field.name.toLowerCase().includes(query)` when a query is active. A `n / total` counter appears next to the clear button. Non-matching rows produce a "No columns match" empty-state row.
+- **`src/renderer/src/components/connections/PostgresConnectionModal.tsx`** — deleted (absorbed into unified modal).
+- **`src/renderer/src/components/connections/SnowflakeConnectionModal.tsx`** — deleted (absorbed into unified modal).
+
+**Files affected:**
+- `src/renderer/src/components/connections/ConnectionModal.tsx` — unified rewrite
+- `src/renderer/src/App.tsx` — simplified modal state + `onEditConnection` wiring
+- `src/renderer/src/components/layout/TitleBar.tsx` — edit button, delete confirmation, health dots
+- `src/renderer/src/store/connectionStore.ts` — `statuses`, background health checks, `ConnectionStatus` export
+- `src/renderer/src/components/catalog/TableDetailPanel.tsx` — column search in `SchemaSection`
+- `src/renderer/src/components/connections/PostgresConnectionModal.tsx` — deleted
+- `src/renderer/src/components/connections/SnowflakeConnectionModal.tsx` — deleted
+
 ### [2026-04-15] Feature: Snowflake database connector
 
 **Type:** Change
