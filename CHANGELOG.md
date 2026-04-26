@@ -11,6 +11,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - **Export results** — an Export button in the results status bar lets you save query results as CSV, TSV, or JSON via a native Save dialog. The formatter handles NULL values, embedded commas/quotes in CSV, and preserves BigQuery's wrapped date/numeric values as plain strings.
 - **SQL formatter** — a Format button in the query editor toolbar (also bound to ⌥⌘F) reformats the current SQL with consistent indentation, keyword casing (UPPER), and line breaks. Dialect is auto-selected from the active connection (BigQuery, PostgreSQL, or Snowflake). Uses the `sql-formatter` library; invalid SQL is silently left unchanged.
 - **Query history** — every successfully completed query is automatically saved to a persistent history (capped at 500, newest first). A new **History** tab in the sidebar shows each entry with a relative timestamp, connection name, row count, and duration. Clicking any entry opens it in a new editor tab. The panel has a trash icon to clear all history.
+- **Dialect-aware SQL autocomplete** — the CodeMirror editor now uses the correct SQL dialect for keyword and function completions: `PostgreSQL` dialect for Postgres connections, `StandardSQL` for BigQuery and Snowflake. Keywords are suggested in uppercase. Schema-aware table and column completions (from the loaded catalog) continue to work across all engines.
+- **Pinned result tabs** — a Pin button in the results status bar snapshots the current result into a new read-only tab. Pinned tabs show a 📌 icon in the tab bar with a SQL preview as the title, letting you compare before/after results without re-running the query.
+- **Copy column name** — clicking any column header in the results table copies the column name to the clipboard. The header briefly shows ✓ Copied as confirmation.
+
+### Fixed
+- Export dropdown was being clipped by the panel's `overflow-hidden` container and was unclickable. The dropdown now opens downward (below the button) so it renders inside the visible area.
 
 ---
 ## [1.3.0] - 2026-04-17
