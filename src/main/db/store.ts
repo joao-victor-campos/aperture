@@ -1,18 +1,20 @@
 import { app } from 'electron'
 import { join } from 'path'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
-import type { Connection, SavedQuery, Folder } from '../../shared/types'
+import type { Connection, SavedQuery, Folder, HistoryEntry } from '../../shared/types'
 
 interface StoreData {
   connections: Connection[]
   savedQueries: SavedQuery[]
   folders: Folder[]
+  historyEntries: HistoryEntry[]
 }
 
 const DEFAULTS: StoreData = {
   connections: [],
   savedQueries: [],
-  folders: []
+  folders: [],
+  historyEntries: [],
 }
 
 let data: StoreData | null = null

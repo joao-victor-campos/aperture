@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, Download } from 'lucide-react'
+import { CHANNELS } from '@shared/ipc'
 import type { QueryResult } from '@shared/types'
 
 interface ResultsTableProps {
@@ -23,6 +24,9 @@ export default function ResultsTable({
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(100)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const exportRef = useRef<HTMLDivElement>(null)
   // colWidths: column name → px width (only set when user has dragged)
   const [colWidths, setColWidths] = useState<Record<string, number>>({})
   const resizingCol = useRef<{ col: string; startX: number; startWidth: number } | null>(null)
@@ -30,6 +34,18 @@ export default function ResultsTable({
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [logs])
+
+  // Close export popover on outside click
+  useEffect(() => {
+    if (!exportOpen) return
+    const handler = (e: MouseEvent) => {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
+        setExportOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [exportOpen])
 
   // Reset to first page + col widths whenever a new result set arrives
   const resultColumnsRef = useRef<string[]>([])
@@ -178,6 +194,21 @@ export default function ResultsTable({
     ? `${serverTotal.toLocaleString()}`
     : `${fetchedRows.toLocaleString()}`
 
+  const handleExport = async (format: 'csv' | 'json' | 'tsv') => {
+    console.log('[Export] handleExport called, format:', format)
+    setExportOpen(false)
+    setExporting(true)
+    try {
+      console.log('[Export] calling IPC invoke...')
+      const res = await window.api.invoke(CHANNELS.EXPORT_RESULTS, { rows, columns, format })
+      console.log('[Export] IPC returned:', res)
+    } catch (err) {
+      console.error('[Export] IPC error:', err)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Status bar */}
@@ -195,6 +226,32 @@ export default function ResultsTable({
             ({fetchedRows.toLocaleString()} fetched)
           </span>
         )}
+        <div className="flex-1" />
+        {/* Export */}
+        <div ref={exportRef} className="relative">
+          <button
+            onClick={() => setExportOpen((v) => !v)}
+            disabled={exporting || fetchedRows === 0}
+            title="Export results"
+            className="flex items-center gap-1 text-xs px-2 py-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-40 disabled:cursor-not-allowed transition-colors border border-app-border"
+          >
+            <Download size={11} />
+            <span>{exporting ? 'Saving…' : 'Export'}</span>
+          </button>
+          {exportOpen && (
+            <div className="absolute top-full right-0 mt-1 bg-app-surface border border-app-border rounded-lg shadow-xl py-1 z-50 min-w-[100px]">
+              {(['csv', 'tsv', 'json'] as const).map((fmt) => (
+                <button
+                  key={fmt}
+                  onClick={() => handleExport(fmt)}
+                  className="w-full text-left px-3 py-1.5 text-xs text-app-text hover:bg-app-elevated transition-colors uppercase"
+                >
+                  {fmt}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Table */}

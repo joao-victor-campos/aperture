@@ -13,7 +13,8 @@ export default function Editor() {
   const { tabs, activeTabId, openTab, closeTab, setActiveTab, updateTabSql, runQuery, cancelQuery, fetchPage, reorderTabs } =
     useQueryStore()
   const dragTabId = useRef<string | null>(null)
-  const { activeConnectionId } = useConnectionStore()
+  const { connections, activeConnectionId } = useConnectionStore()
+  const activeEngine = connections.find((c) => c.id === activeConnectionId)?.engine
   const { datasetsByConnection, tablesByDataset, schemaCache } = useCatalogStore()
   const { updateQuery } = useSavedQueryStore()
   const [splitPct, setSplitPct] = useState(55)
@@ -182,6 +183,7 @@ export default function Editor() {
                 isRunning={activeTab.isRunning}
                 savedQueryId={activeTab.savedQueryId}
                 sqlSchema={sqlSchema}
+                engine={activeEngine}
               />
             </div>
 

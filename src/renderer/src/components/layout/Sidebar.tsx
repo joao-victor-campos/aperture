@@ -1,13 +1,14 @@
 import { useState } from 'react'
-import { Database, BookMarked } from 'lucide-react'
+import { Database, BookMarked, History } from 'lucide-react'
 import CatalogTree from '../catalog/CatalogTree'
 import SavedQueriesPanel from '../saved/SavedQueriesPanel'
+import HistoryPanel from '../history/HistoryPanel'
 
 interface SidebarProps {
   onAddConnection: () => void
 }
 
-type Tab = 'catalog' | 'saved'
+type Tab = 'catalog' | 'saved' | 'history'
 
 export default function Sidebar({ onAddConnection }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<Tab>('catalog')
@@ -30,14 +31,18 @@ export default function Sidebar({ onAddConnection }: SidebarProps) {
           active={activeTab === 'saved'}
           onClick={() => setActiveTab('saved')}
         />
+        <TabButton
+          label="History"
+          icon={<History size={13} />}
+          active={activeTab === 'history'}
+          onClick={() => setActiveTab('history')}
+        />
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-0">
-        {activeTab === 'catalog' ? (
-          <CatalogTree onAddConnection={onAddConnection} />
-        ) : (
-          <SavedQueriesPanel />
-        )}
+        {activeTab === 'catalog' && <CatalogTree onAddConnection={onAddConnection} />}
+        {activeTab === 'saved' && <SavedQueriesPanel />}
+        {activeTab === 'history' && <HistoryPanel />}
       </div>
     </aside>
   )

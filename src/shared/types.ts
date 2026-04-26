@@ -121,3 +121,13 @@ export interface Folder {
   name: string
   createdAt: string
 }
+
+export interface HistoryEntry {
+  id: string
+  sql: string
+  connectionId: string
+  connectionName: string
+  executedAt: string
+  durationMs: number
+  rowCount: number
+}

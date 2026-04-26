@@ -1,4 +1,4 @@
-import type { Connection, ConnectionCreate, Dataset, Table, TableField, QueryResult, SavedQuery, Folder } from './types'
+import type { Connection, ConnectionCreate, Dataset, Table, TableField, QueryResult, SavedQuery, Folder, HistoryEntry } from './types'
 
 export const CHANNELS = {
   // Connections
@@ -28,6 +28,11 @@ export const CHANNELS = {
   FOLDER_CREATE: 'folder:create',
   FOLDER_UPDATE: 'folder:update',
   FOLDER_DELETE: 'folder:delete',
+  // History
+  HISTORY_LIST: 'history:list',
+  HISTORY_CLEAR: 'history:clear',
+  // Export
+  EXPORT_RESULTS: 'export:results',
 } as const
 
 export type Channel = (typeof CHANNELS)[keyof typeof CHANNELS]
@@ -68,6 +73,12 @@ export interface IpcMap {
   [CHANNELS.FOLDER_CREATE]: { req: Omit<Folder, 'id' | 'createdAt'>; res: Folder }
   [CHANNELS.FOLDER_UPDATE]: { req: Folder; res: Folder }
   [CHANNELS.FOLDER_DELETE]: { req: string; res: void }
+  [CHANNELS.HISTORY_LIST]: { req: undefined; res: HistoryEntry[] }
+  [CHANNELS.HISTORY_CLEAR]: { req: undefined; res: void }
+  [CHANNELS.EXPORT_RESULTS]: {
+    req: { rows: Record<string, unknown>[]; columns: string[]; format: 'csv' | 'json' | 'tsv' }
+    res: { path: string | null }
+  }
 }
 
 // Channel is a superset of IpcMap keys (QUERY_LOG is push-only, not request/response).
