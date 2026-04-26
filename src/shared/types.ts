@@ -90,8 +90,8 @@ export interface QueryResult {
 
 export interface QueryTab {
   id: string
-  /** 'query' (default) or 'table' (catalog inspection tab) */
-  type?: 'query' | 'table'
+  /** 'query' (default), 'table' (catalog inspection tab), or 'result' (pinned snapshot) */
+  type?: 'query' | 'table' | 'result'
   title: string
   sql: string
   connectionId?: string

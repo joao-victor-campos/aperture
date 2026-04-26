@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { format as formatSQL } from 'sql-formatter'
 import CodeMirror from '@uiw/react-codemirror'
-import { sql } from '@codemirror/lang-sql'
+import { sql, PostgreSQL, StandardSQL } from '@codemirror/lang-sql'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { EditorView, keymap } from '@codemirror/view'
 import { Prec } from '@codemirror/state'
@@ -20,11 +20,19 @@ interface QueryEditorProps {
   engine?: ConnectionEngine
 }
 
-const DIALECT_MAP: Record<ConnectionEngine, string> = {
+// sql-formatter dialect names (for formatting)
+const FORMAT_DIALECT_MAP: Record<ConnectionEngine, string> = {
   bigquery: 'bigquery',
   postgres: 'postgresql',
   snowflake: 'snowflake',
 }
+
+// CodeMirror SQL dialect objects (for autocomplete keyword set)
+const CM_DIALECT_MAP = {
+  bigquery: StandardSQL,
+  postgres: PostgreSQL,
+  snowflake: StandardSQL,
+} satisfies Record<ConnectionEngine, typeof StandardSQL>
 
 const customTheme = EditorView.theme({
   '&': { height: '100%', fontSize: '13px' },
@@ -42,14 +50,18 @@ export default function QueryEditor({
   value, onChange, onRun, onCancel, onSave, isRunning, savedQueryId, sqlSchema, engine,
 }: QueryEditorProps) {
   const sqlExtension = useMemo(
-    () => sql({ schema: sqlSchema ?? {} }),
-    [sqlSchema]
+    () => sql({
+      dialect: engine ? CM_DIALECT_MAP[engine] : StandardSQL,
+      schema: sqlSchema ?? {},
+      upperCaseKeywords: true,
+    }),
+    [sqlSchema, engine]
   )
 
   const handleFormat = () => {
     if (!value.trim()) return
     try {
-      const dialect = engine ? DIALECT_MAP[engine] : 'sql'
+      const dialect = engine ? FORMAT_DIALECT_MAP[engine] : 'sql'
       const formatted = formatSQL(value, { language: dialect as never, tabWidth: 2, keywordCase: 'upper' })
       onChange(formatted)
     } catch {

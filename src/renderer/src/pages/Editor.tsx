@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Plus, X, Table2 } from 'lucide-react'
+import { Plus, X, Table2, Pin } from 'lucide-react'
 import QueryEditor from '../components/editor/QueryEditor'
 import ResultsTable from '../components/results/ResultsTable'
 import TableDetailPanel from '../components/catalog/TableDetailPanel'
@@ -10,7 +10,7 @@ import { useCatalogStore } from '../store/catalogStore'
 import { useSavedQueryStore } from '../store/savedQueryStore'
 
 export default function Editor() {
-  const { tabs, activeTabId, openTab, closeTab, setActiveTab, updateTabSql, runQuery, cancelQuery, fetchPage, reorderTabs } =
+  const { tabs, activeTabId, openTab, openResultTab, closeTab, setActiveTab, updateTabSql, runQuery, cancelQuery, fetchPage, reorderTabs } =
     useQueryStore()
   const dragTabId = useRef<string | null>(null)
   const { connections, activeConnectionId } = useConnectionStore()
@@ -129,9 +129,11 @@ export default function Editor() {
             >
               {tab.type === 'table'
                 ? <Table2 size={11} className="text-emerald-500 shrink-0" />
-                : tab.isRunning && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-app-accent animate-pulse shrink-0" />
-                  )
+                : tab.type === 'result'
+                  ? <Pin size={11} className="text-app-accent shrink-0" />
+                  : tab.isRunning && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-app-accent animate-pulse shrink-0" />
+                    )
               }
               <span className="max-w-[120px] truncate">{tab.title}</span>
               <button
@@ -171,7 +173,13 @@ export default function Editor() {
           />
         )}
 
-        {activeTab && activeTab.type !== 'table' && (
+        {activeTab?.type === 'result' && (
+          <div className="flex-1 overflow-hidden min-h-0">
+            <ResultsTable result={activeTab.result} pinned />
+          </div>
+        )}
+
+        {activeTab && activeTab.type !== 'table' && activeTab.type !== 'result' && (
           <>
             <div style={{ height: `${splitPct}%` }} className="overflow-hidden min-h-0">
               <QueryEditor
@@ -200,6 +208,7 @@ export default function Editor() {
                 cancelled={activeTab.cancelled}
                 logs={activeTab.logs}
                 onFetchPage={() => fetchPage(activeTab.id)}
+                onPin={() => openResultTab(activeTab.id)}
               />
             </div>
           </>

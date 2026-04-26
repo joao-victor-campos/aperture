@@ -276,6 +276,63 @@ describe('queryStore', () => {
     })
   })
 
+  describe('openResultTab', () => {
+    it('creates a result-type tab that snapshots the source result', () => {
+      // Arrange — source tab with a result
+      const id = useQueryStore.getState().openTab({ sql: 'SELECT 1', connectionId: 'c1' })
+      useQueryStore.setState((s) => ({
+        tabs: s.tabs.map((t) => t.id === id ? { ...t, result: mockResult } : t)
+      }))
+
+      // Act
+      useQueryStore.getState().openResultTab(id)
+
+      // Assert
+      const { tabs, activeTabId } = useQueryStore.getState()
+      const pinned = tabs.find((t) => t.type === 'result')!
+      expect(pinned).toBeDefined()
+      expect(pinned.result).toEqual(mockResult)
+      expect(pinned.connectionId).toBe('c1')
+      expect(pinned.isRunning).toBe(false)
+      expect(activeTabId).toBe(pinned.id)
+    })
+
+    it('title includes a truncated sql preview', () => {
+      // Arrange
+      const id = useQueryStore.getState().openTab({ sql: 'SELECT id, name FROM users', connectionId: 'c1' })
+      useQueryStore.setState((s) => ({
+        tabs: s.tabs.map((t) => t.id === id ? { ...t, result: mockResult } : t)
+      }))
+
+      // Act
+      useQueryStore.getState().openResultTab(id)
+
+      // Assert
+      const pinned = useQueryStore.getState().tabs.find((t) => t.type === 'result')!
+      expect(pinned.title).toContain('SELECT id, name FROM users')
+    })
+
+    it('is a no-op when the source tab has no result', () => {
+      // Arrange — tab with no result
+      const id = useQueryStore.getState().openTab({ sql: 'SELECT 1', connectionId: 'c1' })
+
+      // Act
+      useQueryStore.getState().openResultTab(id)
+
+      // Assert — no result tab should have been created
+      const resultTabs = useQueryStore.getState().tabs.filter((t) => t.type === 'result')
+      expect(resultTabs).toHaveLength(0)
+    })
+
+    it('is a no-op when the source tab id does not exist', () => {
+      // Act
+      useQueryStore.getState().openResultTab('non-existent-id')
+
+      // Assert
+      expect(useQueryStore.getState().tabs).toHaveLength(0)
+    })
+  })
+
   describe('cancelQuery', () => {
     it('sets cancelled:true on the tab and calls the CANCEL channel', async () => {
       // Arrange

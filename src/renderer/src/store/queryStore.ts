@@ -6,6 +6,7 @@ interface QueryState {
   tabs: QueryTab[]
   activeTabId: string | null
   openTab: (partial?: Partial<Omit<QueryTab, 'id' | 'isRunning' | 'logs'>>) => string
+  openResultTab: (sourceTabId: string) => void
   openTableTab: (
     connectionId: string,
     engine: ConnectionEngine,
@@ -32,6 +33,25 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     const tab: QueryTab = { id, title: 'Untitled', sql: '', isRunning: false, logs: [], ...partial }
     set((s) => ({ tabs: [...s.tabs, tab], activeTabId: id }))
     return id
+  },
+
+  openResultTab: (sourceTabId) => {
+    const source = get().tabs.find((t) => t.id === sourceTabId)
+    if (!source?.result) return
+    const id = crypto.randomUUID()
+    const preview = source.sql.replace(/\s+/g, ' ').trim().slice(0, 28)
+    const title = `📌 ${preview}${source.sql.trim().length > 28 ? '…' : ''}`
+    const tab: QueryTab = {
+      id,
+      type: 'result',
+      title,
+      sql: source.sql,
+      connectionId: source.connectionId,
+      result: source.result,
+      isRunning: false,
+      logs: [],
+    }
+    set((s) => ({ tabs: [...s.tabs, tab], activeTabId: id }))
   },
 
   openTableTab: (connectionId, engine, projectId, datasetId, tableId, tableName) => {

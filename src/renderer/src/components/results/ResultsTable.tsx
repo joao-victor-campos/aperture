@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, Loader2, Download } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, Download, Pin } from 'lucide-react'
 import { CHANNELS } from '@shared/ipc'
 import type { QueryResult } from '@shared/types'
 
@@ -10,6 +10,8 @@ interface ResultsTableProps {
   cancelled?: boolean
   logs?: string[]
   onFetchPage?: () => Promise<void>
+  onPin?: () => void
+  pinned?: boolean
 }
 
 const PAGE_SIZES = [50, 100, 250, 500]
@@ -18,7 +20,7 @@ const MAX_COL_WIDTH = 1200
 const DEFAULT_COL_WIDTH = 160
 
 export default function ResultsTable({
-  result, error, isRunning, cancelled, logs = [], onFetchPage,
+  result, error, isRunning, cancelled, logs = [], onFetchPage, onPin, pinned,
 }: ResultsTableProps) {
   const logEndRef = useRef<HTMLDivElement>(null)
   const [page, setPage] = useState(0)
@@ -30,6 +32,15 @@ export default function ResultsTable({
   // colWidths: column name → px width (only set when user has dragged)
   const [colWidths, setColWidths] = useState<Record<string, number>>({})
   const resizingCol = useRef<{ col: string; startX: number; startWidth: number } | null>(null)
+  const [copiedCol, setCopiedCol] = useState<string | null>(null)
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleCopyColName = (col: string) => {
+    navigator.clipboard.writeText(col)
+    if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+    setCopiedCol(col)
+    copyTimeoutRef.current = setTimeout(() => setCopiedCol(null), 1500)
+  }
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -227,6 +238,18 @@ export default function ResultsTable({
           </span>
         )}
         <div className="flex-1" />
+        {/* Pin result */}
+        {onPin && (
+          <button
+            onClick={onPin}
+            disabled={pinned || fetchedRows === 0}
+            title={pinned ? 'Result pinned' : 'Pin result as snapshot tab'}
+            className="flex items-center gap-1 text-xs px-2 py-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-40 disabled:cursor-not-allowed transition-colors border border-app-border"
+          >
+            <Pin size={11} className={pinned ? 'text-app-accent' : ''} />
+            <span>{pinned ? 'Pinned' : 'Pin'}</span>
+          </button>
+        )}
         {/* Export */}
         <div ref={exportRef} className="relative">
           <button
@@ -270,7 +293,13 @@ export default function ResultsTable({
                   className="relative px-3 py-2 text-left text-app-text-2 font-medium border-b border-app-border whitespace-nowrap select-none"
                   style={{ width: colWidths[col] ?? DEFAULT_COL_WIDTH }}
                 >
-                  <span className="block truncate pr-2">{col}</span>
+                  <span
+                    onClick={() => handleCopyColName(col)}
+                    title={`Click to copy "${col}"`}
+                    className="block truncate pr-2 cursor-pointer hover:text-app-text transition-colors"
+                  >
+                    {copiedCol === col ? '✓ Copied' : col}
+                  </span>
                   {/* Resize handle */}
                   <div
                     onMouseDown={(e) => handleResizeMouseDown(e, col)}
