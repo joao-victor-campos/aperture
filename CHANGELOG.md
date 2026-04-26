@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
+## [1.4.0] - 2026-04-26
+
+### Added
+- **Export results** — an Export button in the results status bar lets you save query results as CSV, TSV, or JSON via a native Save dialog. The formatter handles NULL values, embedded commas/quotes in CSV, and preserves BigQuery's wrapped date/numeric values as plain strings.
+- **SQL formatter** — a Format button in the query editor toolbar (also bound to ⌥⌘F) reformats the current SQL with consistent indentation, keyword casing (UPPER), and line breaks. Dialect is auto-selected from the active connection (BigQuery, PostgreSQL, or Snowflake). Uses the `sql-formatter` library; invalid SQL is silently left unchanged.
+- **Query history** — every successfully completed query is automatically saved to a persistent history (capped at 500, newest first). A new **History** tab in the sidebar shows each entry with a relative timestamp, connection name, row count, and duration. Clicking any entry opens it in a new editor tab. The panel has a trash icon to clear all history.
+
+---
 ## [1.3.0] - 2026-04-17
 
 ### Added

@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron'
+import { randomUUID } from 'node:crypto'
 import { CHANNELS } from '../../shared/ipc'
 import { store } from '../db/store'
 import type { ConnectionEngine } from '../../shared/types'
@@ -15,7 +16,24 @@ export function registerQueryHandlers(): void {
       if (!conn) throw new Error(`Connection not found: ${req.connectionId}`)
       tabEngines.set(req.tabId, conn.engine)
       const adapter = getAdapterForConnection(conn)
-      return adapter.runQuery(conn, req.sql, req.tabId, event.sender)
+      const result = await adapter.runQuery(conn, req.sql, req.tabId, event.sender)
+
+      // Append to query history (newest first, capped at 500)
+      const history = store.get('historyEntries')
+      store.set('historyEntries', [
+        {
+          id: randomUUID(),
+          sql: req.sql,
+          connectionId: req.connectionId,
+          connectionName: conn.name,
+          executedAt: new Date().toISOString(),
+          durationMs: result.executionTimeMs,
+          rowCount: result.rowCount,
+        },
+        ...history,
+      ].slice(0, 500))
+
+      return result
     }
   )
 

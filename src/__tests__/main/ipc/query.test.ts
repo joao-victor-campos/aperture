@@ -62,7 +62,10 @@ const pgConn: Connection = {
 
 let storedConnections: Connection[] = [bigConn]
 vi.mock('../../../main/db/store', () => ({
-  store: { get: vi.fn(() => storedConnections) }
+  store: {
+    get: vi.fn((key: string) => key === 'connections' ? storedConnections : []),
+    set: vi.fn()
+  }
 }))
 
 // ── Mock event with sender (webContents) ─────────────────────────────────────

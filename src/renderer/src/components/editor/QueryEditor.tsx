@@ -1,10 +1,12 @@
 import { useMemo } from 'react'
+import { format as formatSQL } from 'sql-formatter'
 import CodeMirror from '@uiw/react-codemirror'
 import { sql } from '@codemirror/lang-sql'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { EditorView, keymap } from '@codemirror/view'
 import { Prec } from '@codemirror/state'
-import { Bookmark, BookmarkCheck } from 'lucide-react'
+import { Bookmark, BookmarkCheck, WandSparkles } from 'lucide-react'
+import type { ConnectionEngine } from '@shared/types'
 
 interface QueryEditorProps {
   value: string
@@ -15,6 +17,13 @@ interface QueryEditorProps {
   isRunning: boolean
   savedQueryId?: string
   sqlSchema?: Record<string, string[]>
+  engine?: ConnectionEngine
+}
+
+const DIALECT_MAP: Record<ConnectionEngine, string> = {
+  bigquery: 'bigquery',
+  postgres: 'postgresql',
+  snowflake: 'snowflake',
 }
 
 const customTheme = EditorView.theme({
@@ -30,12 +39,23 @@ const customTheme = EditorView.theme({
 })
 
 export default function QueryEditor({
-  value, onChange, onRun, onCancel, onSave, isRunning, savedQueryId, sqlSchema,
+  value, onChange, onRun, onCancel, onSave, isRunning, savedQueryId, sqlSchema, engine,
 }: QueryEditorProps) {
   const sqlExtension = useMemo(
     () => sql({ schema: sqlSchema ?? {} }),
     [sqlSchema]
   )
+
+  const handleFormat = () => {
+    if (!value.trim()) return
+    try {
+      const dialect = engine ? DIALECT_MAP[engine] : 'sql'
+      const formatted = formatSQL(value, { language: dialect as never, tabWidth: 2, keywordCase: 'upper' })
+      onChange(formatted)
+    } catch {
+      // If formatting fails (e.g. invalid SQL), leave the value unchanged
+    }
+  }
 
   // Keymap registered inside CodeMirror so Prec.highest prevents the default
   // Enter handler from also inserting a newline when ⌘↵ is pressed.
@@ -52,8 +72,12 @@ export default function QueryEditor({
         key: 'Mod-s',
         run: () => { onSave(); return true },
       },
+      {
+        key: 'Alt-Mod-f',
+        run: () => { handleFormat(); return true },
+      },
     ])),
-    [isRunning, onCancel, onRun, onSave]
+    [isRunning, onCancel, onRun, onSave, handleFormat]
   )
 
   return (
@@ -62,6 +86,17 @@ export default function QueryEditor({
         <span className="text-[10px] uppercase tracking-widest text-app-text-3 font-medium">SQL</span>
 
         <div className="flex items-center gap-2">
+          {/* Format button */}
+          <button
+            onClick={handleFormat}
+            disabled={!value.trim() || isRunning}
+            title="Format SQL (⌥⌘F)"
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <WandSparkles size={13} />
+            <span className="text-[11px]">Format</span>
+          </button>
+
           {/* Save button */}
           <button
             onClick={onSave}
