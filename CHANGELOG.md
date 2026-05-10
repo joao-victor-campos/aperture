@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
+## [1.4.1] - 2026-05-10
+
+### Fixed
+- **Window drag region** — the entire title bar area between the +Connection button and the theme toggle is now draggable. Previously, a `no-drag` wrapper consumed the full flexible spacer, leaving only the Aperture logo as a drag target. `no-drag` is now applied only to individual interactive buttons.
+- **SQL formatter keymap** — `handleFormat` was recreated on every render (plain function reference), causing the `keymapExtension` useMemo to rebuild the CodeMirror extension each render. Wrapped in `useCallback` so the extension only rebuilds when `value`, `engine`, or `onChange` actually changes.
+- **Memory leaks on unmount** — three separate cleanup gaps fixed: (1) the column-name copy timeout (`copyTimeoutRef`) was never cleared on `ResultsTable` unmount; (2) the `savedFlash` toast timeout in `Editor` was fire-and-forget; (3) in-flight column-resize and divider-drag `window` event listeners were not removed if the component unmounted during a drag.
+- **Connection reassignment during query** — switching the active connection while a query was running silently reassigned `connectionId` on the running tab, potentially routing the result to the wrong connection. The update now skips tabs with `isRunning: true`.
+- **React key collision across pages** — result table rows were keyed by their page-local row index (`i`), causing React to reuse DOM nodes when navigating between pages. Keys are now `${page}-${i}`.
+
+---
 ## [1.4.0] - 2026-04-26
 
 ### Added
