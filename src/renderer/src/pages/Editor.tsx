@@ -22,6 +22,15 @@ export default function Editor() {
   const [savedFlash, setSavedFlash] = useState(false)
   const isDragging = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const savedFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Clean up timers and any in-flight drag listeners on unmount
+  useEffect(() => {
+    return () => {
+      if (savedFlashTimerRef.current) clearTimeout(savedFlashTimerRef.current)
+      isDragging.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (tabs.length === 0) openTab({ connectionId: activeConnectionId ?? undefined })
@@ -31,7 +40,8 @@ export default function Editor() {
     if (!activeConnectionId || !activeTabId) return
     useQueryStore.setState((s) => ({
       tabs: s.tabs.map((t) =>
-        t.id === activeTabId ? { ...t, connectionId: activeConnectionId } : t
+        // Don't silently swap the connection while a query is in flight
+        t.id === activeTabId && !t.isRunning ? { ...t, connectionId: activeConnectionId } : t
       ),
     }))
   }, [activeConnectionId, activeTabId])
@@ -67,7 +77,8 @@ export default function Editor() {
       if (existing) {
         await updateQuery({ ...existing, sql: activeTab.sql })
         setSavedFlash(true)
-        setTimeout(() => setSavedFlash(false), 1500)
+        if (savedFlashTimerRef.current) clearTimeout(savedFlashTimerRef.current)
+        savedFlashTimerRef.current = setTimeout(() => setSavedFlash(false), 1500)
       }
     } else {
       setSavingTabId(activeTabId)
