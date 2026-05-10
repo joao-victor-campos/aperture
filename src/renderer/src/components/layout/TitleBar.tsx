@@ -102,15 +102,13 @@ export default function TitleBar({ onAddConnection, onEditConnection, isDark, on
         </span>
       </div>
 
-      <div
-        className="flex items-center gap-2 ml-2 flex-1"
-        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-      >
+      <div className="flex items-center gap-2 ml-2 flex-1">
         {/* Connection picker trigger */}
         {connections.length > 0 && (
           <button
             ref={triggerRef}
             onClick={() => setOpen((v) => !v)}
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md bg-app-elevated border border-app-border text-app-text hover:bg-app-elevated/80 transition-colors max-w-56"
           >
             {activeConn && <StatusDot status={statuses[activeConn.id] ?? 'unknown'} />}
@@ -123,19 +121,21 @@ export default function TitleBar({ onAddConnection, onEditConnection, isDark, on
 
         <button
           onClick={onAddConnection}
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-app-elevated hover:bg-app-elevated/80 text-app-text border border-app-border transition-colors"
         >
           <Plus size={12} />
           Connection
         </button>
 
-        {/* Spacer */}
+        {/* Spacer — inherits drag from parent, acts as the main drag handle */}
         <div className="flex-1" />
 
         {/* Theme toggle */}
         <button
           onClick={onToggleTheme}
           title={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           className="p-1.5 rounded-md text-app-text-2 hover:text-app-text hover:bg-app-elevated transition-colors"
         >
           {isDark ? <Sun size={14} /> : <Moon size={14} />}

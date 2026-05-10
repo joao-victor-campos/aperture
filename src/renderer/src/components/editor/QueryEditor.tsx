@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { format as formatSQL } from 'sql-formatter'
 import CodeMirror from '@uiw/react-codemirror'
 import { sql, PostgreSQL, StandardSQL } from '@codemirror/lang-sql'
@@ -58,7 +58,7 @@ export default function QueryEditor({
     [sqlSchema, engine]
   )
 
-  const handleFormat = () => {
+  const handleFormat = useCallback(() => {
     if (!value.trim()) return
     try {
       const dialect = engine ? FORMAT_DIALECT_MAP[engine] : 'sql'
@@ -67,7 +67,7 @@ export default function QueryEditor({
     } catch {
       // If formatting fails (e.g. invalid SQL), leave the value unchanged
     }
-  }
+  }, [value, engine, onChange])
 
   // Keymap registered inside CodeMirror so Prec.highest prevents the default
   // Enter handler from also inserting a newline when ⌘↵ is pressed.

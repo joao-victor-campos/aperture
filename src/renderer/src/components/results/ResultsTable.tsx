@@ -35,6 +35,14 @@ export default function ResultsTable({
   const [copiedCol, setCopiedCol] = useState<string | null>(null)
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Clean up pending timers and any in-flight resize listeners on unmount
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+      resizingCol.current = null
+    }
+  }, [])
+
   const handleCopyColName = (col: string) => {
     navigator.clipboard.writeText(col)
     if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
@@ -314,7 +322,7 @@ export default function ResultsTable({
           <tbody>
             {pageRows.map((row, i) => (
               <tr
-                key={i}
+                key={`${page}-${i}`}
                 className={`hover:bg-app-elevated/40 transition-colors ${i % 2 === 0 ? '' : 'bg-app-surface/30'}`}
               >
                 {columns.map((col) => (
