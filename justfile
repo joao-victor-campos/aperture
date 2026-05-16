@@ -68,6 +68,10 @@ release-local:
 release:
     npm run build:mac
 
+# Build Linux AppImage + deb — run inside a Linux environment or Docker
+release-linux:
+    npm run build:linux
+
 # Build (native arch only) and immediately open the dist/ folder in Finder
 release-open: release-local
     open dist/

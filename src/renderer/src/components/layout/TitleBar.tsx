@@ -92,8 +92,8 @@ export default function TitleBar({ onAddConnection, onEditConnection, isDark, on
       className="h-12 flex items-center px-4 gap-4 border-b border-app-border bg-app-surface shrink-0"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
-      {/* Space for macOS traffic lights */}
-      <div className="w-20 shrink-0" />
+      {/* Space for macOS traffic lights (smaller on Linux/Windows where there are none) */}
+      <div className={`${window.platform === 'darwin' ? 'w-20' : 'w-4'} shrink-0`} />
 
       <div className="flex items-center gap-2 shrink-0">
         <ApertureIcon size={18} />
