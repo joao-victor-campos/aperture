@@ -15,15 +15,17 @@ let mainWindow: BrowserWindow | null = null
 function createWindow(): void {
   nativeTheme.themeSource = 'dark'
 
+  const isMac = process.platform === 'darwin'
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 960,
     minHeight: 600,
     show: false,
-    icon: join(__dirname, process.platform === 'darwin' ? '../../resources/icon.icns' : '../../resources/icon.png'),
-    titleBarStyle: 'hiddenInset',
-    vibrancy: 'sidebar',
+    icon: join(__dirname, isMac ? '../../resources/icon.icns' : '../../resources/icon.png'),
+    titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
+    ...(isMac ? { vibrancy: 'sidebar' } : {}),
     backgroundColor: '#111827',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -53,18 +55,15 @@ function createWindow(): void {
 }
 
 function buildAppMenu(): void {
+  const isMac = process.platform === 'darwin'
   const template: Electron.MenuItemConstructorOptions[] = [
     {
       label: 'Aperture',
       submenu: [
         { role: 'about' },
         { type: 'separator' },
-        { role: 'services' },
-        { type: 'separator' },
-        { role: 'hide' },
-        { role: 'hideOthers' },
-        { role: 'unhide' },
-        { type: 'separator' },
+        ...(isMac ? [{ role: 'services' } as Electron.MenuItemConstructorOptions, { type: 'separator' } as Electron.MenuItemConstructorOptions] : []),
+        ...(isMac ? [{ role: 'hide' } as Electron.MenuItemConstructorOptions, { role: 'hideOthers' } as Electron.MenuItemConstructorOptions, { role: 'unhide' } as Electron.MenuItemConstructorOptions, { type: 'separator' } as Electron.MenuItemConstructorOptions] : []),
         { role: 'quit' }
       ]
     },

@@ -71,10 +71,43 @@ jobs:
           path: dist/*.dmg
           if-no-files-found: error
 
-  # ── Create GitHub Release with the DMG files ──────────────────────────────
+  # ── Build Linux AppImage + deb ────────────────────────────────────────────
+  build-linux:
+    name: Build Linux AppImage + deb
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build & package
+        run: npm run build && npx electron-builder --linux --publish never
+        env:
+          # Linux builds are unsigned — disable auto-discovery to avoid errors
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: |
+            dist/*.AppImage
+            dist/*.deb
+          if-no-files-found: error
+
+  # ── Create GitHub Release with all platform artifacts ─────────────────────
   release:
     name: Publish GitHub Release
-    needs: build-macos
+    needs: [build-macos, build-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write   # required to create the release
@@ -92,13 +125,19 @@ jobs:
             echo "No changelog section found for $VERSION — using generic body"
             NOTES="See [CHANGELOG.md](CHANGELOG.md) for details."
           fi
-          # Append the Gatekeeper workaround note
-          printf "%s\n\n---\n\n## ⚠️ First launch on macOS\n\nmacOS may show _\"Aperture is damaged\"_ — this is a Gatekeeper warning for un-notarized apps.\n\n**Fix:** open Terminal and run:\n\`\`\`bash\nxattr -cr /Applications/Aperture.app\n\`\`\`\n" "$NOTES" > /tmp/release_notes.md
+          # Append platform-specific install notes
+          printf "%s\n\n---\n\n## ⚠️ First launch on macOS\n\nmacOS may show _\"Aperture is damaged\"_ — this is a Gatekeeper warning for un-notarized apps.\n\n**Fix:** open Terminal and run:\n\`\`\`bash\nxattr -cr /Applications/Aperture.app\n\`\`\`\n\n## 🐧 Linux\n\n- **AppImage**: \`chmod +x Aperture-*.AppImage && ./Aperture-*.AppImage\`\n- **deb**: \`sudo dpkg -i Aperture-*.deb\`\n" "$NOTES" > /tmp/release_notes.md
 
-      - name: Download DMG artifacts
+      - name: Download macOS artifacts
         uses: actions/download-artifact@v4
         with:
           name: dmg-macos
+          path: artifacts/
+
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-artifacts
           path: artifacts/
 
       - name: List artifacts
@@ -107,7 +146,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*.dmg
+          files: artifacts/**
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
           body_path: /tmp/release_notes.md
