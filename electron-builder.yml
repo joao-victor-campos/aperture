@@ -45,4 +45,5 @@ linux:
       arch:
         - x64
   category: Development
+  maintainer: Aperture <joao@wander.com>
   artifactName: ${productName}-${version}-${arch}.${ext}
