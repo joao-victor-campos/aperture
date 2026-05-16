@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
+## [1.5.0] - 2026-05-16
+
+### Added
+- **Linux release** — Aperture now ships AppImage (x64 + arm64) and `.deb` (x64) artifacts alongside the macOS DMGs on every GitHub Release. The AppImage is self-contained and runs on any distro without installation; the `.deb` is installable via `dpkg` or `apt` on Debian/Ubuntu.
+- **Parallel Linux CI build** — a new `build-linux` job on `ubuntu-latest` runs in parallel with the macOS build job. Both artifact sets are collected by the publish job and uploaded to the same GitHub Release in a single step.
+- **`window.platform` in renderer** — `process.platform` is now exposed to the renderer via `contextBridge`, allowing the UI to adapt per operating system without breaking `contextIsolation`.
+
+### Fixed
+- **macOS-only window options on Linux** — `titleBarStyle: 'hiddenInset'` and `vibrancy: 'sidebar'` are now applied only on macOS; Linux uses `titleBarStyle: 'hidden'` with no vibrancy, preventing silent Electron misbehaviour on non-macOS platforms.
+- **macOS-only menu roles on Linux** — `services`, `hide`, `hideOthers`, and `unhide` menu roles are now filtered out on non-macOS, preventing Electron warnings and empty menu entries on Linux.
+- **Title-bar spacer on Linux** — the `w-20` spacer reserved for macOS traffic lights shrinks to `w-4` on Linux and Windows where no traffic lights are present.
+
+---
 ## [1.4.1] - 2026-05-10
 
 ### Fixed
