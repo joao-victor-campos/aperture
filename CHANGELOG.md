@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
+## [Unreleased]
+
+### Added
+- **Split panes** — a new "Split" button in the query editor toolbar opens a second independent editor + results panel side-by-side in the same tab. Each pane runs its own SQL, maintains its own result set, run/cancel state, and logs. The vertical divider between panes is draggable (20–80% range). Clicking "Unsplit" closes the right pane.
+- **"Query table" in catalog** — right-clicking any table in the catalog sidebar now shows a "Query table" option. Selecting it opens a new query tab pre-filled with a `SELECT * FROM … LIMIT 100` statement using the correct engine-specific quoting (backticks for BigQuery, double-quotes for Postgres/Snowflake).
+- **Visual filter/sort bar in results** — a new "Filter" button in the results status bar toggles a compact per-column filter bar. Each column gets a text input for case-insensitive substring filtering; all active filters are ANDed. A badge on the button shows the number of active filters. Clicking a column header sorts by that column (asc → desc → off). A "Clear" button resets all filters and sort. Client-side filtering is tracked separately from the server total.
+
+### Changed
+- **`buildSelectQuery` utility** — engine-specific `SELECT *` SQL generation was extracted into `src/renderer/src/lib/buildSelectQuery.ts` and shared between the catalog tree ("Query table") and `TableDetailPanel` preview tab, removing duplicated quoting logic.
+
+---
 ## [1.5.0] - 2026-05-16
 
 ### Added

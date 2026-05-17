@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { CHANNELS } from '@shared/ipc'
-import type { ConnectionEngine, QueryTab, QueryResult } from '@shared/types'
+import type { ConnectionEngine, QueryPane, QueryTab, QueryResult } from '@shared/types'
 
 interface QueryState {
   tabs: QueryTab[]
@@ -22,6 +22,11 @@ interface QueryState {
   cancelQuery: (id: string) => Promise<void>
   fetchPage: (id: string) => Promise<void>
   reorderTabs: (fromId: string, toId: string) => void
+  // Split-pane actions
+  toggleSplit: (tabId: string) => void
+  updateRightPaneSql: (tabId: string, sql: string) => void
+  runRightPane: (tabId: string) => Promise<void>
+  cancelRightPane: (tabId: string) => Promise<void>
 }
 
 export const useQueryStore = create<QueryState>((set, get) => ({
@@ -159,6 +164,92 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     })
   },
 
+  // ── Split pane ─────────────────────────────────────────────────────────────
+
+  toggleSplit: (tabId) => {
+    set((s) => ({
+      tabs: s.tabs.map((t) => {
+        if (t.id !== tabId) return t
+        if (t.rightPane) {
+          // Close split: remove rightPane
+          const { rightPane: _, ...rest } = t
+          return rest as QueryTab
+        }
+        // Open split: initialise empty rightPane
+        const emptyPane: QueryPane = { sql: '', isRunning: false, logs: [] }
+        return { ...t, rightPane: emptyPane }
+      })
+    }))
+  },
+
+  updateRightPaneSql: (tabId, sql) => {
+    set((s) => ({
+      tabs: s.tabs.map((t) => {
+        if (t.id !== tabId || !t.rightPane) return t
+        return { ...t, rightPane: { ...t.rightPane, sql } }
+      })
+    }))
+  },
+
+  runRightPane: async (tabId) => {
+    const tab = get().tabs.find((t) => t.id === tabId)
+    if (!tab?.rightPane || !tab.connectionId || !tab.rightPane.sql.trim()) return
+
+    const rightTabId = `${tabId}-right`
+
+    set((s) => ({
+      tabs: s.tabs.map((t) =>
+        t.id === tabId && t.rightPane
+          ? { ...t, rightPane: { ...t.rightPane, isRunning: true, cancelled: false, error: undefined, result: undefined, logs: [] } }
+          : t
+      )
+    }))
+
+    try {
+      const result: QueryResult = await window.api.invoke(CHANNELS.QUERY_EXECUTE, {
+        connectionId: tab.connectionId,
+        sql: tab.rightPane.sql,
+        tabId: rightTabId,
+      })
+      set((s) => ({
+        tabs: s.tabs.map((t) =>
+          t.id === tabId && t.rightPane
+            ? { ...t, rightPane: { ...t.rightPane, isRunning: false, result } }
+            : t
+        )
+      }))
+    } catch (err) {
+      set((s) => {
+        const currentTab = s.tabs.find((t) => t.id === tabId)
+        return {
+          tabs: s.tabs.map((t) =>
+            t.id === tabId && t.rightPane
+              ? {
+                  ...t,
+                  rightPane: {
+                    ...t.rightPane,
+                    isRunning: false,
+                    error: currentTab?.rightPane?.cancelled ? undefined : (err as Error).message,
+                  },
+                }
+              : t
+          ),
+        }
+      })
+    }
+  },
+
+  cancelRightPane: async (tabId) => {
+    set((s) => ({
+      tabs: s.tabs.map((t) =>
+        t.id === tabId && t.rightPane
+          ? { ...t, rightPane: { ...t.rightPane, cancelled: true } }
+          : t
+      )
+    }))
+    await window.api.invoke(CHANNELS.QUERY_CANCEL, `${tabId}-right`)
+  },
+
   fetchPage: async (id) => {
     const tab = get().tabs.find((t) => t.id === id)
     if (!tab?.result?.pageToken) return
@@ -193,14 +284,24 @@ export const useQueryStore = create<QueryState>((set, get) => ({
 
 // ── Global QUERY_LOG push listener ──────────────────────────────────────────
 // Main process sends { tabId, message } whenever query state changes.
-// We append a timestamped line to the matching tab's logs.
+// tabId may have a "-right" suffix when the log belongs to a split-pane right side.
+// We append a timestamped line to the matching tab's (or rightPane's) logs.
 window.api.on(CHANNELS.QUERY_LOG, (data: unknown) => {
   const { tabId, message } = data as { tabId: string; message: string }
   const now = new Date()
   const ts = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
+  const isRight = tabId.endsWith('-right')
+  const baseId = isRight ? tabId.slice(0, -6) : tabId
   useQueryStore.setState((s) => ({
-    tabs: s.tabs.map((t) =>
-      t.id === tabId ? { ...t, logs: [...t.logs, `${ts}  ${message}`] } : t
-    )
+    tabs: s.tabs.map((t) => {
+      if (t.id !== baseId) return t
+      if (isRight && t.rightPane) {
+        return { ...t, rightPane: { ...t.rightPane, logs: [...t.rightPane.logs, `${ts}  ${message}`] } }
+      }
+      if (!isRight) {
+        return { ...t, logs: [...t.logs, `${ts}  ${message}`] }
+      }
+      return t
+    })
   }))
 })

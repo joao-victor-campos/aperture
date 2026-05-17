@@ -4,6 +4,7 @@ import { CHANNELS } from '@shared/ipc'
 import type { TableField, QueryResult } from '@shared/types'
 import { useCatalogStore } from '../../store/catalogStore'
 import { useConnectionStore } from '../../store/connectionStore'
+import { buildSelectQuery } from '../../lib/buildSelectQuery'
 
 interface TableDetailPanelProps {
   connectionId: string
@@ -37,13 +38,8 @@ export default function TableDetailPanel({
   const previewTabId = useMemo(() => crypto.randomUUID(), [connectionId, projectId, datasetId, tableId])
 
   const tableRef = `${datasetId}.${tableId}`
-  const previewRef =
-    engine === 'bigquery'
-      ? `\`${projectId}.${datasetId}.${tableId}\``
-      : engine === 'snowflake'
-      // datasetId is "DATABASE.SCHEMA" — split so each part is quoted individually
-      ? [...datasetId.split('.'), tableId].map(quoteIdent).join('.')
-      : `${quoteIdent(datasetId)}.${quoteIdent(tableId)}`
+  // Use the shared builder (engine-specific quoting); strip " LIMIT 100" for the preview SQL
+  const previewRef = buildSelectQuery(engine, projectId, datasetId, tableId).replace(' LIMIT 100', ' LIMIT 50')
 
   useEffect(() => {
     setSchema(null)
@@ -68,7 +64,7 @@ export default function TableDetailPanel({
     try {
       const result = await window.api.invoke(CHANNELS.QUERY_EXECUTE, {
         connectionId,
-        sql: `SELECT * FROM ${previewRef} LIMIT 50`,
+        sql: previewRef,
         tabId: previewTabId,
       })
       setPreview(result)
@@ -304,8 +300,4 @@ function formatCell(value: unknown): string {
   return String(value)
 }
 
-function quoteIdent(ident: string): string {
-  // Minimal identifier quoting for Postgres.
-  // Escape embedded quotes to avoid malformed SQL.
-  return `"${ident.replace(/"/g, '""')}"`
-}
+
