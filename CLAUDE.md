@@ -148,6 +148,35 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-05-17] Feature: Split panes + schema-aware query builder
+
+**Type:** Change
+**Context:** Users needed to compare two result sets side-by-side without switching tabs, and wanted a faster way to start querying a table from the catalog without typing SQL. A visual filter/sort bar was also requested for exploring results without writing WHERE/ORDER BY clauses.
+**Problem / Change:**
+- No way to run two independent queries in the same tab at once.
+- Opening a `SELECT *` from the catalog required manually typing the SQL with the correct engine-specific quoting.
+- Results could only be filtered/sorted by modifying the SQL and re-running; no in-place exploration.
+
+**Solution / Outcome:**
+- **Split panes**: A "Split" / "Unsplit" button (Columns2 icon) in the `QueryEditor` toolbar activates a right pane. Each pane has its own SQL, result, run/cancel state, and logs. The right pane uses `tabId: "${tabId}-right"` so `QUERY_LOG` events route correctly. A draggable horizontal divider (20–80%) sits between the two panes; the existing vertical editor/results divider controls both pane heights in sync. `toggleSplit`, `updateRightPaneSql`, `runRightPane`, `cancelRightPane` added to `queryStore`. The `QueryPane` interface added to `types.ts` and `rightPane?: QueryPane` on `QueryTab`.
+- **"Query table"**: `buildSelectQuery(engine, projectId, datasetId, tableId)` utility created in `src/renderer/src/lib/buildSelectQuery.ts`. `CatalogTree.tsx` `TableRow` dropdown gained a "Query table" item (Play icon) that calls `openTab({ sql, connectionId })`. `TableDetailPanel.tsx` preview SQL now uses `buildSelectQuery` instead of inline quoting logic.
+- **Filter/sort bar**: A "Filter" toggle button (SlidersHorizontal icon, with active-count badge) in the `ResultsTable` status bar shows/hides a per-column input row. `filterSortRows` pure helper in `src/renderer/src/lib/filterSortRows.ts` applies case-insensitive substring filters (ANDed) and ascending/descending sort (NULLs last). Column headers gained a sort toggle (asc → desc → off with a ChevronUp/Down indicator). Filters and sort reset when a new result set arrives.
+
+**Files affected:**
+- `src/shared/types.ts` — added `QueryPane` interface; added `rightPane?: QueryPane` to `QueryTab`
+- `src/renderer/src/store/queryStore.ts` — added `toggleSplit`, `updateRightPaneSql`, `runRightPane`, `cancelRightPane`; updated `QUERY_LOG` handler to route `-right` suffix
+- `src/renderer/src/pages/Editor.tsx` — split layout, `splitHPct` state, `handleHDividerMouseDown`
+- `src/renderer/src/components/editor/QueryEditor.tsx` — `onSplit`/`isSplit` props, Split/Unsplit button (Columns2 icon)
+- `src/renderer/src/components/results/ResultsTable.tsx` — filter/sort state, Sliders button, `filterSortRows` integration, column sort on header click
+- `src/renderer/src/lib/buildSelectQuery.ts` — created
+- `src/renderer/src/lib/filterSortRows.ts` — created
+- `src/renderer/src/components/catalog/CatalogTree.tsx` — "Query table" menu item using `buildSelectQuery`
+- `src/renderer/src/components/catalog/TableDetailPanel.tsx` — uses `buildSelectQuery`; removed inline `quoteIdent`
+- `src/__tests__/renderer/lib/buildSelectQuery.test.ts` — created (8 tests)
+- `src/__tests__/renderer/lib/filterSortRows.test.ts` — created (12 tests)
+- `src/__tests__/renderer/store/queryStore.test.ts` — added split pane describe block (13 new tests)
+- `CHANGELOG.md` — Unreleased section added
+
 ### [2026-04-17] Feature: UX improvements — unified connection modal, edit, delete confirmation, health badge, column search
 
 **Type:** Change
