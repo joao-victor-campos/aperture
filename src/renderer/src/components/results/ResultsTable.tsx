@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, Loader2, Download, Pin } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, Download, Pin, SlidersHorizontal, X, ChevronUp, ChevronDown as ChevronDownIcon } from 'lucide-react'
 import { CHANNELS } from '@shared/ipc'
 import type { QueryResult } from '@shared/types'
+import { filterSortRows } from '../../lib/filterSortRows'
 
 interface ResultsTableProps {
   result?: QueryResult
@@ -34,6 +35,11 @@ export default function ResultsTable({
   const resizingCol = useRef<{ col: string; startX: number; startWidth: number } | null>(null)
   const [copiedCol, setCopiedCol] = useState<string | null>(null)
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Filter / sort state
+  const [builderOpen, setBuilderOpen] = useState(false)
+  const [colFilters, setColFilters] = useState<Record<string, string>>({})
+  const [sortCol, setSortCol] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   // Clean up pending timers and any in-flight resize listeners on unmount
   useEffect(() => {
@@ -66,7 +72,7 @@ export default function ResultsTable({
     return () => document.removeEventListener('mousedown', handler)
   }, [exportOpen])
 
-  // Reset to first page + col widths whenever a new result set arrives
+  // Reset to first page + col widths + filters whenever a new result set arrives
   const resultColumnsRef = useRef<string[]>([])
   useEffect(() => {
     if (!result) return
@@ -74,6 +80,8 @@ export default function ResultsTable({
     if (cols !== resultColumnsRef.current.join(',')) {
       setPage(0)
       setColWidths({})
+      setColFilters({})
+      setSortCol(null)
       resultColumnsRef.current = result.columns
     }
   }, [result])
@@ -186,10 +194,13 @@ export default function ResultsTable({
 
   const { columns, rows, executionTimeMs, bytesProcessed, totalRows: serverTotal, hasMore } = result
   const fetchedRows = rows.length
-  const totalPages = Math.max(1, Math.ceil(fetchedRows / pageSize))
-  const pageRows = rows.slice(page * pageSize, (page + 1) * pageSize)
-  const startRow = fetchedRows === 0 ? 0 : page * pageSize + 1
-  const endRow = Math.min((page + 1) * pageSize, fetchedRows)
+  // Apply client-side filter + sort before pagination
+  const filteredRows = filterSortRows(rows, colFilters, sortCol, sortDir)
+  const activeFilterCount = Object.values(colFilters).filter((v) => v.trim() !== '').length
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
+  const pageRows = filteredRows.slice(page * pageSize, (page + 1) * pageSize)
+  const startRow = filteredRows.length === 0 ? 0 : page * pageSize + 1
+  const endRow = Math.min((page + 1) * pageSize, filteredRows.length)
 
   const onLastFetchedPage = page >= totalPages - 1
   const canLoadMore = hasMore && onFetchPage
@@ -246,6 +257,24 @@ export default function ResultsTable({
           </span>
         )}
         <div className="flex-1" />
+        {/* Filter/sort toggle */}
+        <button
+          onClick={() => setBuilderOpen((v) => !v)}
+          title={builderOpen ? 'Hide filter bar' : 'Filter & sort'}
+          className={`relative flex items-center gap-1 text-xs px-2 py-0.5 rounded transition-colors border border-app-border ${
+            builderOpen || activeFilterCount > 0
+              ? 'text-app-accent border-app-accent/50 hover:bg-app-elevated'
+              : 'text-app-text-2 hover:text-app-text hover:bg-app-elevated'
+          }`}
+        >
+          <SlidersHorizontal size={11} />
+          <span>Filter</span>
+          {activeFilterCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-app-accent text-white text-[9px] rounded-full w-3.5 h-3.5 flex items-center justify-center font-bold">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
         {/* Pin result */}
         {onPin && (
           <button
@@ -285,6 +314,35 @@ export default function ResultsTable({
         </div>
       </div>
 
+      {/* Filter/sort bar */}
+      {builderOpen && (
+        <div className="flex items-center gap-1 px-2 py-1.5 border-b border-app-border bg-app-elevated/40 shrink-0 overflow-x-auto">
+          {columns.map((col) => (
+            <div key={col} className="flex items-center shrink-0" style={{ width: colWidths[col] ?? DEFAULT_COL_WIDTH }}>
+              <input
+                type="text"
+                value={colFilters[col] ?? ''}
+                onChange={(e) => {
+                  setColFilters((prev) => ({ ...prev, [col]: e.target.value }))
+                  setPage(0)
+                }}
+                placeholder={col}
+                className="w-full bg-app-surface border border-app-border rounded px-2 py-0.5 text-[11px] text-app-text placeholder-app-text-3 focus:outline-none focus:border-app-accent transition-colors"
+              />
+            </div>
+          ))}
+          {activeFilterCount > 0 && (
+            <button
+              onClick={() => { setColFilters({}); setSortCol(null); setPage(0) }}
+              className="shrink-0 flex items-center gap-1 text-[11px] px-2 py-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated transition-colors border border-app-border"
+            >
+              <X size={10} />
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Table */}
       <div className="flex-1 overflow-auto selectable results-area">
         <table className="text-xs border-collapse" style={{ tableLayout: 'fixed', width: 'max-content', minWidth: '100%' }}>
@@ -301,13 +359,35 @@ export default function ResultsTable({
                   className="relative px-3 py-2 text-left text-app-text-2 font-medium border-b border-app-border whitespace-nowrap select-none"
                   style={{ width: colWidths[col] ?? DEFAULT_COL_WIDTH }}
                 >
-                  <span
-                    onClick={() => handleCopyColName(col)}
-                    title={`Click to copy "${col}"`}
-                    className="block truncate pr-2 cursor-pointer hover:text-app-text transition-colors"
-                  >
-                    {copiedCol === col ? '✓ Copied' : col}
-                  </span>
+                  <div className="flex items-center gap-1 pr-2">
+                    <span
+                      onClick={() => handleCopyColName(col)}
+                      title={`Click to copy "${col}"`}
+                      className="block truncate cursor-pointer hover:text-app-text transition-colors flex-1 min-w-0"
+                    >
+                      {copiedCol === col ? '✓ Copied' : col}
+                    </span>
+                    {/* Sort toggle */}
+                    <button
+                      onClick={() => {
+                        if (sortCol === col) {
+                          if (sortDir === 'asc') setSortDir('desc')
+                          else { setSortCol(null); setSortDir('asc') }
+                        } else {
+                          setSortCol(col)
+                          setSortDir('asc')
+                        }
+                        setPage(0)
+                      }}
+                      className={`shrink-0 transition-opacity ${sortCol === col ? 'opacity-100' : 'opacity-0 group-hover:opacity-60'}`}
+                      title={sortCol === col ? (sortDir === 'asc' ? 'Sort descending' : 'Remove sort') : `Sort by ${col}`}
+                    >
+                      {sortCol === col
+                        ? (sortDir === 'asc' ? <ChevronUp size={10} className="text-app-accent" /> : <ChevronDownIcon size={10} className="text-app-accent" />)
+                        : <ChevronUp size={10} className="text-app-text-3" />
+                      }
+                    </button>
+                  </div>
                   {/* Resize handle */}
                   <div
                     onMouseDown={(e) => handleResizeMouseDown(e, col)}
@@ -344,10 +424,10 @@ export default function ResultsTable({
       {/* Pagination bar */}
       <div className="flex items-center justify-between px-3 py-1.5 border-t border-app-border bg-app-surface shrink-0">
         <span className="text-xs text-app-text-3">
-          {fetchedRows === 0
+          {filteredRows.length === 0
             ? 'No rows'
-            : `${startRow.toLocaleString()}–${endRow.toLocaleString()} of ${displayTotalStr}`}
-          {hasMore && serverTotal == null && '+'}
+            : `${startRow.toLocaleString()}–${endRow.toLocaleString()} of ${activeFilterCount > 0 ? `${filteredRows.length.toLocaleString()} filtered` : displayTotalStr}`}
+          {!activeFilterCount && hasMore && serverTotal == null && '+'}
         </span>
 
         <div className="flex items-center gap-3">

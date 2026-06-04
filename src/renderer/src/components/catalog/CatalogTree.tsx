@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronRight, ChevronDown, Table2, Layers, RefreshCw, MoreHorizontal, Copy, Check, Search, X } from 'lucide-react'
+import { ChevronRight, ChevronDown, Table2, Layers, RefreshCw, MoreHorizontal, Copy, Check, Search, X, Play } from 'lucide-react'
 import { useCatalogStore } from '../../store/catalogStore'
 import { useConnectionStore } from '../../store/connectionStore'
 import { useQueryStore } from '../../store/queryStore'
 import type { Table } from '@shared/types'
+import { buildSelectQuery } from '../../lib/buildSelectQuery'
 
 interface CatalogTreeProps {
   onAddConnection: () => void
@@ -20,7 +21,7 @@ export default function CatalogTree({ onAddConnection }: CatalogTreeProps) {
     loadTables,
     toggleDataset,
   } = useCatalogStore()
-  const { openTableTab } = useQueryStore()
+  const { openTableTab, openTab } = useQueryStore()
   const [search, setSearch] = useState('')
 
   useEffect(() => {
@@ -155,6 +156,10 @@ export default function CatalogTree({ onAddConnection }: CatalogTreeProps) {
                           table.name
                         )
                       }
+                      onQueryTable={() => {
+                        const sql = buildSelectQuery(activeEngine, projectContextId, dataset.id, table.id)
+                        openTab({ sql, connectionId: activeConnectionId, title: table.name })
+                      }}
                     />
                   ))
                 )}
@@ -174,9 +179,10 @@ interface TableRowProps {
   datasetId: string
   connectionId: string
   onOpen: () => void
+  onQueryTable: () => void
 }
 
-function TableRow({ table, datasetId, onOpen }: TableRowProps) {
+function TableRow({ table, datasetId, onOpen, onQueryTable }: TableRowProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -219,6 +225,13 @@ function TableRow({ table, datasetId, onOpen }: TableRowProps) {
 
         {menuOpen && (
           <div className="absolute right-0 top-full mt-0.5 z-50 bg-app-surface border border-app-border rounded-lg shadow-xl py-1 w-52">
+            <button
+              onClick={(e) => { e.stopPropagation(); onQueryTable(); setMenuOpen(false) }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-app-text hover:bg-app-elevated transition-colors"
+            >
+              <Play size={12} className="shrink-0 text-app-accent" />
+              <span>Query table</span>
+            </button>
             <button
               onClick={handleCopy}
               className="w-full flex items-center gap-2 px-3 py-2 text-xs text-app-text hover:bg-app-elevated transition-colors"
