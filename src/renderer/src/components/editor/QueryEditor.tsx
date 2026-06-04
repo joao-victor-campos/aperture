@@ -5,7 +5,7 @@ import { sql, PostgreSQL, StandardSQL } from '@codemirror/lang-sql'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { EditorView, keymap } from '@codemirror/view'
 import { Prec } from '@codemirror/state'
-import { Bookmark, BookmarkCheck, WandSparkles } from 'lucide-react'
+import { Bookmark, BookmarkCheck, Columns2, WandSparkles } from 'lucide-react'
 import type { ConnectionEngine } from '@shared/types'
 
 interface QueryEditorProps {
@@ -13,7 +13,9 @@ interface QueryEditorProps {
   onChange: (value: string) => void
   onRun: () => void
   onCancel: () => void
-  onSave: () => void
+  onSave?: () => void
+  onSplit?: () => void
+  isSplit?: boolean
   isRunning: boolean
   savedQueryId?: string
   sqlSchema?: Record<string, string[]>
@@ -47,7 +49,7 @@ const customTheme = EditorView.theme({
 })
 
 export default function QueryEditor({
-  value, onChange, onRun, onCancel, onSave, isRunning, savedQueryId, sqlSchema, engine,
+  value, onChange, onRun, onCancel, onSave, onSplit, isSplit, isRunning, savedQueryId, sqlSchema, engine,
 }: QueryEditorProps) {
   const sqlExtension = useMemo(
     () => sql({
@@ -82,7 +84,7 @@ export default function QueryEditor({
       },
       {
         key: 'Mod-s',
-        run: () => { onSave(); return true },
+        run: () => { onSave?.(); return true },
       },
       {
         key: 'Alt-Mod-f',
@@ -108,6 +110,22 @@ export default function QueryEditor({
             <WandSparkles size={13} />
             <span className="text-[11px]">Format</span>
           </button>
+
+          {/* Split button */}
+          {onSplit && (
+            <button
+              onClick={onSplit}
+              title={isSplit ? 'Close split pane' : 'Split pane'}
+              className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors ${
+                isSplit
+                  ? 'text-app-accent hover:text-app-accent/80 hover:bg-app-elevated'
+                  : 'text-app-text-2 hover:text-app-text hover:bg-app-elevated'
+              }`}
+            >
+              <Columns2 size={13} />
+              <span className="text-[11px]">{isSplit ? 'Unsplit' : 'Split'}</span>
+            </button>
+          )}
 
           {/* Save button */}
           <button

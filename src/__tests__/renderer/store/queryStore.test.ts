@@ -348,4 +348,169 @@ describe('queryStore', () => {
       expect(invoke()).toHaveBeenCalledWith(CHANNELS.QUERY_CANCEL, id)
     })
   })
+
+  describe('split pane', () => {
+    describe('toggleSplit', () => {
+      it('creates a rightPane with empty state when none exists', () => {
+        // Arrange
+        const id = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 1' })
+
+        // Act
+        useQueryStore.getState().toggleSplit(id)
+
+        // Assert
+        const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+        expect(tab.rightPane).toBeDefined()
+        expect(tab.rightPane?.sql).toBe('')
+        expect(tab.rightPane?.isRunning).toBe(false)
+        expect(tab.rightPane?.logs).toEqual([])
+      })
+
+      it('removes rightPane when called again (toggle off)', () => {
+        // Arrange
+        const id = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 1' })
+        useQueryStore.getState().toggleSplit(id)
+        expect(useQueryStore.getState().tabs.find((t) => t.id === id)!.rightPane).toBeDefined()
+
+        // Act
+        useQueryStore.getState().toggleSplit(id)
+
+        // Assert
+        expect(useQueryStore.getState().tabs.find((t) => t.id === id)!.rightPane).toBeUndefined()
+      })
+
+      it('does not affect other tabs', () => {
+        // Arrange
+        const id1 = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 1' })
+        const id2 = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 2' })
+
+        // Act
+        useQueryStore.getState().toggleSplit(id1)
+
+        // Assert
+        const tab2 = useQueryStore.getState().tabs.find((t) => t.id === id2)!
+        expect(tab2.rightPane).toBeUndefined()
+      })
+    })
+
+    describe('updateRightPaneSql', () => {
+      it('updates rightPane.sql without affecting the left pane sql', () => {
+        // Arrange
+        const id = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 1' })
+        useQueryStore.getState().toggleSplit(id)
+
+        // Act
+        useQueryStore.getState().updateRightPaneSql(id, 'SELECT 2')
+
+        // Assert
+        const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+        expect(tab.rightPane?.sql).toBe('SELECT 2')
+        expect(tab.sql).toBe('SELECT 1')
+      })
+
+      it('is a no-op when rightPane does not exist', () => {
+        // Arrange
+        const id = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 1' })
+
+        // Act (no split opened)
+        useQueryStore.getState().updateRightPaneSql(id, 'SELECT 2')
+
+        // Assert — left sql is unchanged, no rightPane created
+        const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+        expect(tab.sql).toBe('SELECT 1')
+        expect(tab.rightPane).toBeUndefined()
+      })
+    })
+
+    describe('runRightPane', () => {
+      it('invokes QUERY_EXECUTE with tabId="${id}-right" and stores result in rightPane', async () => {
+        // Arrange
+        const id = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 1' })
+        useQueryStore.getState().toggleSplit(id)
+        useQueryStore.getState().updateRightPaneSql(id, 'SELECT 2')
+        invoke().mockResolvedValueOnce(mockResult)
+
+        // Act
+        await useQueryStore.getState().runRightPane(id)
+
+        // Assert
+        const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+        expect(tab.rightPane?.result).toEqual(mockResult)
+        expect(tab.rightPane?.isRunning).toBe(false)
+        expect(invoke()).toHaveBeenCalledWith(CHANNELS.QUERY_EXECUTE, {
+          connectionId: 'c1',
+          sql: 'SELECT 2',
+          tabId: `${id}-right`,
+        })
+      })
+
+      it('stores error in rightPane.error on failure (when not cancelled)', async () => {
+        // Arrange
+        const id = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 1' })
+        useQueryStore.getState().toggleSplit(id)
+        useQueryStore.getState().updateRightPaneSql(id, 'SELECT bad')
+        invoke().mockRejectedValueOnce(new Error('Syntax error'))
+
+        // Act
+        await useQueryStore.getState().runRightPane(id)
+
+        // Assert
+        const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+        expect(tab.rightPane?.error).toBe('Syntax error')
+        expect(tab.rightPane?.isRunning).toBe(false)
+      })
+
+      it('suppresses error when rightPane.cancelled is true', async () => {
+        // Arrange
+        const id = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 1' })
+        useQueryStore.getState().toggleSplit(id)
+        useQueryStore.getState().updateRightPaneSql(id, 'SELECT 1')
+        invoke().mockImplementationOnce(async () => {
+          useQueryStore.setState((s) => ({
+            tabs: s.tabs.map((t) =>
+              t.id === id && t.rightPane
+                ? { ...t, rightPane: { ...t.rightPane, cancelled: true } }
+                : t
+            )
+          }))
+          throw new Error('Cancelled')
+        })
+
+        // Act
+        await useQueryStore.getState().runRightPane(id)
+
+        // Assert
+        const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+        expect(tab.rightPane?.error).toBeUndefined()
+      })
+
+      it('is a no-op when rightPane is absent', async () => {
+        // Arrange
+        const id = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 1' })
+
+        // Act — no toggleSplit, so no rightPane
+        await useQueryStore.getState().runRightPane(id)
+
+        // Assert
+        expect(invoke()).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('cancelRightPane', () => {
+      it('sets rightPane.cancelled to true and calls QUERY_CANCEL with the -right tabId', async () => {
+        // Arrange
+        const id = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 1' })
+        useQueryStore.getState().toggleSplit(id)
+        invoke().mockResolvedValueOnce(undefined)
+
+        // Act
+        await useQueryStore.getState().cancelRightPane(id)
+
+        // Assert
+        const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+        expect(tab.rightPane?.cancelled).toBe(true)
+        expect(invoke()).toHaveBeenCalledWith(CHANNELS.QUERY_CANCEL, `${id}-right`)
+      })
+    })
+  })
 })

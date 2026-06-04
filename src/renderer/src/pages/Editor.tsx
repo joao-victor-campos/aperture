@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, X, Table2, Pin } from 'lucide-react'
 import QueryEditor from '../components/editor/QueryEditor'
 import ResultsTable from '../components/results/ResultsTable'
@@ -10,17 +10,23 @@ import { useCatalogStore } from '../store/catalogStore'
 import { useSavedQueryStore } from '../store/savedQueryStore'
 
 export default function Editor() {
-  const { tabs, activeTabId, openTab, openResultTab, closeTab, setActiveTab, updateTabSql, runQuery, cancelQuery, fetchPage, reorderTabs } =
-    useQueryStore()
+  const {
+    tabs, activeTabId,
+    openTab, openResultTab, closeTab, setActiveTab, updateTabSql,
+    runQuery, cancelQuery, fetchPage, reorderTabs,
+    toggleSplit, updateRightPaneSql, runRightPane, cancelRightPane,
+  } = useQueryStore()
   const dragTabId = useRef<string | null>(null)
   const { connections, activeConnectionId } = useConnectionStore()
   const activeEngine = connections.find((c) => c.id === activeConnectionId)?.engine
   const { datasetsByConnection, tablesByDataset, schemaCache } = useCatalogStore()
   const { updateQuery } = useSavedQueryStore()
   const [splitPct, setSplitPct] = useState(55)
+  const [splitHPct, setSplitHPct] = useState(50) // horizontal split between left/right pane
   const [savingTabId, setSavingTabId] = useState<string | null>(null)
   const [savedFlash, setSavedFlash] = useState(false)
   const isDragging = useRef(false)
+  const isHDragging = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const savedFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -29,6 +35,7 @@ export default function Editor() {
     return () => {
       if (savedFlashTimerRef.current) clearTimeout(savedFlashTimerRef.current)
       isDragging.current = false
+      isHDragging.current = false
     }
   }, [])
 
@@ -102,6 +109,24 @@ export default function Editor() {
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
   }
+
+  const handleHDividerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    isHDragging.current = true
+    const onMove = (ev: MouseEvent) => {
+      if (!isHDragging.current || !containerRef.current) return
+      const rect = containerRef.current.getBoundingClientRect()
+      const pct = ((ev.clientX - rect.left) / rect.width) * 100
+      setSplitHPct(Math.min(80, Math.max(20, pct)))
+    }
+    const onUp = () => {
+      isHDragging.current = false
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [])
 
   return (
     <div className="flex flex-col h-full">
@@ -191,38 +216,114 @@ export default function Editor() {
         )}
 
         {activeTab && activeTab.type !== 'table' && activeTab.type !== 'result' && (
-          <>
-            <div style={{ height: `${splitPct}%` }} className="overflow-hidden min-h-0">
-              <QueryEditor
-                value={activeTab.sql}
-                onChange={(sql) => updateTabSql(activeTab.id, sql)}
-                onRun={() => runQuery(activeTab.id)}
-                onCancel={() => cancelQuery(activeTab.id)}
-                onSave={handleSave}
-                isRunning={activeTab.isRunning}
-                savedQueryId={activeTab.savedQueryId}
-                sqlSchema={sqlSchema}
-                engine={activeEngine}
-              />
-            </div>
+          activeTab.rightPane ? (
+            /* ── Split layout ────────────────────────────────────────────── */
+            <div className="flex flex-1 overflow-hidden min-h-0">
+              {/* Left pane */}
+              <div className="flex flex-col overflow-hidden min-h-0" style={{ width: `${splitHPct}%` }}>
+                <div style={{ height: `${splitPct}%` }} className="overflow-hidden min-h-0">
+                  <QueryEditor
+                    value={activeTab.sql}
+                    onChange={(sql) => updateTabSql(activeTab.id, sql)}
+                    onRun={() => runQuery(activeTab.id)}
+                    onCancel={() => cancelQuery(activeTab.id)}
+                    onSave={handleSave}
+                    onSplit={() => toggleSplit(activeTab.id)}
+                    isSplit
+                    isRunning={activeTab.isRunning}
+                    savedQueryId={activeTab.savedQueryId}
+                    sqlSchema={sqlSchema}
+                    engine={activeEngine}
+                  />
+                </div>
+                <div
+                  onMouseDown={handleDividerMouseDown}
+                  className="h-1.5 bg-app-border hover:bg-app-accent/60 cursor-row-resize transition-colors shrink-0"
+                />
+                <div style={{ height: `${100 - splitPct}%` }} className="overflow-hidden min-h-0">
+                  <ResultsTable
+                    result={activeTab.result}
+                    error={activeTab.error}
+                    isRunning={activeTab.isRunning}
+                    cancelled={activeTab.cancelled}
+                    logs={activeTab.logs}
+                    onFetchPage={() => fetchPage(activeTab.id)}
+                    onPin={() => openResultTab(activeTab.id)}
+                  />
+                </div>
+              </div>
 
-            <div
-              onMouseDown={handleDividerMouseDown}
-              className="h-1.5 bg-app-border hover:bg-app-accent/60 cursor-row-resize transition-colors shrink-0"
-            />
-
-            <div style={{ height: `${100 - splitPct}%` }} className="overflow-hidden min-h-0">
-              <ResultsTable
-                result={activeTab.result}
-                error={activeTab.error}
-                isRunning={activeTab.isRunning}
-                cancelled={activeTab.cancelled}
-                logs={activeTab.logs}
-                onFetchPage={() => fetchPage(activeTab.id)}
-                onPin={() => openResultTab(activeTab.id)}
+              {/* Horizontal divider between left and right pane */}
+              <div
+                onMouseDown={handleHDividerMouseDown}
+                className="w-1.5 bg-app-border hover:bg-app-accent/60 cursor-col-resize transition-colors shrink-0"
               />
+
+              {/* Right pane */}
+              <div className="flex flex-col flex-1 overflow-hidden min-h-0">
+                <div style={{ height: `${splitPct}%` }} className="overflow-hidden min-h-0">
+                  <QueryEditor
+                    value={activeTab.rightPane.sql}
+                    onChange={(sql) => updateRightPaneSql(activeTab.id, sql)}
+                    onRun={() => runRightPane(activeTab.id)}
+                    onCancel={() => cancelRightPane(activeTab.id)}
+                    isRunning={activeTab.rightPane.isRunning}
+                    sqlSchema={sqlSchema}
+                    engine={activeEngine}
+                  />
+                </div>
+                <div
+                  onMouseDown={handleDividerMouseDown}
+                  className="h-1.5 bg-app-border hover:bg-app-accent/60 cursor-row-resize transition-colors shrink-0"
+                />
+                <div style={{ height: `${100 - splitPct}%` }} className="overflow-hidden min-h-0">
+                  <ResultsTable
+                    result={activeTab.rightPane.result}
+                    error={activeTab.rightPane.error}
+                    isRunning={activeTab.rightPane.isRunning}
+                    cancelled={activeTab.rightPane.cancelled}
+                    logs={activeTab.rightPane.logs}
+                  />
+                </div>
+              </div>
             </div>
-          </>
+          ) : (
+            /* ── Single-pane layout ──────────────────────────────────────── */
+            <>
+              <div style={{ height: `${splitPct}%` }} className="overflow-hidden min-h-0">
+                <QueryEditor
+                  value={activeTab.sql}
+                  onChange={(sql) => updateTabSql(activeTab.id, sql)}
+                  onRun={() => runQuery(activeTab.id)}
+                  onCancel={() => cancelQuery(activeTab.id)}
+                  onSave={handleSave}
+                  onSplit={() => toggleSplit(activeTab.id)}
+                  isSplit={false}
+                  isRunning={activeTab.isRunning}
+                  savedQueryId={activeTab.savedQueryId}
+                  sqlSchema={sqlSchema}
+                  engine={activeEngine}
+                />
+              </div>
+
+              <div
+                onMouseDown={handleDividerMouseDown}
+                className="h-1.5 bg-app-border hover:bg-app-accent/60 cursor-row-resize transition-colors shrink-0"
+              />
+
+              <div style={{ height: `${100 - splitPct}%` }} className="overflow-hidden min-h-0">
+                <ResultsTable
+                  result={activeTab.result}
+                  error={activeTab.error}
+                  isRunning={activeTab.isRunning}
+                  cancelled={activeTab.cancelled}
+                  logs={activeTab.logs}
+                  onFetchPage={() => fetchPage(activeTab.id)}
+                  onPin={() => openResultTab(activeTab.id)}
+                />
+              </div>
+            </>
+          )
         )}
       </div>
 

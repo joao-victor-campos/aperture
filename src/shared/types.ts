@@ -88,6 +88,16 @@ export interface QueryResult {
   hasMore?: boolean
 }
 
+/** State for one side of a split-pane view (right pane). */
+export interface QueryPane {
+  sql: string
+  result?: QueryResult
+  error?: string
+  isRunning: boolean
+  cancelled?: boolean
+  logs: string[]
+}
+
 export interface QueryTab {
   id: string
   /** 'query' (default), 'table' (catalog inspection tab), or 'result' (pinned snapshot) */
@@ -103,6 +113,8 @@ export interface QueryTab {
   cancelled?: boolean
   logs: string[]
   savedQueryId?: string
+  /** Present when split-pane mode is active for this tab */
+  rightPane?: QueryPane
 }
 
 export interface SavedQuery {
