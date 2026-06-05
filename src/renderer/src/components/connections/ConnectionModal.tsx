@@ -154,39 +154,39 @@ export default function ConnectionModal({ onClose, initialConnection }: Connecti
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-      <div className="bg-app-surface rounded-xl shadow-2xl w-[520px] border border-app-border">
+      <div className="bg-app-surface rounded-xl shadow-app-card w-[520px] border border-app-border">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-app-border">
-          <h2 className="text-sm font-semibold text-app-text">
-            {isEdit ? 'Edit Connection' : 'New Connection'}
-          </h2>
+          <div className="flex flex-col gap-0.5">
+            <span className="app-section-label">{isEdit ? 'Edit' : 'New'} Connection</span>
+            <h2 className="text-app-text font-semibold text-[15px]">
+              {isEdit ? initialConnection?.name : ENGINES.find((e) => e.id === engine)?.label}
+            </h2>
+          </div>
           <button
             onClick={onClose}
-            className="text-app-text-2 hover:text-app-text transition-colors"
+            className="text-app-text-3 hover:text-app-text hover:bg-app-elevated rounded-md p-1 transition-colors"
           >
             <X size={15} />
           </button>
         </div>
 
-        {/* Engine tabs */}
-        <div className="flex border-b border-app-border">
-          {ENGINES.map(({ id, label }) => (
-            <button
-              key={id}
-              onClick={() => switchEngine(id)}
-              disabled={isEdit && id !== engine}
-              className={`px-4 py-2 text-xs transition-colors ${
-                engine === id
-                  ? 'text-app-accent-text border-b-2 border-app-accent'
-                  : isEdit
-                  ? 'hidden'
-                  : 'text-app-text-2 hover:text-app-text'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        {/* Engine selector — segmented pill (hidden in edit mode) */}
+        {!isEdit && (
+          <div className="px-5 pt-4">
+            <div className="app-segmented">
+              {ENGINES.map(({ id, label }) => (
+                <button
+                  key={id}
+                  onClick={() => switchEngine(id)}
+                  data-active={engine === id || undefined}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Form body */}
         <div className="p-5 flex flex-col gap-4">
@@ -362,8 +362,8 @@ export default function ConnectionModal({ onClose, initialConnection }: Connecti
             <div
               className={`flex items-start gap-2 text-xs px-3 py-2.5 rounded-lg border ${
                 testResult.ok
-                  ? 'bg-emerald-950/50 text-emerald-400 border-emerald-900/60'
-                  : 'bg-red-950/50 text-red-400 border-red-900/60'
+                  ? 'bg-app-ok-subtle text-app-ok border-app-ok/30'
+                  : 'bg-app-err-subtle text-app-err border-app-err/30'
               }`}
             >
               {testResult.ok ? <CheckCircle size={14} /> : <XCircle size={14} />}
@@ -373,17 +373,17 @@ export default function ConnectionModal({ onClose, initialConnection }: Connecti
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-2 px-5 py-4 border-t border-app-border">
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-app-border bg-app-bg/40 rounded-b-xl">
           <button
             onClick={onClose}
-            className="text-xs px-3 py-1.5 rounded-lg text-app-text-2 hover:text-app-text transition-colors"
+            className="text-xs px-3 py-1.5 rounded-lg text-app-text-2 hover:text-app-text hover:bg-app-elevated transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleTest}
             disabled={!isValid || isTesting || isSaving}
-            className="text-xs px-3 py-1.5 rounded-lg bg-app-elevated hover:bg-app-border disabled:opacity-40 disabled:cursor-not-allowed text-app-text transition-colors"
+            className="text-xs px-3 py-1.5 rounded-lg bg-app-elevated border border-app-border hover:bg-app-border/40 disabled:opacity-40 disabled:cursor-not-allowed text-app-text transition-colors"
           >
             {isTesting ? 'Testing…' : 'Test & Save'}
           </button>
@@ -401,12 +401,12 @@ export default function ConnectionModal({ onClose, initialConnection }: Connecti
 }
 
 const inputCls =
-  'w-full bg-app-elevated border border-app-border rounded-lg px-3 py-2 text-sm text-app-text focus:outline-none focus:border-app-accent placeholder-app-text-3 transition-colors'
+  'w-full bg-app-bg border border-app-border rounded-lg px-3 py-2 text-sm text-app-text focus:outline-none focus:border-app-accent focus:ring-1 focus:ring-app-accent/30 placeholder-app-text-4 transition-colors'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-xs text-app-text-2 font-medium">{label}</label>
+      <label className="app-section-label">{label}</label>
       {children}
     </div>
   )
@@ -429,7 +429,7 @@ function CredButton({
       className={`flex-1 flex flex-col items-start gap-0.5 text-left py-2.5 px-3 rounded-lg border transition-colors ${
         active
           ? 'border-app-accent bg-app-accent-subtle text-app-accent-text'
-          : 'border-app-border text-app-text-2 hover:border-app-text-3'
+          : 'border-app-border text-app-text-2 hover:border-app-border-2 hover:bg-app-elevated/40'
       }`}
     >
       <span className="text-xs font-medium">{label}</span>

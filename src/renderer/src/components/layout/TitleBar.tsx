@@ -89,6 +89,12 @@ export default function TitleBar({ onAddConnection, onEditConnection, isDark, on
 
   // Engine label for the breadcrumb (e.g. "snowflake / prod_warehouse")
   const engineLabel = activeConn ? (activeConn.engine ?? 'bigquery') : null
+  // Per-engine accent — applied only to the engine name in the breadcrumb
+  const engineColor =
+    engineLabel === 'bigquery'  ? 'text-app-cat-blue' :
+    engineLabel === 'snowflake' ? 'text-app-accent-text' :   // Snowflake stays terracotta
+    engineLabel === 'postgres'  ? 'text-app-cat-purple' :
+                                  'text-app-text'
 
   return (
     <div
@@ -118,9 +124,9 @@ export default function TitleBar({ onAddConnection, onEditConnection, isDark, on
             {activeConn && <StatusDot status={statuses[activeConn.id] ?? 'unknown'} />}
             {activeConn ? (
               <>
-                <span className="font-semibold text-app-text truncate">{engineLabel}</span>
+                <span className={`font-semibold truncate ${engineColor}`}>{engineLabel}</span>
                 <span className="text-app-text-3">/</span>
-                <span className="text-app-text-2 truncate">{activeConn.name}</span>
+                <span className="text-app-text truncate">{activeConn.name}</span>
               </>
             ) : (
               <span className="text-app-text-2">Select connection</span>
@@ -183,8 +189,9 @@ export default function TitleBar({ onAddConnection, onEditConnection, isDark, on
 
               <div className="flex-1 min-w-0 px-1">
                 <div className="text-xs font-medium text-app-text truncate">{c.name}</div>
-                <div className="text-[10px] text-app-text-3 truncate">
-                  {c.engine ?? 'bigquery'} · {connectionLabel(c)}
+                <div className="text-[10px] text-app-text-3 truncate font-tabular">
+                  <span className={engineAccent(c.engine ?? 'bigquery')}>{c.engine ?? 'bigquery'}</span>
+                  {' · '}{connectionLabel(c)}
                 </div>
               </div>
 
@@ -239,6 +246,14 @@ export default function TitleBar({ onAddConnection, onEditConnection, isDark, on
       )}
     </div>
   )
+}
+
+// Per-engine accent — small categorical hint used in the dropdown row subtitle
+function engineAccent(engine: string): string {
+  if (engine === 'bigquery')  return 'text-app-cat-blue'
+  if (engine === 'snowflake') return 'text-app-accent-text'
+  if (engine === 'postgres')  return 'text-app-cat-purple'
+  return 'text-app-text-3'
 }
 
 function StatusDot({ status }: { status: ConnectionStatus }) {

@@ -87,25 +87,38 @@ export default function TableDetailPanel({
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-4 py-3 border-b border-app-border bg-app-surface shrink-0">
         <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-semibold text-app-text">{tableName}</span>
+          <span className="app-section-label">Table</span>
+          <span className="text-app-text font-semibold text-[15px]">{tableName}</span>
           <span className="text-[10px] text-app-text-3 font-mono">{tableRef}</span>
         </div>
         <button
           onClick={handleCopy}
           title={engine === 'postgres' ? 'Copy schema.table reference' : 'Copy dataset.table reference'}
-          className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md bg-app-elevated hover:bg-app-border text-app-text-2 hover:text-app-text transition-colors border border-app-border"
+          className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md bg-app-elevated hover:bg-app-border/40 text-app-text-2 hover:text-app-text transition-colors border border-app-border"
         >
           {copied ? (
-            <><Check size={12} className="text-emerald-500" /><span className="text-emerald-500">Copied</span></>
+            <><Check size={12} className="text-app-ok" /><span className="text-app-ok">Copied</span></>
           ) : (
-            <><Copy size={12} /><span>{tableRef}</span></>
+            <><Copy size={12} /><span className="font-tabular">{tableRef}</span></>
           )}
         </button>
       </div>
 
-      <div className="flex border-b border-app-border bg-app-surface shrink-0">
-        <SectionTab label="Schema"  active={section === 'schema'}  onClick={() => handleSectionClick('schema')} />
-        <SectionTab label="Preview" active={section === 'preview'} onClick={() => handleSectionClick('preview')} />
+      <div className="px-4 py-2 border-b border-app-border bg-app-surface shrink-0">
+        <div className="app-segmented inline-flex">
+          <button
+            data-active={section === 'schema' || undefined}
+            onClick={() => handleSectionClick('schema')}
+          >
+            Schema
+          </button>
+          <button
+            data-active={section === 'preview' || undefined}
+            onClick={() => handleSectionClick('preview')}
+          >
+            Preview
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto">
@@ -120,19 +133,6 @@ export default function TableDetailPanel({
   )
 }
 
-function SectionTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-4 py-2 text-xs transition-colors ${
-        active ? 'text-app-accent-text border-b-2 border-app-accent' : 'text-app-text-2 hover:text-app-text'
-      }`}
-    >
-      {label}
-    </button>
-  )
-}
-
 function SchemaSection({ schema, loading, error }: { schema: TableField[] | null; loading: boolean; error: string | null }) {
   const [filter, setFilter] = useState('')
 
@@ -140,7 +140,7 @@ function SchemaSection({ schema, loading, error }: { schema: TableField[] | null
   if (error) {
     return (
       <div className="p-4">
-        <div className="bg-red-950/60 border border-red-900/60 rounded-lg p-3 text-xs font-mono text-red-400">{error}</div>
+        <div className="bg-app-err-subtle border border-app-err/30 rounded-lg p-3 text-xs font-mono text-app-err">{error}</div>
       </div>
     )
   }
@@ -181,10 +181,10 @@ function SchemaSection({ schema, loading, error }: { schema: TableField[] | null
       <table className="w-full text-xs border-collapse">
         <thead className="sticky top-0 bg-app-bg z-10">
           <tr>
-            <th className="px-4 py-2 text-left text-app-text-2 font-medium border-b border-app-border w-1/3">Column</th>
-            <th className="px-4 py-2 text-left text-app-text-2 font-medium border-b border-app-border w-1/5">Type</th>
-            <th className="px-4 py-2 text-left text-app-text-2 font-medium border-b border-app-border w-1/6">Mode</th>
-            <th className="px-4 py-2 text-left text-app-text-2 font-medium border-b border-app-border">Description</th>
+            <th className="px-4 py-2 text-left border-b border-app-border w-1/3"><span className="app-section-label">Column</span></th>
+            <th className="px-4 py-2 text-left border-b border-app-border w-1/5"><span className="app-section-label">Type</span></th>
+            <th className="px-4 py-2 text-left border-b border-app-border w-1/6"><span className="app-section-label">Mode</span></th>
+            <th className="px-4 py-2 text-left border-b border-app-border"><span className="app-section-label">Description</span></th>
           </tr>
         </thead>
         <tbody>
@@ -206,7 +206,7 @@ function SchemaSection({ schema, loading, error }: { schema: TableField[] | null
                 </td>
                 <td className="px-4 py-2 text-app-text-2 border-b border-app-border/40">
                   {row.field.mode !== 'NULLABLE' ? (
-                    <span className={row.field.mode === 'REQUIRED' ? 'text-amber-500' : 'text-app-accent-text'}>
+                    <span className={row.field.mode === 'REQUIRED' ? 'text-app-warn' : 'text-app-accent-text'}>
                       {row.field.mode}
                     </span>
                   ) : (
@@ -230,7 +230,7 @@ function PreviewSection({ result, loading, error, onRetry }: { result: QueryResu
   if (error) {
     return (
       <div className="p-4 flex flex-col gap-3">
-        <div className="bg-red-950/60 border border-red-900/60 rounded-lg p-3 text-xs font-mono text-red-400">{error}</div>
+        <div className="bg-app-err-subtle border border-app-err/30 rounded-lg p-3 text-xs font-mono text-app-err">{error}</div>
         <button onClick={onRetry} className="text-xs text-app-accent-text hover:opacity-80 text-left">Retry</button>
       </div>
     )
@@ -242,8 +242,8 @@ function PreviewSection({ result, loading, error, onRetry }: { result: QueryResu
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-3 px-4 py-1.5 border-b border-app-border bg-app-surface shrink-0 sticky top-0 z-10">
-        <span className="text-xs text-app-text-2">{rowCount} rows</span>
-        <span className="text-xs text-app-text-3">{executionTimeMs}ms</span>
+        <span className="text-xs text-app-text-2 font-tabular">{rowCount} rows</span>
+        <span className="text-xs text-app-text-3 font-tabular">{executionTimeMs}ms</span>
       </div>
       <table className="w-full text-xs border-collapse">
         <thead className="sticky top-[33px] bg-app-bg z-10">
@@ -283,12 +283,13 @@ function flattenFields(fields: TableField[], depth = 0): FlatField[] {
 }
 
 function typeColor(type: string): string {
+  // Use semantic categorical tokens — same mapping but theme-aware
   switch (type.toUpperCase()) {
-    case 'STRING': case 'BYTES': return 'text-emerald-400'
+    case 'STRING': case 'BYTES': return 'text-app-cat-green'
     case 'INTEGER': case 'INT64': case 'FLOAT': case 'FLOAT64':
-    case 'NUMERIC': case 'BIGNUMERIC': return 'text-sky-400'
-    case 'BOOLEAN': case 'BOOL': return 'text-amber-400'
-    case 'TIMESTAMP': case 'DATE': case 'TIME': case 'DATETIME': return 'text-violet-400'
+    case 'NUMERIC': case 'BIGNUMERIC': return 'text-app-cat-blue'
+    case 'BOOLEAN': case 'BOOL': return 'text-app-warn'
+    case 'TIMESTAMP': case 'DATE': case 'TIME': case 'DATETIME': return 'text-app-cat-purple'
     case 'RECORD': case 'STRUCT': return 'text-app-accent-text'
     default: return 'text-app-text-2'
   }
