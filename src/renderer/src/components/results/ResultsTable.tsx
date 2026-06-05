@@ -113,10 +113,10 @@ export default function ResultsTable({
     return (
       <div className="flex flex-col h-full">
         <div className="flex items-center gap-2 px-3 py-1.5 border-b border-app-border bg-app-surface shrink-0">
-          <span className="w-1.5 h-1.5 rounded-full bg-app-accent animate-pulse" />
-          <span className="text-xs text-app-text-2">Running…</span>
+          <span className="app-dot animate-pulse" style={{ backgroundColor: 'rgb(var(--c-accent))' }} />
+          <span className="text-xs text-app-text-2 font-medium">Running…</span>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 font-mono text-xs selectable">
+        <div className="flex-1 overflow-y-auto p-4 font-mono text-xs selectable bg-app-bg">
           {logs.length === 0 ? (
             <span className="text-app-text-3 animate-pulse">Connecting…</span>
           ) : (
@@ -142,7 +142,7 @@ export default function ResultsTable({
     return (
       <div className="flex flex-col h-full">
         {logs.length > 0 && (
-          <div className="flex-1 overflow-y-auto p-4 font-mono text-xs selectable">
+          <div className="flex-1 overflow-y-auto p-4 font-mono text-xs selectable bg-app-bg">
             <div className="space-y-1">
               {logs.map((line, i) => (
                 <div key={i} className="flex items-start gap-2 text-app-text-3">
@@ -153,7 +153,8 @@ export default function ResultsTable({
             </div>
           </div>
         )}
-        <div className="flex items-center justify-center py-6 text-app-text-3 text-xs border-t border-app-border">
+        <div className="flex items-center justify-center gap-2 py-6 text-app-warn text-xs border-t border-app-border bg-app-warn-subtle/40">
+          <span className="app-dot" style={{ backgroundColor: 'rgb(var(--c-state-warn))' }} />
           Query cancelled
         </div>
       </div>
@@ -164,7 +165,7 @@ export default function ResultsTable({
     return (
       <div className="flex flex-col h-full">
         {logs.length > 0 && (
-          <div className="overflow-y-auto max-h-32 p-3 font-mono text-xs border-b border-app-border selectable">
+          <div className="overflow-y-auto max-h-32 p-3 font-mono text-xs border-b border-app-border selectable bg-app-bg">
             <div className="space-y-1">
               {logs.map((line, i) => (
                 <div key={i} className="flex items-start gap-2 text-app-text-3">
@@ -176,8 +177,8 @@ export default function ResultsTable({
           </div>
         )}
         <div className="p-4">
-          <div className="bg-red-950/60 border border-red-900/60 rounded-lg p-3">
-            <p className="text-xs font-mono text-red-400 whitespace-pre-wrap selectable">{error}</p>
+          <div className="bg-app-err-subtle border border-app-err/30 rounded-lg p-3">
+            <p className="text-xs font-mono text-app-err whitespace-pre-wrap selectable">{error}</p>
           </div>
         </div>
       </div>
@@ -186,8 +187,9 @@ export default function ResultsTable({
 
   if (!result) {
     return (
-      <div className="h-full flex items-center justify-center text-app-text-3 text-sm">
-        Run a query to see results
+      <div className="h-full flex flex-col items-center justify-center gap-2 text-app-text-3 text-sm bg-app-bg">
+        <span className="app-section-label">Empty</span>
+        <span>Run a query to see results</span>
       </div>
     )
   }
@@ -243,16 +245,16 @@ export default function ResultsTable({
     <div className="flex flex-col h-full">
       {/* Status bar */}
       <div className="flex items-center gap-4 px-3 py-1.5 border-b border-app-border bg-app-surface shrink-0">
-        <span className="text-xs text-app-text-2">
+        <span className="text-xs text-app-text-2 font-tabular">
           {displayTotal === 1 ? '1 row' : `${displayTotalStr} rows`}
           {hasMore && serverTotal == null && '+'}
         </span>
-        <span className="text-xs text-app-text-3">{executionTimeMs}ms</span>
+        <span className="text-xs text-app-text-3 font-tabular">{executionTimeMs}ms</span>
         {bytesProcessed !== undefined && (
-          <span className="text-xs text-app-text-3">{formatBytes(bytesProcessed)} processed</span>
+          <span className="text-xs text-app-text-3 font-tabular">{formatBytes(bytesProcessed)} processed</span>
         )}
         {fetchedRows < (serverTotal ?? fetchedRows) && (
-          <span className="text-xs text-app-text-3">
+          <span className="text-xs text-app-text-3 font-tabular">
             ({fetchedRows.toLocaleString()} fetched)
           </span>
         )}
@@ -423,7 +425,7 @@ export default function ResultsTable({
 
       {/* Pagination bar */}
       <div className="flex items-center justify-between px-3 py-1.5 border-t border-app-border bg-app-surface shrink-0">
-        <span className="text-xs text-app-text-3">
+        <span className="text-xs text-app-text-3 font-tabular">
           {filteredRows.length === 0
             ? 'No rows'
             : `${startRow.toLocaleString()}–${endRow.toLocaleString()} of ${activeFilterCount > 0 ? `${filteredRows.length.toLocaleString()} filtered` : displayTotalStr}`}
@@ -452,7 +454,7 @@ export default function ResultsTable({
             >
               <ChevronLeft size={14} />
             </button>
-            <span className="text-xs text-app-text-2 min-w-[60px] text-center">
+            <span className="text-xs text-app-text-2 min-w-[60px] text-center font-tabular">
               {loadingMore ? (
                 <Loader2 size={12} className="inline animate-spin" />
               ) : (

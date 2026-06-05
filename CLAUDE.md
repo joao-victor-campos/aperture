@@ -148,6 +148,31 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-05-19] Design: Data-surfaces revamp + per-engine accents
+
+**Type:** Change
+**Context:** Phase 1 (chrome revamp) brought the new Direction D · Hybrid design system to the title bar, sidebar, catalog tree, and editor tab bar. The remaining data surfaces (`ConnectionModal`, `TableDetailPanel`, `ResultsTable`) were still rendering pre-revamp patterns with raw palette colors (`emerald-400`, `red-950`, `amber-500`, `sky-400`, `violet-400`). Phase 2 was to bring these in line and add per-engine accent hints in the connection breadcrumb.
+**Problem / Change:**
+- `ConnectionModal`: engine tabs were bottom-bordered icon labels; test-result success/error blocks hardcoded `emerald-950/50` and `red-950/50`; modal header was a single line with no eyebrow.
+- `TableDetailPanel`: Schema/Preview tabs were the same bottom-bordered pattern; type-color map referenced raw Tailwind palette; REQUIRED mode badge → `amber-500`; error blocks → `red-950/60`; table headers used ad-hoc `font-medium` instead of small-caps.
+- `ResultsTable`: cancelled state used plain grey (semantically wrong — cancellation is an intentional warning state); error block → `red-950/60`; numeric status-bar stats had no tabular numerals (digits drifted between renders); empty state had no header/eyebrow.
+- No visual hint that distinguished BigQuery vs Snowflake vs Postgres connections in the breadcrumb beyond text.
+
+**Solution / Outcome:**
+- **`ConnectionModal.tsx`**: engine tabs → `.app-segmented` pill with `data-active`; header restructured to use `.app-section-label` eyebrow + bold engine/connection name; field labels now use `.app-section-label`; test-result success → `bg-app-ok-subtle text-app-ok`, failure → `bg-app-err-subtle text-app-err`; inputs gained `focus:ring-app-accent/30`; footer button hover and disabled treatments tightened.
+- **`TableDetailPanel.tsx`**: section tabs converted to `.app-segmented inline-flex`; removed the now-unused `SectionTab` sub-component; `typeColor()` mapping swept (`STRING/BYTES` → `cat-green`, numerics → `cat-blue`, booleans → `warn`, time types → `cat-purple`, records → `accent-text`); REQUIRED mode → `app-warn`; error blocks → `app-err-subtle`; schema table headers wrapped in `.app-section-label`; rowCount + executionTimeMs in the preview header use `font-tabular`; tableRef copy button ✓ → `app-ok`.
+- **`ResultsTable.tsx`**: running header dot now uses `.app-dot` with accent color; cancelled state surface → `bg-app-warn-subtle/40 text-app-warn` with a warn dot ("intentional state" not "missing state"); error block → `bg-app-err-subtle text-app-err`; empty state gets a small-caps "Empty" eyebrow + helper text; all numeric stats (row count, ms, bytes processed, fetched count, pagination range, page indicator) use `font-tabular`.
+- **`TitleBar.tsx`** per-engine accents: introduced `engineAccent(engine)` helper. The engine label in the breadcrumb gets `text-app-cat-blue` for BigQuery, `text-app-accent-text` for Snowflake (the terracotta home color), `text-app-cat-purple` for Postgres. The dropdown row subtitle gets the same color hint on the engine word + `font-tabular` for the identifier suffix.
+- Zero hardcoded palette colors remain in `src/renderer/src/components/`, `src/renderer/src/pages/` (verified by `grep -rE "text-(emerald|red|amber|sky|violet)-[0-9]"` returning empty).
+
+**Files affected:**
+- `src/renderer/src/components/connections/ConnectionModal.tsx` — segmented engine tabs, semantic ok/err blocks, section-label fields, polish
+- `src/renderer/src/components/catalog/TableDetailPanel.tsx` — segmented section tabs, semantic type-color map, REQUIRED → warn, error blocks, header polish
+- `src/renderer/src/components/results/ResultsTable.tsx` — semantic cancelled/error/running, tabular numerics, polished empty state
+- `src/renderer/src/components/layout/TitleBar.tsx` — per-engine accent on breadcrumb + dropdown rows; `engineAccent()` helper
+
+---
+
 ### [2026-05-18] Design: Chrome revamp — Direction D · Hybrid
 
 **Type:** Change
