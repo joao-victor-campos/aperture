@@ -87,45 +87,56 @@ export default function TitleBar({ onAddConnection, onEditConnection, isDark, on
     setDeletingId(null)
   }
 
+  // Engine label for the breadcrumb (e.g. "snowflake / prod_warehouse")
+  const engineLabel = activeConn ? (activeConn.engine ?? 'bigquery') : null
+
   return (
     <div
-      className="h-12 flex items-center px-4 gap-4 border-b border-app-border bg-app-surface shrink-0"
+      className="h-[46px] flex items-center px-4 gap-3 border-b border-app-border bg-app-bg shrink-0"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
       {/* Space for macOS traffic lights (smaller on Linux/Windows where there are none) */}
-      <div className={`${window.platform === 'darwin' ? 'w-20' : 'w-4'} shrink-0`} />
+      <div className={`${window.platform === 'darwin' ? 'w-16' : 'w-4'} shrink-0`} />
 
+      {/* Brand: terracotta blades + small-caps wordmark */}
       <div className="flex items-center gap-2 shrink-0">
-        <ApertureIcon size={18} />
-        <span className="text-xs font-semibold text-app-text tracking-widest uppercase">
+        <ApertureIcon size={16} />
+        <span className="text-app-text font-semibold uppercase tracking-caps text-[12px]">
           Aperture
         </span>
       </div>
 
-      <div className="flex items-center gap-2 ml-2 flex-1">
-        {/* Connection picker trigger */}
+      <div className="flex items-center gap-2 ml-3 flex-1">
+        {/* Connection breadcrumb: engine / connection-name with status dot */}
         {connections.length > 0 && (
           <button
             ref={triggerRef}
             onClick={() => setOpen((v) => !v)}
             style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-            className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md bg-app-elevated border border-app-border text-app-text hover:bg-app-elevated/80 transition-colors max-w-56"
+            className="flex items-center gap-1.5 px-2 py-1 rounded-md text-ui hover:bg-app-elevated transition-colors max-w-72"
           >
             {activeConn && <StatusDot status={statuses[activeConn.id] ?? 'unknown'} />}
-            <span className="truncate">
-              {activeConn ? activeConn.name : 'Select connection'}
-            </span>
+            {activeConn ? (
+              <>
+                <span className="font-semibold text-app-text truncate">{engineLabel}</span>
+                <span className="text-app-text-3">/</span>
+                <span className="text-app-text-2 truncate">{activeConn.name}</span>
+              </>
+            ) : (
+              <span className="text-app-text-2">Select connection</span>
+            )}
             <ChevronDown size={11} className="shrink-0 text-app-text-3" />
           </button>
         )}
 
+        {/* Secondary action: add connection */}
         <button
           onClick={onAddConnection}
+          title="Add connection"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-app-elevated hover:bg-app-elevated/80 text-app-text border border-app-border transition-colors"
+          className="flex items-center justify-center w-6 h-6 rounded-md text-app-text-3 hover:text-app-text hover:bg-app-elevated transition-colors"
         >
-          <Plus size={12} />
-          Connection
+          <Plus size={13} />
         </button>
 
         {/* Spacer — inherits drag from parent, acts as the main drag handle */}
@@ -193,7 +204,7 @@ export default function TitleBar({ onAddConnection, onEditConnection, isDark, on
                   <button
                     onClick={(e) => confirmDelete(e, c.id)}
                     disabled={deletingId === c.id}
-                    className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors disabled:opacity-40"
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-app-err-subtle text-app-err hover:bg-app-err-subtle/80 transition-colors disabled:opacity-40"
                   >
                     Yes
                   </button>
@@ -215,7 +226,7 @@ export default function TitleBar({ onAddConnection, onEditConnection, isDark, on
                   <button
                     onClick={(e) => requestDelete(e, c.id)}
                     title="Delete connection"
-                    className="p-1.5 rounded text-app-text-3 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                    className="p-1.5 rounded text-app-text-3 hover:text-app-err hover:bg-app-err-subtle/60 transition-all"
                   >
                     <Trash2 size={12} />
                   </button>
@@ -231,11 +242,8 @@ export default function TitleBar({ onAddConnection, onEditConnection, isDark, on
 }
 
 function StatusDot({ status }: { status: ConnectionStatus }) {
-  const color =
-    status === 'ok'
-      ? 'bg-emerald-500'
-      : status === 'error'
-      ? 'bg-red-500'
-      : 'bg-app-text-3'
-  return <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${color}`} />
+  // Use the design-system primitives (.app-dot with halo glow); fallback grey for unknown
+  if (status === 'ok')    return <span className="app-dot app-dot--ok shrink-0" />
+  if (status === 'error') return <span className="app-dot app-dot--err shrink-0" />
+  return <span className="app-dot shrink-0" style={{ backgroundColor: 'rgb(var(--c-text-3))' }} />
 }

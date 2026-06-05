@@ -21,7 +21,9 @@ export default function CatalogTree({ onAddConnection }: CatalogTreeProps) {
     loadTables,
     toggleDataset,
   } = useCatalogStore()
-  const { openTableTab, openTab } = useQueryStore()
+  const { openTableTab, openTab, tabs, activeTabId } = useQueryStore()
+  // The currently-active table tab (if any) — used to highlight its row in the catalog
+  const activeTableRef = tabs.find((t) => t.id === activeTabId && t.type === 'table')?.tableRef
   const [search, setSearch] = useState('')
 
   useEffect(() => {
@@ -65,7 +67,7 @@ export default function CatalogTree({ onAddConnection }: CatalogTreeProps) {
     <div className="py-1">
       {/* Header row */}
       <div className="flex items-center justify-between px-3 py-1.5">
-        <span className="text-[10px] uppercase tracking-widest text-app-text-3 font-medium">Datasets</span>
+        <span className="app-section-label">Datasets</span>
         <button
           onClick={() => loadDatasets(activeConnectionId)}
           disabled={isLoadingDatasets}
@@ -117,13 +119,17 @@ export default function CatalogTree({ onAddConnection }: CatalogTreeProps) {
         const isTableLoading = !!isLoading[key]
 
         return (
-          <div key={dataset.id}>
+          <div key={dataset.id} className={isExpanded ? 'bg-app-accent-subtle/40' : ''}>
             <button
               onClick={() => {
                 toggleDataset(dataset.id)
                 if (!tablesByDataset[key]) loadTables(activeConnectionId, dataset.id)
               }}
-              className="w-full flex items-center gap-1.5 px-3 py-1.5 text-xs text-app-text-2 hover:bg-app-elevated/60 hover:text-app-text transition-colors"
+              className={`w-full flex items-center gap-1.5 px-3 py-1.5 text-xs transition-colors ${
+                isExpanded
+                  ? 'text-app-text font-medium'
+                  : 'text-app-text-2 hover:bg-app-elevated/60 hover:text-app-text'
+              }`}
             >
               {isExpanded
                 ? <ChevronDown size={11} className="text-app-text-3 shrink-0" />
@@ -146,6 +152,10 @@ export default function CatalogTree({ onAddConnection }: CatalogTreeProps) {
                       table={table}
                       datasetId={dataset.id}
                       connectionId={activeConnectionId}
+                      isActive={
+                        activeTableRef?.tableId === table.id &&
+                        activeTableRef?.datasetId === dataset.id
+                      }
                       onOpen={() =>
                         openTableTab(
                           activeConnectionId,
@@ -178,11 +188,12 @@ interface TableRowProps {
   table: Table
   datasetId: string
   connectionId: string
+  isActive?: boolean
   onOpen: () => void
   onQueryTable: () => void
 }
 
-function TableRow({ table, datasetId, onOpen, onQueryTable }: TableRowProps) {
+function TableRow({ table, datasetId, isActive, onOpen, onQueryTable }: TableRowProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -204,13 +215,25 @@ function TableRow({ table, datasetId, onOpen, onQueryTable }: TableRowProps) {
     setTimeout(() => { setCopied(false); setMenuOpen(false) }, 1000)
   }
 
+  // View / materialized-view → cat-purple icon; tables → cat-green
+  const isView = table.type === 'VIEW' || table.type === 'MATERIALIZED_VIEW'
+  const iconColor = isView ? 'text-app-cat-purple' : 'text-app-cat-green'
+
   return (
-    <div className="group relative flex items-center pr-1">
+    <div
+      className={`group relative flex items-center pr-1 ${
+        isActive ? 'bg-app-accent-sub-2 border-l-2 border-app-accent -ml-px' : ''
+      }`}
+    >
       <button
         onClick={onOpen}
-        className="flex-1 flex items-center gap-1.5 px-3 py-1.5 text-xs text-app-text-2 hover:bg-app-elevated/60 hover:text-app-text transition-colors text-left min-w-0"
+        className={`flex-1 flex items-center gap-1.5 px-3 py-1.5 text-xs transition-colors text-left min-w-0 ${
+          isActive
+            ? 'text-app-text font-semibold'
+            : 'text-app-text-2 hover:bg-app-elevated/60 hover:text-app-text'
+        }`}
       >
-        <Table2 size={11} className="text-emerald-500 shrink-0" />
+        <Table2 size={11} className={`${iconColor} shrink-0`} />
         <span className="truncate">{table.name}</span>
       </button>
 
@@ -237,7 +260,7 @@ function TableRow({ table, datasetId, onOpen, onQueryTable }: TableRowProps) {
               className="w-full flex items-center gap-2 px-3 py-2 text-xs text-app-text hover:bg-app-elevated transition-colors"
             >
               {copied
-                ? <Check size={12} className="text-emerald-500 shrink-0" />
+                ? <Check size={12} className="text-app-ok shrink-0" />
                 : <Copy size={12} className="shrink-0" />
               }
               <span className="truncate">{copied ? 'Copied!' : `Copy · ${ref}`}</span>

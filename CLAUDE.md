@@ -148,6 +148,39 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-05-18] Design: Chrome revamp — Direction D · Hybrid
+
+**Type:** Change
+**Context:** Claude Design produced a new design system (`DESIGN.md`) — "Direction D · Hybrid: Linear precision × Atelier warmth" — and committed updated `index.css` + `tailwind.config.ts` with a warm-paper/coffee palette, refined terracotta accent, new semantic tokens (`ok/warn/err`, `cat-blue/purple/green`), and component primitives (`.app-segmented`, `.app-section-label`, `.app-dot`, `.app-kbd`). All previous token names were preserved so components kept rendering — but they still rendered the *old* chrome patterns in new colors. Phase 1 was to adopt the new chrome patterns at the component level.
+**Problem / Change:**
+- Title bar: still using a boxy bordered button as the connection picker; status dot was a bare circle with no halo.
+- Sidebar: tabs were bottom-bordered icon labels; background was `bg-app-surface` instead of the new `bg-app-sidebar`; no inline counts.
+- Catalog: open dataset had no visual emphasis; active table row had no highlight; table icons were `text-emerald-500`; section header used ad-hoc `tracking-widest`.
+- Editor tabs: active tab was a soft `bg-app-elevated` rectangle; no pill shadow; saved queries got no bookmark prefix.
+- QueryEditor: kbd chip had inline mono styling; Cancel used hardcoded `bg-red-700`.
+
+**Solution / Outcome:**
+- **`TitleBar.tsx`**: connection picker → breadcrumb (`engine / connection.name` + halo `.app-dot`); +Connection collapsed to a compact icon-only square; bar height 46px; small-caps `tracking-caps` brand wordmark; `StatusDot` rewritten to use `.app-dot--ok / --err`; delete-action error colors swept to `app-err/-subtle`.
+- **`Sidebar.tsx`**: rewritten with `.app-segmented` pill tabs showing inline counts (`Catalog n / Saved n / History`); background `bg-app-sidebar`; width bumped to 264px (DESIGN.md spec); counts pulled from `useCatalogStore` (dataset count for the active connection) and `useSavedQueryStore`.
+- **`CatalogTree.tsx`**: header uses `.app-section-label`; expanded dataset gets `bg-app-accent-subtle/40`; active table row (matched against `useQueryStore` active table-tab `tableRef`) gets `bg-app-accent-sub-2 border-l-2 border-app-accent`; table icon → `text-app-cat-green`, views/MV → `text-app-cat-purple`; clipboard ✓ → `text-app-ok`.
+- **`Editor.tsx` tab bar**: pill-style active tab with `shadow-app-pill` + `bg-app-surface`; tab bar height 40px on `bg-app-bg`; saved-query tabs prefixed with `Bookmark` icon in terracotta; running pulse uses `.app-dot`; +Tab button gets a hover background.
+- **`QueryEditor.tsx`**: SQL label → `.app-section-label`; Cancel button → `bg-app-err`; `⌘↵` kbd chip → `.app-kbd` with accent-tinted overrides.
+- **Semantic sweep**: `text-red-400` / `bg-red-500/10` in `SavedQueriesPanel.tsx` and `HistoryPanel.tsx` → `app-err` + `app-err-subtle/40`; HistoryPanel section header → `.app-section-label`.
+- DESIGN.md explicitly lists *out of scope* for Phase 1: connection modal restyle, `TableDetailPanel` restyle, empty/running/cancelled/error states, ⌘K command palette, per-engine accents. Left untouched.
+
+**Files affected:**
+- `DESIGN.md` — new, committed
+- `tailwind.config.ts`, `src/renderer/src/index.css` — new token system + component primitives (committed with this PR; produced by Claude Design earlier)
+- `src/renderer/src/components/layout/TitleBar.tsx` — breadcrumb, halo dots, semantic colors
+- `src/renderer/src/components/layout/Sidebar.tsx` — segmented pill tabs, sidebar background
+- `src/renderer/src/components/catalog/CatalogTree.tsx` — section label, active row, cat-* icon colors
+- `src/renderer/src/pages/Editor.tsx` — pill tab bar, bookmark icon for saved-query tabs
+- `src/renderer/src/components/editor/QueryEditor.tsx` — section label, `.app-kbd`, semantic err
+- `src/renderer/src/components/saved/SavedQueriesPanel.tsx` — semantic err colors
+- `src/renderer/src/components/history/HistoryPanel.tsx` — section label, semantic err colors
+
+---
+
 ### [2026-05-17] Feature: Split panes + schema-aware query builder
 
 **Type:** Change

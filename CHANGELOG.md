@@ -14,6 +14,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - **`buildSelectQuery` utility** — engine-specific `SELECT *` SQL generation was extracted into `src/renderer/src/lib/buildSelectQuery.ts` and shared between the catalog tree ("Query table") and `TableDetailPanel` preview tab, removing duplicated quoting logic.
+- **Design revamp — chrome (Direction D · Hybrid)** — adopted the new warm-paper/coffee palette + refined-terracotta accent across the title bar, sidebar, catalog tree, editor tab bar, and SQL editor toolbar. New chrome includes: a `snowflake / prod_warehouse` connection breadcrumb (replacing the boxy picker button), segmented pill tabs in the sidebar with inline counts (`Catalog 42 / Saved 18 / History`), small-caps section labels, halo-glow status dots via `.app-dot`, pill-style active editor tabs with the `app-pill` shadow, saved-query bookmark icon on tabs, and a 2px-terracotta-rail active-table indicator in the catalog. Tables/views in the catalog now use semantic categorical colors (`cat-green` / `cat-purple`). All hardcoded `text-emerald/red/amber` classes in the chrome were swept to the semantic `app-ok/err/warn` and `app-cat-*` tokens. No layout or component-tree changes — restyle only.
 
 ---
 ## [1.5.0] - 2026-05-16
