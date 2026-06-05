@@ -49,7 +49,7 @@ export default function HistoryPanel() {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-app-border shrink-0">
-        <span className="text-[10px] uppercase tracking-widest text-app-text-3 font-medium">
+        <span className="app-section-label">
           {entries.length > 0 ? `${entries.length} queries` : 'No history yet'}
         </span>
         {entries.length > 0 && (
@@ -57,7 +57,7 @@ export default function HistoryPanel() {
             onClick={handleClear}
             disabled={clearing}
             title="Clear all history"
-            className="p-1 rounded text-app-text-3 hover:text-red-400 hover:bg-red-500/10 transition-all disabled:opacity-40"
+            className="p-1 rounded text-app-text-3 hover:text-app-err hover:bg-app-err-subtle/40 transition-all disabled:opacity-40"
           >
             <Trash2 size={12} />
           </button>

@@ -232,7 +232,7 @@ function FolderRow({
                 </button>
                 <button
                   onClick={() => { setMenuOpen(false); onDelete() }}
-                  className="flex items-center gap-2 w-full px-3 py-1.5 text-red-400 hover:bg-app-bg transition-colors"
+                  className="flex items-center gap-2 w-full px-3 py-1.5 text-app-err hover:bg-app-err-subtle/40 transition-colors"
                 >
                   <Trash2 size={11} /> Delete folder
                 </button>
@@ -292,7 +292,7 @@ function QueryRow({
             </button>
             <button
               onClick={() => { setMenuOpen(false); onDelete() }}
-              className="flex items-center gap-2 w-full px-3 py-1.5 text-red-400 hover:bg-app-bg transition-colors"
+              className="flex items-center gap-2 w-full px-3 py-1.5 text-app-err hover:bg-app-err-subtle/40 transition-colors"
             >
               <Trash2 size={11} /> Delete
             </button>

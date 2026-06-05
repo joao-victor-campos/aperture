@@ -97,7 +97,7 @@ export default function QueryEditor({
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-app-border bg-app-surface shrink-0">
-        <span className="text-[10px] uppercase tracking-widest text-app-text-3 font-medium">SQL</span>
+        <span className="app-section-label">SQL</span>
 
         <div className="flex items-center gap-2">
           {/* Format button */}
@@ -145,7 +145,7 @@ export default function QueryEditor({
           {isRunning ? (
             <button
               onClick={onCancel}
-              className="flex items-center gap-1.5 text-xs px-3 py-1 rounded bg-red-700 hover:bg-red-600 text-white transition-colors font-medium"
+              className="flex items-center gap-1.5 text-xs px-3 py-1 rounded bg-app-err hover:bg-app-err/90 text-white transition-colors font-medium"
             >
               <span className="w-2 h-2 rounded-sm bg-white inline-block shrink-0" />
               Cancel
@@ -157,7 +157,7 @@ export default function QueryEditor({
               className="flex items-center gap-1.5 text-xs px-3 py-1 rounded bg-app-accent hover:bg-app-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors font-medium"
             >
               <span>▶ Run</span>
-              <kbd className="text-orange-200 text-[10px] font-mono">⌘↵</kbd>
+              <kbd className="app-kbd !bg-app-accent-hover/50 !text-white !border-app-accent-hover">⌘↵</kbd>
             </button>
           )}
         </div>
