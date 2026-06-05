@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { Database, BookMarked, History } from 'lucide-react'
 import CatalogTree from '../catalog/CatalogTree'
 import SavedQueriesPanel from '../saved/SavedQueriesPanel'
 import HistoryPanel from '../history/HistoryPanel'
+import { useCatalogStore } from '../../store/catalogStore'
+import { useConnectionStore } from '../../store/connectionStore'
+import { useSavedQueryStore } from '../../store/savedQueryStore'
 
 interface SidebarProps {
   onAddConnection: () => void
@@ -13,30 +15,53 @@ type Tab = 'catalog' | 'saved' | 'history'
 export default function Sidebar({ onAddConnection }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<Tab>('catalog')
 
+  // Inline counts for the segmented pill tabs (Atelier voice: small, muted)
+  const { activeConnectionId } = useConnectionStore()
+  const { datasetsByConnection } = useCatalogStore()
+  const { queries } = useSavedQueryStore()
+  const datasetCount = activeConnectionId
+    ? (datasetsByConnection[activeConnectionId] ?? []).length
+    : 0
+  const savedCount = queries.length
+
   return (
-    <aside className="w-64 flex flex-col border-r border-app-border bg-app-surface shrink-0">
+    <aside
+      className="w-[264px] flex flex-col border-r border-app-border bg-app-sidebar shrink-0"
+    >
+      {/* Segmented pill tabs */}
       <div
-        className="flex border-b border-app-border shrink-0"
+        className="px-2 pt-2 pb-2 shrink-0"
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
       >
-        <TabButton
-          label="Catalog"
-          icon={<Database size={13} />}
-          active={activeTab === 'catalog'}
-          onClick={() => setActiveTab('catalog')}
-        />
-        <TabButton
-          label="Saved"
-          icon={<BookMarked size={13} />}
-          active={activeTab === 'saved'}
-          onClick={() => setActiveTab('saved')}
-        />
-        <TabButton
-          label="History"
-          icon={<History size={13} />}
-          active={activeTab === 'history'}
-          onClick={() => setActiveTab('history')}
-        />
+        <div
+          className="app-segmented"
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+        >
+          <button
+            data-active={activeTab === 'catalog' || undefined}
+            onClick={() => setActiveTab('catalog')}
+          >
+            Catalog{' '}
+            <span className={activeTab === 'catalog' ? 'text-app-text-3' : 'text-app-text-4'}>
+              {datasetCount}
+            </span>
+          </button>
+          <button
+            data-active={activeTab === 'saved' || undefined}
+            onClick={() => setActiveTab('saved')}
+          >
+            Saved{' '}
+            <span className={activeTab === 'saved' ? 'text-app-text-3' : 'text-app-text-4'}>
+              {savedCount}
+            </span>
+          </button>
+          <button
+            data-active={activeTab === 'history' || undefined}
+            onClick={() => setActiveTab('history')}
+          >
+            History
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-0">
@@ -45,29 +70,5 @@ export default function Sidebar({ onAddConnection }: SidebarProps) {
         {activeTab === 'history' && <HistoryPanel />}
       </div>
     </aside>
-  )
-}
-
-function TabButton({
-  label, icon, active, onClick,
-}: {
-  label: string
-  icon: React.ReactNode
-  active: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-      className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs transition-colors ${
-        active
-          ? 'text-app-accent-text border-b-2 border-app-accent bg-app-elevated/40'
-          : 'text-app-text-2 hover:text-app-text'
-      }`}
-    >
-      {icon}
-      {label}
-    </button>
   )
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Plus, X, Table2, Pin } from 'lucide-react'
+import { Plus, X, Table2, Pin, Bookmark } from 'lucide-react'
 import QueryEditor from '../components/editor/QueryEditor'
 import ResultsTable from '../components/results/ResultsTable'
 import TableDetailPanel from '../components/catalog/TableDetailPanel'
@@ -132,57 +132,65 @@ export default function Editor() {
     <div className="flex flex-col h-full">
       {/* Tab bar — entire bar is draggable; tabs and buttons opt out */}
       <div
-        className="flex items-center gap-0.5 px-2 py-2 border-b border-app-border bg-app-surface shrink-0"
+        className="flex items-center gap-1 px-2 h-10 border-b border-app-border bg-app-bg shrink-0"
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
       >
-        <div className="flex items-center gap-0.5 overflow-x-auto" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-          {tabs.map((tab) => (
-            <div
-              key={tab.id}
-              draggable
-              onDragStart={(e) => {
-                dragTabId.current = tab.id
-                e.dataTransfer.effectAllowed = 'move'
-              }}
-              onDragOver={(e) => {
-                e.preventDefault()
-                e.dataTransfer.dropEffect = 'move'
-              }}
-              onDrop={(e) => {
-                e.preventDefault()
-                if (dragTabId.current && dragTabId.current !== tab.id) {
-                  reorderTabs(dragTabId.current, tab.id)
-                }
-                dragTabId.current = null
-              }}
-              onDragEnd={() => { dragTabId.current = null }}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs cursor-grab active:cursor-grabbing transition-colors shrink-0 ${
-                activeTabId === tab.id
-                  ? 'bg-app-elevated text-app-text'
-                  : 'text-app-text-2 hover:text-app-text hover:bg-app-elevated/50'
-              }`}
-            >
-              {tab.type === 'table'
-                ? <Table2 size={11} className="text-emerald-500 shrink-0" />
-                : tab.type === 'result'
-                  ? <Pin size={11} className="text-app-accent shrink-0" />
-                  : tab.isRunning && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-app-accent animate-pulse shrink-0" />
-                    )
-              }
-              <span className="max-w-[120px] truncate">{tab.title}</span>
-              <button
-                onClick={(e) => { e.stopPropagation(); closeTab(tab.id) }}
-                className="text-app-text-3 hover:text-app-text transition-colors ml-0.5"
+        <div className="flex items-center gap-1 overflow-x-auto" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          {tabs.map((tab) => {
+            const isActive = activeTabId === tab.id
+            return (
+              <div
+                key={tab.id}
+                draggable
+                onDragStart={(e) => {
+                  dragTabId.current = tab.id
+                  e.dataTransfer.effectAllowed = 'move'
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  e.dataTransfer.dropEffect = 'move'
+                }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  if (dragTabId.current && dragTabId.current !== tab.id) {
+                    reorderTabs(dragTabId.current, tab.id)
+                  }
+                  dragTabId.current = null
+                }}
+                onDragEnd={() => { dragTabId.current = null }}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-ui-sm cursor-grab active:cursor-grabbing transition-all shrink-0 ${
+                  isActive
+                    ? 'bg-app-surface text-app-text shadow-app-pill'
+                    : 'text-app-text-2 hover:text-app-text hover:bg-app-elevated/60'
+                }`}
               >
-                <X size={10} />
-              </button>
-            </div>
-          ))}
+                {tab.type === 'table' && (
+                  <Table2 size={11} className="text-app-cat-green shrink-0" />
+                )}
+                {tab.type === 'result' && (
+                  <Pin size={11} className="text-app-accent shrink-0" />
+                )}
+                {tab.savedQueryId && tab.type !== 'table' && tab.type !== 'result' && (
+                  <Bookmark size={11} className="text-app-accent shrink-0" />
+                )}
+                {!tab.type && tab.isRunning && (
+                  <span className="app-dot shrink-0 animate-pulse" style={{ backgroundColor: 'rgb(var(--c-accent))' }} />
+                )}
+                <span className="max-w-[140px] truncate">{tab.title}</span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); closeTab(tab.id) }}
+                  className="text-app-text-3 hover:text-app-text transition-colors ml-0.5"
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            )
+          })}
           <button
             onClick={() => openTab({ connectionId: activeConnectionId ?? undefined })}
-            className="p-1.5 text-app-text-3 hover:text-app-text transition-colors shrink-0"
+            title="New query tab"
+            className="p-1.5 rounded-md text-app-text-3 hover:text-app-text hover:bg-app-elevated transition-colors shrink-0"
           >
             <Plus size={13} />
           </button>
