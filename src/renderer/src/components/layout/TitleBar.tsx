@@ -12,6 +12,7 @@ interface TitleBarProps {
   onEditConnection: (conn: Connection) => void
   isDark: boolean
   onToggleTheme: () => void
+  onShowShortcuts?: () => void
   /** Receives the palette's imperative `focus()` so a global ⌘K can target it. */
   paletteRef?: RefObject<CommandPaletteHandle>
 }
@@ -23,7 +24,7 @@ function connectionLabel(c: Connection): string {
   return (c as PostgresConnection).database ?? (c as PostgresConnection).host
 }
 
-export default function TitleBar({ onAddConnection, onEditConnection, isDark, onToggleTheme, paletteRef }: TitleBarProps) {
+export default function TitleBar({ onAddConnection, onEditConnection, isDark, onToggleTheme, onShowShortcuts, paletteRef }: TitleBarProps) {
   const { connections, activeConnectionId, setActive, remove, statuses } = useConnectionStore()
   const [open, setOpen] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -156,6 +157,7 @@ export default function TitleBar({ onAddConnection, onEditConnection, isDark, on
           ref={paletteRef}
           onAddConnection={onAddConnection}
           onToggleTheme={onToggleTheme}
+          onShowShortcuts={onShowShortcuts}
         />
 
         {/* Right spacer — inherits drag from parent */}

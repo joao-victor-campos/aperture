@@ -513,4 +513,79 @@ describe('queryStore', () => {
       })
     })
   })
+
+  describe('explainQuery', () => {
+    it('calls QUERY_DRY_RUN and stores the result on the tab', async () => {
+      // Arrange
+      const id = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT * FROM users' })
+      const explainResult = { bytesProcessed: 5000, plan: '{"stages":[]}', planFormat: 'json' as const }
+      invoke().mockResolvedValueOnce(explainResult)
+
+      // Act
+      await useQueryStore.getState().explainQuery(id)
+
+      // Assert
+      const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+      expect(tab.explainResult).toEqual(explainResult)
+      expect(tab.isExplaining).toBe(false)
+      expect(invoke()).toHaveBeenCalledWith(CHANNELS.QUERY_DRY_RUN, {
+        connectionId: 'c1',
+        sql: 'SELECT * FROM users',
+      })
+    })
+
+    it('stores error and clears isExplaining on failure', async () => {
+      // Arrange
+      const id = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT bad' })
+      invoke().mockRejectedValueOnce(new Error('Syntax error at position 7'))
+
+      // Act
+      await useQueryStore.getState().explainQuery(id)
+
+      // Assert
+      const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+      expect(tab.isExplaining).toBe(false)
+      expect(tab.error).toBe('Syntax error at position 7')
+      expect(tab.explainResult).toBeUndefined()
+    })
+
+    it('is a no-op when connectionId is missing', async () => {
+      // Arrange — no connectionId
+      const id = useQueryStore.getState().openTab({ sql: 'SELECT 1' })
+
+      // Act
+      await useQueryStore.getState().explainQuery(id)
+
+      // Assert
+      expect(invoke()).not.toHaveBeenCalled()
+    })
+
+    it('is a no-op when sql is empty', async () => {
+      // Arrange
+      const id = useQueryStore.getState().openTab({ connectionId: 'c1', sql: '   ' })
+
+      // Act
+      await useQueryStore.getState().explainQuery(id)
+
+      // Assert
+      expect(invoke()).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('clearExplain', () => {
+    it('removes explainResult from the tab', async () => {
+      // Arrange
+      const id = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 1' })
+      const explainResult = { bytesProcessed: 100, plan: 'Seq Scan', planFormat: 'text' as const }
+      invoke().mockResolvedValueOnce(explainResult)
+      await useQueryStore.getState().explainQuery(id)
+
+      // Act
+      useQueryStore.getState().clearExplain(id)
+
+      // Assert
+      const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+      expect(tab.explainResult).toBeUndefined()
+    })
+  })
 })

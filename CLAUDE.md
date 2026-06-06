@@ -148,6 +148,47 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-06-06] Feature: Quality-of-life — Auto-limit guard, Explain plan viewer, Shortcut cheatsheet
+
+**Type:** Change
+**Context:** With the ⌘K palette and design revamp shipped, the next highest-leverage work was three quick quality-of-life features that share no dependencies and landed together in one PR.
+**Problem / Change:**
+- BigQuery charges per byte scanned; a `SELECT *` without `LIMIT` on a large table costs real money and there was no guard.
+- The `QUERY_DRY_RUN` IPC channel existed for all three engines but discarded the actual EXPLAIN output — only returning `bytesProcessed`.
+- The app had ~7 shortcuts across different contexts with no discoverability.
+
+**Solution / Outcome:**
+- **Auto-limit guard**: Pure detection utility `detectMissingLimit(sql)` strips comments/strings, checks if the SQL is a SELECT/WITH, and scans backwards for `LIMIT` at paren depth 0. `LimitWarningBanner` renders between toolbar and results with "Add LIMIT 1000" and "Run anyway" buttons. `Editor.tsx` intercepts `handleRun` to check before executing.
+- **Explain plan viewer**: Expanded `QUERY_DRY_RUN` response to include `plan?: string` and `planFormat?: 'text' | 'json'`. BigQuery extracts `queryPlan` stages from dry-run metadata as JSON. Postgres returns `EXPLAIN (FORMAT JSON)` output. Snowflake returns `EXPLAIN` rows as pipe-delimited text. New `ExplainPanel` component renders the plan as a `<pre>` block with a bytes-processed badge. New store actions `explainQuery` and `clearExplain`. QueryEditor gains an "Explain" button (ListTree icon) + `⌘E` keymap binding.
+- **Keyboard shortcut cheatsheet**: `ShortcutCheatsheet` modal overlay via `createPortal`, triggered by `⌘/` global listener or "Keyboard shortcuts" action in the ⌘K palette. Shows three sections (Editor, Navigation, Palette) with `.app-kbd` chips.
+- **Tests**: 5 new `explainQuery`/`clearExplain` tests in queryStore, 17 `detectMissingLimit` tests, 1 new BigQuery `queryPlan` present test, expanded Postgres/Snowflake `dryRunQuery` tests. 226 tests pass, coverage 84%.
+
+**Files affected:**
+- `src/shared/ipc.ts` — expanded `QUERY_DRY_RUN` response type
+- `src/shared/types.ts` — added `explainResult`, `isExplaining` to `QueryTab`
+- `src/main/db/adapterRegistry.ts` — updated `dryRunQuery` return type on `DbAdapter`
+- `src/main/db/bigquery.ts` — extract `queryPlan` from dry-run metadata
+- `src/main/db/postgres.ts` — return EXPLAIN JSON output
+- `src/main/db/snowflake.ts` — return EXPLAIN text output
+- `src/renderer/src/lib/detectMissingLimit.ts` — created
+- `src/renderer/src/components/editor/LimitWarningBanner.tsx` — created
+- `src/renderer/src/components/results/ExplainPanel.tsx` — created
+- `src/renderer/src/components/command/ShortcutCheatsheet.tsx` — created
+- `src/renderer/src/store/queryStore.ts` — added `explainQuery` + `clearExplain` actions
+- `src/renderer/src/components/editor/QueryEditor.tsx` — Explain button + ⌘E keymap
+- `src/renderer/src/pages/Editor.tsx` — limit-guard logic + ExplainPanel wiring
+- `src/renderer/src/App.tsx` — cheatsheet state + ⌘/ listener + onShowShortcuts prop
+- `src/renderer/src/components/command/CommandPalette.tsx` — "Keyboard shortcuts" action
+- `src/renderer/src/components/layout/TitleBar.tsx` — `onShowShortcuts` prop pass-through
+- `src/__tests__/renderer/lib/detectMissingLimit.test.ts` — created (17 tests)
+- `src/__tests__/renderer/store/queryStore.test.ts` — extended (5 new tests)
+- `src/__tests__/main/db/bigquery.test.ts` — extended (1 new test)
+- `src/__tests__/main/db/postgres.test.ts` — updated dryRunQuery tests
+- `src/__tests__/main/db/snowflake.test.ts` — updated dryRunQuery test
+- `CHANGELOG.md` — Unreleased section added
+
+---
+
 ### [2026-06-06] Feature: ⌘K command palette (Phase 3 of design revamp)
 
 **Type:** Change

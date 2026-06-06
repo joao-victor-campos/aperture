@@ -487,10 +487,13 @@ export async function cancelRunningQuery(tabId: string): Promise<void> {
 export async function dryRunQuery(
   connection: SnowflakeConnection,
   sql: string
-): Promise<{ bytesProcessed: number }> {
+): Promise<{ bytesProcessed: number; plan?: string; planFormat?: 'text' | 'json' }> {
   const sfConn = await getConnection(connection)
-  await executeAll(sfConn, `EXPLAIN ${sql}`)
-  return { bytesProcessed: 0 }
+  const rows = await executeAll(sfConn, `EXPLAIN ${sql}`)
+  const plan = rows.length > 0
+    ? rows.map((r) => Object.values(r).join(' | ')).join('\n')
+    : undefined
+  return { bytesProcessed: 0, plan, planFormat: plan ? 'text' : undefined }
 }
 
 /**

@@ -20,6 +20,8 @@ interface QueryState {
   updateTabSql: (id: string, sql: string) => void
   runQuery: (id: string) => Promise<void>
   cancelQuery: (id: string) => Promise<void>
+  explainQuery: (id: string) => Promise<void>
+  clearExplain: (id: string) => void
   fetchPage: (id: string) => Promise<void>
   reorderTabs: (fromId: string, toId: string) => void
   // Split-pane actions
@@ -149,6 +151,41 @@ export const useQueryStore = create<QueryState>((set, get) => ({
       tabs: s.tabs.map((t) => (t.id === id ? { ...t, cancelled: true } : t))
     }))
     await window.api.invoke(CHANNELS.QUERY_CANCEL, id)
+  },
+
+  explainQuery: async (id) => {
+    const tab = get().tabs.find((t) => t.id === id)
+    if (!tab || !tab.connectionId || !tab.sql.trim()) return
+
+    set((s) => ({
+      tabs: s.tabs.map((t) =>
+        t.id === id ? { ...t, isExplaining: true, explainResult: undefined } : t
+      )
+    }))
+
+    try {
+      const result = await window.api.invoke(CHANNELS.QUERY_DRY_RUN, {
+        connectionId: tab.connectionId,
+        sql: tab.sql
+      })
+      set((s) => ({
+        tabs: s.tabs.map((t) =>
+          t.id === id ? { ...t, isExplaining: false, explainResult: result } : t
+        )
+      }))
+    } catch (err) {
+      set((s) => ({
+        tabs: s.tabs.map((t) =>
+          t.id === id ? { ...t, isExplaining: false, error: (err as Error).message } : t
+        )
+      }))
+    }
+  },
+
+  clearExplain: (id) => {
+    set((s) => ({
+      tabs: s.tabs.map((t) => (t.id === id ? { ...t, explainResult: undefined } : t))
+    }))
   },
 
   reorderTabs: (fromId, toId) => {

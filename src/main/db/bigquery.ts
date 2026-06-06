@@ -294,14 +294,20 @@ export async function cancelRunningQuery(tabId: string): Promise<void> {
 export async function dryRunQuery(
   connection: BigQueryConnection,
   sql: string
-): Promise<{ bytesProcessed: number }> {
+): Promise<{ bytesProcessed: number; plan?: string; planFormat?: 'text' | 'json' }> {
   const client = getClient(connection)
   // Use createQueryJob with dryRun so we get a Job object whose metadata
   // carries statistics.query.totalBytesProcessed without executing the query.
   const [job] = await client.createQueryJob({ query: sql, useLegacySql: false, dryRun: true })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const statsBytes = (job.metadata as any)?.statistics?.query?.totalBytesProcessed
-  return { bytesProcessed: statsBytes != null ? Number(statsBytes) : 0 }
+  const stats = (job.metadata as any)?.statistics?.query
+  const statsBytes = stats?.totalBytesProcessed
+  const queryPlan = stats?.queryPlan
+  return {
+    bytesProcessed: statsBytes != null ? Number(statsBytes) : 0,
+    plan: queryPlan ? JSON.stringify(queryPlan, null, 2) : undefined,
+    planFormat: queryPlan ? 'json' : undefined
+  }
 }
 
 export function invalidateClient(connectionId: string): void {

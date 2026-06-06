@@ -217,11 +217,16 @@ export async function cancelRunningQuery(tabId: string): Promise<void> {
   runningQueries.delete(tabId)
 }
 
-export async function dryRunQuery(connection: PostgresConnection, sql: string): Promise<{ bytesProcessed: number }> {
+export async function dryRunQuery(connection: PostgresConnection, sql: string): Promise<{ bytesProcessed: number; plan?: string; planFormat?: 'text' | 'json' }> {
   const pool = getPool(connection)
-  // Postgres doesn't have "bytes processed" metrics like BQ, but we can use EXPLAIN
-  await pool.query(`EXPLAIN ${sql}`)
-  return { bytesProcessed: 0 } // Always 0 as Postgres is not a billing-per-byte model
+  // Postgres returns EXPLAIN output as JSON when FORMAT JSON is requested
+  const res = await pool.query(`EXPLAIN (FORMAT JSON) ${sql}`)
+  const planData = res.rows?.[0]?.['QUERY PLAN']
+  return {
+    bytesProcessed: 0,
+    plan: planData ? JSON.stringify(planData, null, 2) : undefined,
+    planFormat: planData ? 'json' : undefined
+  }
 }
 
 export function invalidateClient(connectionId: string): void {

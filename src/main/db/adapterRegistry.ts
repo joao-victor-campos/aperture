@@ -68,7 +68,7 @@ export interface DbAdapter<TConnection extends Connection> {
 
   getQueryPage(tabId: string, pageToken: string): Promise<QueryResult>
   cancelRunningQuery(tabId: string): Promise<void>
-  dryRunQuery(connection: TConnection, sql: string): Promise<{ bytesProcessed: number }>
+  dryRunQuery(connection: TConnection, sql: string): Promise<{ bytesProcessed: number; plan?: string; planFormat?: 'text' | 'json' }>
 
   invalidateClient(connectionId: string): void
 }

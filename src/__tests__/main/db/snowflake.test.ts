@@ -282,12 +282,14 @@ describe('Snowflake adapter', () => {
 
   // ── dryRunQuery ─────────────────────────────────────────────────────────
   describe('dryRunQuery', () => {
-    it('executes EXPLAIN and returns bytesProcessed: 0', async () => {
+    it('executes EXPLAIN and returns plan text', async () => {
       mockExecuteAll([{ rows: 'GlobalStats' }])
 
       const result = await dryRunQuery(conn, 'SELECT 1')
 
-      expect(result).toEqual({ bytesProcessed: 0 })
+      expect(result.bytesProcessed).toBe(0)
+      expect(result.plan).toBe('GlobalStats')
+      expect(result.planFormat).toBe('text')
     })
 
     it('throws when the SQL is invalid', async () => {
