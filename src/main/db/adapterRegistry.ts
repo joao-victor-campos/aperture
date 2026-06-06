@@ -8,7 +8,8 @@ import type {
   SnowflakeConnection,
   QueryResult,
   Table,
-  TableField
+  TableField,
+  TableSearchHit
 } from '../../shared/types'
 
 import {
@@ -16,6 +17,7 @@ import {
   listDatasets as listBigQueryDatasets,
   listTables as listBigQueryTables,
   getTableSchema as getBigQueryTableSchema,
+  searchTables as searchBigQueryTables,
   runQuery as runBigQueryQuery,
   getQueryPage as getBigQueryPage,
   cancelRunningQuery as cancelBigQuery,
@@ -28,6 +30,7 @@ import {
   listDatasets as listPostgresDatasets,
   listTables as listPostgresTables,
   getTableSchema as getPostgresTableSchema,
+  searchTables as searchPostgresTables,
   runQuery as runPostgresQuery,
   getQueryPage as getPostgresPage,
   cancelRunningQuery as cancelPostgres,
@@ -40,6 +43,7 @@ import {
   listDatasets as listSnowflakeDatasets,
   listTables as listSnowflakeTables,
   getTableSchema as getSnowflakeTableSchema,
+  searchTables as searchSnowflakeTables,
   runQuery as runSnowflakeQuery,
   getQueryPage as getSnowflakePage,
   cancelRunningQuery as cancelSnowflake,
@@ -52,6 +56,8 @@ export interface DbAdapter<TConnection extends Connection> {
   listDatasets(connection: TConnection): Promise<Dataset[]>
   listTables(connection: TConnection, datasetId: string): Promise<Table[]>
   getTableSchema(connection: TConnection, datasetId: string, tableId: string): Promise<TableField[]>
+  /** Catalog-wide substring search for ⌘K command palette. */
+  searchTables(connection: TConnection, query: string, limit: number): Promise<TableSearchHit[]>
 
   runQuery(
     connection: TConnection,
@@ -72,6 +78,7 @@ const bigQueryAdapter: DbAdapter<BigQueryConnection> = {
   listDatasets: listBigQueryDatasets,
   listTables: listBigQueryTables,
   getTableSchema: getBigQueryTableSchema,
+  searchTables: searchBigQueryTables,
   runQuery: runBigQueryQuery,
   getQueryPage: getBigQueryPage,
   cancelRunningQuery: cancelBigQuery,
@@ -84,6 +91,7 @@ const postgresAdapter: DbAdapter<PostgresConnection> = {
   listDatasets: listPostgresDatasets,
   listTables: listPostgresTables,
   getTableSchema: getPostgresTableSchema,
+  searchTables: searchPostgresTables,
   runQuery: runPostgresQuery,
   getQueryPage: getPostgresPage,
   cancelRunningQuery: cancelPostgres,
@@ -96,6 +104,7 @@ const snowflakeAdapter: DbAdapter<SnowflakeConnection> = {
   listDatasets: listSnowflakeDatasets,
   listTables: listSnowflakeTables,
   getTableSchema: getSnowflakeTableSchema,
+  searchTables: searchSnowflakeTables,
   runQuery: runSnowflakeQuery,
   getQueryPage: getSnowflakePage,
   cancelRunningQuery: cancelSnowflake,

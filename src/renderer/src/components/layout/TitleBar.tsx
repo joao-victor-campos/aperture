@@ -1,9 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Sun, Moon, Plus, ChevronDown, Trash2, Pencil } from 'lucide-react'
 import { useConnectionStore } from '../../store/connectionStore'
 import type { ConnectionStatus } from '../../store/connectionStore'
 import ApertureIcon from '../ApertureIcon'
+import CommandPalette, { type CommandPaletteHandle } from '../command/CommandPalette'
 import type { BigQueryConnection, Connection, PostgresConnection, SnowflakeConnection } from '@shared/types'
 
 interface TitleBarProps {
@@ -11,6 +12,8 @@ interface TitleBarProps {
   onEditConnection: (conn: Connection) => void
   isDark: boolean
   onToggleTheme: () => void
+  /** Receives the palette's imperative `focus()` so a global ⌘K can target it. */
+  paletteRef?: RefObject<CommandPaletteHandle>
 }
 
 function connectionLabel(c: Connection): string {
@@ -20,7 +23,7 @@ function connectionLabel(c: Connection): string {
   return (c as PostgresConnection).database ?? (c as PostgresConnection).host
 }
 
-export default function TitleBar({ onAddConnection, onEditConnection, isDark, onToggleTheme }: TitleBarProps) {
+export default function TitleBar({ onAddConnection, onEditConnection, isDark, onToggleTheme, paletteRef }: TitleBarProps) {
   const { connections, activeConnectionId, setActive, remove, statuses } = useConnectionStore()
   const [open, setOpen] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -145,7 +148,17 @@ export default function TitleBar({ onAddConnection, onEditConnection, isDark, on
           <Plus size={13} />
         </button>
 
-        {/* Spacer — inherits drag from parent, acts as the main drag handle */}
+        {/* Left spacer — inherits drag from parent */}
+        <div className="flex-1" />
+
+        {/* ⌘K hero — centered palette input */}
+        <CommandPalette
+          ref={paletteRef}
+          onAddConnection={onAddConnection}
+          onToggleTheme={onToggleTheme}
+        />
+
+        {/* Right spacer — inherits drag from parent */}
         <div className="flex-1" />
 
         {/* Theme toggle */}

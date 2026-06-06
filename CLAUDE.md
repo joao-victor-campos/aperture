@@ -148,6 +148,46 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-06-06] Feature: ⌘K command palette (Phase 3 of design revamp)
+
+**Type:** Change
+**Context:** With the chrome (Phase 1) and data surfaces (Phase 2) of the Direction D · Hybrid design system landed, the only remaining item from `DESIGN.md`'s "next round" list was the ⌘K command palette — described as "the single global entrypoint" and rendered in the mockup as a 360px hairline input in the title bar center. Today users navigate three sidebar tabs (Catalog / Saved / History) and a connection dropdown to find anything; there is no global jump-to. The catalog tree's table search only matches *already-loaded* datasets, leaving large BigQuery projects mostly undiscoverable without manual expansion.
+**Problem / Change:**
+- No global keyboard shortcut for jumping to a table, query, or action.
+- Table search was limited to the in-memory catalog cache.
+- History was re-fetched on every `HistoryPanel` mount (no shared store).
+
+**Solution / Outcome:**
+- **`shared/ipc.ts`** + **`shared/types.ts`**: new `CATALOG_SEARCH_TABLES` channel + `TableSearchHit` type.
+- **`main/db/adapterRegistry.ts`**: `DbAdapter` gains a `searchTables(connection, query, limit)` method. All three adapters implement it: Postgres runs one `information_schema.tables ILIKE` query; Snowflake uses `INFORMATION_SCHEMA.TABLES` scoped to `connection.database` when set (falls back to `SHOW TABLES IN ACCOUNT`); BigQuery fans out one `INFORMATION_SCHEMA.TABLES` query per dataset with concurrency 5, swallowing per-dataset errors so a single regional or permission failure doesn't abort the whole search.
+- **`main/ipc/catalog.ts`**: handler dispatches via `getAdapterForConnection`. Returns `[]` when `query.trim().length < 2` to avoid scanning on a single keystroke.
+- **`renderer/store/historyStore.ts`** (new): Zustand store with `entries`, `loaded`, `load()` (idempotent), `reload()`, `clearAll()`. `HistoryPanel.tsx` migrated to use it.
+- **`renderer/lib/commandSearch.ts`** (new): pure `CommandItem` + `rankCommands(items, query)` (case-insensitive substring, prefix-match wins, stable sort) + `groupByKind`.
+- **`renderer/components/command/CommandPalette.tsx`** (new): hairline 360px input that lives in the title bar between the +Connection button and the theme toggle, centered via two `flex-1` spacers. Exposes a `focus()` handle via `useImperativeHandle` + `forwardRef`. Renders a 480px portal popover below the input with sectioned results (Tables / Saved queries / History / Connections / Actions). Each row has an icon + label + tabular sublabel; active row uses `bg-app-accent-subtle` + 2px terracotta left rail. Backend search is debounced (150 ms) and stale responses are discarded via a generation counter. Keyboard: `↑↓` (wrap-around) / `Enter` / `Esc`; outside-click closes.
+- **`renderer/App.tsx`**: eager-loads saved queries + history at boot; installs a window-level `keydown` listener for `⌘K` / `Ctrl+K` that calls `paletteRef.current.focus()`. CodeMirror has no `Mod-K` binding so the window listener wins even when the editor is focused.
+- **Per-engine icon colours** in the palette: Tables `cat-green`, Connections `cat-blue`, Saved bookmarks `accent`, History `text-3`, Actions vary.
+- **Tests** (29 new): `commandSearch.test.ts` (9 tests covering empty query, substring, prefix scoring, stable sort, groupByKind, no-match, multi-field haystack); `historyStore.test.ts` (5 tests covering load idempotence, reload, clearAll); per-adapter `searchTables` (3 Postgres + 3 Snowflake + 4 BigQuery, including the "skip-dataset-on-error" branch); catalog IPC handler (4 new tests including the short-query and whitespace short-circuits). Updated `adapterRegistry.test.ts` mocks to include `searchTables`.
+
+**Files affected:**
+- `src/shared/ipc.ts`, `src/shared/types.ts` — channel + `TableSearchHit` type
+- `src/main/ipc/catalog.ts` — handler
+- `src/main/db/adapterRegistry.ts` — `searchTables` on DbAdapter
+- `src/main/db/postgres.ts`, `snowflake.ts`, `bigquery.ts` — per-adapter `searchTables`
+- `src/renderer/src/store/historyStore.ts` — created
+- `src/renderer/src/components/history/HistoryPanel.tsx` — migrate to `useHistoryStore`
+- `src/renderer/src/lib/commandSearch.ts` — created
+- `src/renderer/src/components/command/CommandPalette.tsx` — created
+- `src/renderer/src/components/layout/TitleBar.tsx` — slot the palette + thread `paletteRef`
+- `src/renderer/src/App.tsx` — eager loads + global ⌘K listener
+- `src/__tests__/renderer/lib/commandSearch.test.ts` — created (9 tests)
+- `src/__tests__/renderer/store/historyStore.test.ts` — created (5 tests)
+- `src/__tests__/main/db/{bigquery,postgres,snowflake}.test.ts` — extended for `searchTables`
+- `src/__tests__/main/ipc/catalog.test.ts` — extended for `CATALOG_SEARCH_TABLES`
+- `src/__tests__/main/db/adapterRegistry.test.ts` — mocks include `searchTables`
+- 202 tests pass, overall coverage 83.6 % (new files at 100 %)
+
+---
+
 ### [2026-05-19] Design: Data-surfaces revamp + per-engine accents
 
 **Type:** Change
