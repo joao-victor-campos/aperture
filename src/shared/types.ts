@@ -123,6 +123,9 @@ export interface QueryTab {
   savedQueryId?: string
   /** Present when split-pane mode is active for this tab */
   rightPane?: QueryPane
+  /** Explain plan / dry-run result (shown in ExplainPanel) */
+  explainResult?: { bytesProcessed: number; plan?: string; planFormat?: 'text' | 'json' }
+  isExplaining?: boolean
 }
 
 export interface SavedQuery {

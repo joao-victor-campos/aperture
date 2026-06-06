@@ -212,10 +212,21 @@ describe('Postgres adapter', () => {
 
   // ── dryRunQuery ─────────────────────────────────────────────────────────
   describe('dryRunQuery', () => {
-    it('runs EXPLAIN and returns bytesProcessed: 0', async () => {
+    it('runs EXPLAIN (FORMAT JSON) and returns plan when present', async () => {
+      const fakePlan = [{ 'Node Type': 'Seq Scan', 'Relation Name': 'users' }]
+      mockPool.query.mockResolvedValueOnce({ rows: [{ 'QUERY PLAN': fakePlan }] })
+      const result = await dryRunQuery(conn, 'SELECT 1')
+      expect(result.bytesProcessed).toBe(0)
+      expect(result.planFormat).toBe('json')
+      expect(JSON.parse(result.plan!)).toEqual(fakePlan)
+    })
+
+    it('returns undefined plan when EXPLAIN returns no rows', async () => {
       mockPool.query.mockResolvedValueOnce({ rows: [] })
       const result = await dryRunQuery(conn, 'SELECT 1')
-      expect(result).toEqual({ bytesProcessed: 0 })
+      expect(result.bytesProcessed).toBe(0)
+      expect(result.plan).toBeUndefined()
+      expect(result.planFormat).toBeUndefined()
     })
 
     it('throws when EXPLAIN fails', async () => {

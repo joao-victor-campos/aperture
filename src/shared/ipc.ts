@@ -65,7 +65,7 @@ export interface IpcMap {
   [CHANNELS.QUERY_CANCEL]: { req: string; res: void }
   [CHANNELS.QUERY_DRY_RUN]: {
     req: { connectionId: string; sql: string }
-    res: { bytesProcessed: number }
+    res: { bytesProcessed: number; plan?: string; planFormat?: 'text' | 'json' }
   }
   [CHANNELS.SAVED_QUERY_LIST]: { req: undefined; res: SavedQuery[] }
   [CHANNELS.SAVED_QUERY_SAVE]: {

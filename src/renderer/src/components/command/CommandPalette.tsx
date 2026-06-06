@@ -20,6 +20,7 @@ export interface CommandPaletteHandle {
 interface CommandPaletteProps {
   onAddConnection: () => void
   onToggleTheme: () => void
+  onShowShortcuts?: () => void
 }
 
 const SEARCH_DEBOUNCE_MS = 150
@@ -58,7 +59,7 @@ const ICON_COLOR: Record<CommandIcon, string> = {
 }
 
 const CommandPalette = forwardRef<CommandPaletteHandle, CommandPaletteProps>(function CommandPalette(
-  { onAddConnection, onToggleTheme },
+  { onAddConnection, onToggleTheme, onShowShortcuts },
   ref,
 ) {
   // ── State ─────────────────────────────────────────────────────────────────
@@ -318,6 +319,16 @@ const CommandPalette = forwardRef<CommandPaletteHandle, CommandPaletteProps>(fun
       icon: 'sun',
       action: onToggleTheme,
     })
+    if (onShowShortcuts) {
+      out.push({
+        id: 'action:shortcuts',
+        kind: 'action',
+        label: 'Keyboard shortcuts',
+        searchText: 'keyboard shortcuts help keys cheatsheet hotkeys',
+        icon: 'wand',
+        action: onShowShortcuts,
+      })
+    }
 
     return out
     // eslint-disable-next-line react-hooks/exhaustive-deps

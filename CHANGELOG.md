@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
+## [Unreleased]
+
+### Added
+- **Auto-limit guard** — before executing a `SELECT`/`WITH` query that lacks a top-level `LIMIT` clause, the editor now shows a warning banner offering "Add LIMIT 1000" or "Run anyway." Prevents accidental full-table scans on metered engines like BigQuery. Detection handles subqueries, CTEs, comments, and string literals correctly.
+- **Explain plan viewer** — a new "Explain" button (⌘E) in the editor toolbar runs the existing `QUERY_DRY_RUN` IPC and displays the execution plan in a dedicated panel below the editor. BigQuery returns the query-plan stages as formatted JSON; Postgres returns `EXPLAIN (FORMAT JSON)` output; Snowflake returns `EXPLAIN` rows as text. The panel shows bytes-processed for BigQuery and a "Dry run OK" message when no plan is available.
+- **Keyboard shortcut cheatsheet** — press `⌘/` anywhere (or select "Keyboard shortcuts" from the ⌘K palette) to open a modal overlay listing all app shortcuts grouped by context: Editor (⌘↵, ⌘E, ⌘S, ⌥⌘F), Navigation (⌘K, ⌘/), and Palette (↑↓, ⏎, Esc).
+
+---
 ## [2.0.0] - 2026-06-06
 
 - **Design revamp — chrome (Direction D · Hybrid)** — adopted the new warm-paper/coffee palette + refined-terracotta accent across the title bar, sidebar, catalog tree, editor tab bar, and SQL editor toolbar. New chrome includes: a `snowflake / prod_warehouse` connection breadcrumb (replacing the boxy picker button), segmented pill tabs in the sidebar with inline counts (`Catalog 42 / Saved 18 / History`), small-caps section labels, halo-glow status dots via `.app-dot`, pill-style active editor tabs with the `app-pill` shadow, saved-query bookmark icon on tabs, and a 2px-terracotta-rail active-table indicator in the catalog. Tables/views in the catalog now use semantic categorical colors (`cat-green` / `cat-purple`). All hardcoded `text-emerald/red/amber` classes in the chrome were swept to the semantic `app-ok/err/warn` and `app-cat-*` tokens. No layout or component-tree changes — restyle only.

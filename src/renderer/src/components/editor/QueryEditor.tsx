@@ -5,7 +5,7 @@ import { sql, PostgreSQL, StandardSQL } from '@codemirror/lang-sql'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { EditorView, keymap } from '@codemirror/view'
 import { Prec } from '@codemirror/state'
-import { Bookmark, BookmarkCheck, Columns2, WandSparkles } from 'lucide-react'
+import { Bookmark, BookmarkCheck, Columns2, ListTree, WandSparkles } from 'lucide-react'
 import type { ConnectionEngine } from '@shared/types'
 
 interface QueryEditorProps {
@@ -13,10 +13,12 @@ interface QueryEditorProps {
   onChange: (value: string) => void
   onRun: () => void
   onCancel: () => void
+  onExplain?: () => void
   onSave?: () => void
   onSplit?: () => void
   isSplit?: boolean
   isRunning: boolean
+  isExplaining?: boolean
   savedQueryId?: string
   sqlSchema?: Record<string, string[]>
   engine?: ConnectionEngine
@@ -49,7 +51,7 @@ const customTheme = EditorView.theme({
 })
 
 export default function QueryEditor({
-  value, onChange, onRun, onCancel, onSave, onSplit, isSplit, isRunning, savedQueryId, sqlSchema, engine,
+  value, onChange, onRun, onCancel, onExplain, onSave, onSplit, isSplit, isRunning, isExplaining, savedQueryId, sqlSchema, engine,
 }: QueryEditorProps) {
   const sqlExtension = useMemo(
     () => sql({
@@ -83,6 +85,10 @@ export default function QueryEditor({
         },
       },
       {
+        key: 'Mod-e',
+        run: () => { onExplain?.(); return true },
+      },
+      {
         key: 'Mod-s',
         run: () => { onSave?.(); return true },
       },
@@ -91,7 +97,7 @@ export default function QueryEditor({
         run: () => { handleFormat(); return true },
       },
     ])),
-    [isRunning, onCancel, onRun, onSave, handleFormat]
+    [isRunning, onCancel, onRun, onExplain, onSave, handleFormat]
   )
 
   return (
@@ -140,6 +146,19 @@ export default function QueryEditor({
             }
             <span className="text-[11px]">{savedQueryId ? 'Saved' : 'Save'}</span>
           </button>
+
+          {/* Explain button */}
+          {onExplain && (
+            <button
+              onClick={onExplain}
+              disabled={!value.trim() || isRunning || isExplaining}
+              title="Explain plan (⌘E)"
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ListTree size={13} />
+              <span className="text-[11px]">Explain</span>
+            </button>
+          )}
 
           {/* Run / Cancel button */}
           {isRunning ? (

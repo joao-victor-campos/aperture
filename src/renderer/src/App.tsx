@@ -3,6 +3,7 @@ import TitleBar from './components/layout/TitleBar'
 import Sidebar from './components/layout/Sidebar'
 import Editor from './pages/Editor'
 import ConnectionModal from './components/connections/ConnectionModal'
+import ShortcutCheatsheet from './components/command/ShortcutCheatsheet'
 import { useConnectionStore } from './store/connectionStore'
 import { useSavedQueryStore } from './store/savedQueryStore'
 import { useHistoryStore } from './store/historyStore'
@@ -17,6 +18,7 @@ export default function App() {
   const loadSavedQueries = useSavedQueryStore((s) => s.load)
   const loadHistory = useHistoryStore((s) => s.load)
   const paletteRef = useRef<CommandPaletteHandle>(null)
+  const [cheatsheetOpen, setCheatsheetOpen] = useState(false)
 
   // Theme — persisted in localStorage; dark is the default
   const [isDark, setIsDark] = useState(() => localStorage.getItem('theme') !== 'light')
@@ -39,11 +41,17 @@ export default function App() {
   }, [isDark])
 
   // Global ⌘K (or Ctrl+K on Linux) — focuses the palette input
+  // Global ⌘/ — toggles shortcut cheatsheet
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault()
         paletteRef.current?.focus()
+        return
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === '/') {
+        e.preventDefault()
+        setCheatsheetOpen((v) => !v)
       }
     }
     window.addEventListener('keydown', handler)
@@ -57,6 +65,7 @@ export default function App() {
         onEditConnection={(conn) => setModal({ mode: 'edit', connection: conn })}
         isDark={isDark}
         onToggleTheme={() => setIsDark((d) => !d)}
+        onShowShortcuts={() => setCheatsheetOpen(true)}
         paletteRef={paletteRef}
       />
       <div className="flex flex-1 overflow-hidden">
@@ -75,6 +84,7 @@ export default function App() {
           initialConnection={modal.mode === 'edit' ? modal.connection : undefined}
         />
       )}
+      <ShortcutCheatsheet open={cheatsheetOpen} onClose={() => setCheatsheetOpen(false)} />
     </div>
   )
 }

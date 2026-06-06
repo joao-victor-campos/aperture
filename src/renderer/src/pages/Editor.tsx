@@ -2,18 +2,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, X, Table2, Pin, Bookmark } from 'lucide-react'
 import QueryEditor from '../components/editor/QueryEditor'
 import ResultsTable from '../components/results/ResultsTable'
+import ExplainPanel from '../components/results/ExplainPanel'
+import LimitWarningBanner from '../components/editor/LimitWarningBanner'
 import TableDetailPanel from '../components/catalog/TableDetailPanel'
 import SaveQueryModal from '../components/editor/SaveQueryModal'
 import { useQueryStore } from '../store/queryStore'
 import { useConnectionStore } from '../store/connectionStore'
 import { useCatalogStore } from '../store/catalogStore'
 import { useSavedQueryStore } from '../store/savedQueryStore'
+import { detectMissingLimit } from '../lib/detectMissingLimit'
 
 export default function Editor() {
   const {
     tabs, activeTabId,
     openTab, openResultTab, closeTab, setActiveTab, updateTabSql,
-    runQuery, cancelQuery, fetchPage, reorderTabs,
+    runQuery, cancelQuery, explainQuery, clearExplain, fetchPage, reorderTabs,
     toggleSplit, updateRightPaneSql, runRightPane, cancelRightPane,
   } = useQueryStore()
   const dragTabId = useRef<string | null>(null)
@@ -25,6 +28,7 @@ export default function Editor() {
   const [splitHPct, setSplitHPct] = useState(50) // horizontal split between left/right pane
   const [savingTabId, setSavingTabId] = useState<string | null>(null)
   const [savedFlash, setSavedFlash] = useState(false)
+  const [limitWarningTabId, setLimitWarningTabId] = useState<string | null>(null)
   const isDragging = useRef(false)
   const isHDragging = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -89,6 +93,38 @@ export default function Editor() {
       }
     } else {
       setSavingTabId(activeTabId)
+    }
+  }
+
+  // Auto-limit guard: intercept run if SELECT has no LIMIT
+  const handleRun = (tabId: string) => {
+    const tab = tabs.find((t) => t.id === tabId)
+    if (!tab) return
+    // Clear any stale explain result when running a real query
+    if (tab.explainResult) clearExplain(tabId)
+    if (detectMissingLimit(tab.sql)) {
+      setLimitWarningTabId(tabId)
+    } else {
+      runQuery(tabId)
+    }
+  }
+
+  const handleRunAnyway = () => {
+    if (limitWarningTabId) {
+      runQuery(limitWarningTabId)
+      setLimitWarningTabId(null)
+    }
+  }
+
+  const handleAddLimit = () => {
+    if (limitWarningTabId) {
+      const tab = tabs.find((t) => t.id === limitWarningTabId)
+      if (tab) {
+        const newSql = tab.sql.trimEnd() + '\nLIMIT 1000'
+        updateTabSql(limitWarningTabId, newSql)
+        runQuery(limitWarningTabId)
+      }
+      setLimitWarningTabId(null)
     }
   }
 
@@ -229,35 +265,52 @@ export default function Editor() {
             <div className="flex flex-1 overflow-hidden min-h-0">
               {/* Left pane */}
               <div className="flex flex-col overflow-hidden min-h-0" style={{ width: `${splitHPct}%` }}>
-                <div style={{ height: `${splitPct}%` }} className="overflow-hidden min-h-0">
+                <div style={{ height: `${splitPct}%` }} className="flex flex-col overflow-hidden min-h-0">
                   <QueryEditor
                     value={activeTab.sql}
                     onChange={(sql) => updateTabSql(activeTab.id, sql)}
-                    onRun={() => runQuery(activeTab.id)}
+                    onRun={() => handleRun(activeTab.id)}
                     onCancel={() => cancelQuery(activeTab.id)}
+                    onExplain={() => explainQuery(activeTab.id)}
                     onSave={handleSave}
                     onSplit={() => toggleSplit(activeTab.id)}
                     isSplit
                     isRunning={activeTab.isRunning}
+                    isExplaining={activeTab.isExplaining}
                     savedQueryId={activeTab.savedQueryId}
                     sqlSchema={sqlSchema}
                     engine={activeEngine}
                   />
+                  {limitWarningTabId === activeTab.id && (
+                    <LimitWarningBanner
+                      onRunAnyway={handleRunAnyway}
+                      onAddLimit={handleAddLimit}
+                      onDismiss={() => setLimitWarningTabId(null)}
+                    />
+                  )}
                 </div>
                 <div
                   onMouseDown={handleDividerMouseDown}
                   className="h-1.5 bg-app-border hover:bg-app-accent/60 cursor-row-resize transition-colors shrink-0"
                 />
                 <div style={{ height: `${100 - splitPct}%` }} className="overflow-hidden min-h-0">
-                  <ResultsTable
-                    result={activeTab.result}
-                    error={activeTab.error}
-                    isRunning={activeTab.isRunning}
-                    cancelled={activeTab.cancelled}
-                    logs={activeTab.logs}
-                    onFetchPage={() => fetchPage(activeTab.id)}
-                    onPin={() => openResultTab(activeTab.id)}
-                  />
+                  {activeTab.explainResult || activeTab.isExplaining ? (
+                    <ExplainPanel
+                      result={activeTab.explainResult ?? { bytesProcessed: 0 }}
+                      isLoading={activeTab.isExplaining}
+                      onClose={() => clearExplain(activeTab.id)}
+                    />
+                  ) : (
+                    <ResultsTable
+                      result={activeTab.result}
+                      error={activeTab.error}
+                      isRunning={activeTab.isRunning}
+                      cancelled={activeTab.cancelled}
+                      logs={activeTab.logs}
+                      onFetchPage={() => fetchPage(activeTab.id)}
+                      onPin={() => openResultTab(activeTab.id)}
+                    />
+                  )}
                 </div>
               </div>
 
@@ -298,20 +351,29 @@ export default function Editor() {
           ) : (
             /* ── Single-pane layout ──────────────────────────────────────── */
             <>
-              <div style={{ height: `${splitPct}%` }} className="overflow-hidden min-h-0">
+              <div style={{ height: `${splitPct}%` }} className="flex flex-col overflow-hidden min-h-0">
                 <QueryEditor
                   value={activeTab.sql}
                   onChange={(sql) => updateTabSql(activeTab.id, sql)}
-                  onRun={() => runQuery(activeTab.id)}
+                  onRun={() => handleRun(activeTab.id)}
                   onCancel={() => cancelQuery(activeTab.id)}
+                  onExplain={() => explainQuery(activeTab.id)}
                   onSave={handleSave}
                   onSplit={() => toggleSplit(activeTab.id)}
                   isSplit={false}
                   isRunning={activeTab.isRunning}
+                  isExplaining={activeTab.isExplaining}
                   savedQueryId={activeTab.savedQueryId}
                   sqlSchema={sqlSchema}
                   engine={activeEngine}
                 />
+                {limitWarningTabId === activeTab.id && (
+                  <LimitWarningBanner
+                    onRunAnyway={handleRunAnyway}
+                    onAddLimit={handleAddLimit}
+                    onDismiss={() => setLimitWarningTabId(null)}
+                  />
+                )}
               </div>
 
               <div
@@ -320,15 +382,23 @@ export default function Editor() {
               />
 
               <div style={{ height: `${100 - splitPct}%` }} className="overflow-hidden min-h-0">
-                <ResultsTable
-                  result={activeTab.result}
-                  error={activeTab.error}
-                  isRunning={activeTab.isRunning}
-                  cancelled={activeTab.cancelled}
-                  logs={activeTab.logs}
-                  onFetchPage={() => fetchPage(activeTab.id)}
-                  onPin={() => openResultTab(activeTab.id)}
-                />
+                {activeTab.explainResult || activeTab.isExplaining ? (
+                  <ExplainPanel
+                    result={activeTab.explainResult ?? { bytesProcessed: 0 }}
+                    isLoading={activeTab.isExplaining}
+                    onClose={() => clearExplain(activeTab.id)}
+                  />
+                ) : (
+                  <ResultsTable
+                    result={activeTab.result}
+                    error={activeTab.error}
+                    isRunning={activeTab.isRunning}
+                    cancelled={activeTab.cancelled}
+                    logs={activeTab.logs}
+                    onFetchPage={() => fetchPage(activeTab.id)}
+                    onPin={() => openResultTab(activeTab.id)}
+                  />
+                )}
               </div>
             </>
           )
