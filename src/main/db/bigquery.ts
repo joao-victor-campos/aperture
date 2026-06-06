@@ -1,7 +1,7 @@
 import { BigQuery, Job } from '@google-cloud/bigquery'
 import type { WebContents } from 'electron'
 import { CHANNELS } from '../../shared/ipc'
-import type { BigQueryConnection, Dataset, Table, TableField, QueryResult } from '../../shared/types'
+import type { BigQueryConnection, Dataset, Table, TableField, TableSearchHit, QueryResult } from '../../shared/types'
 
 const QUERY_TIMEOUT_MS = 180_000
 const HEARTBEAT_INTERVAL_MS = 10_000
@@ -76,6 +76,67 @@ export async function listTables(connection: BigQueryConnection, datasetId: stri
     rowCount: t.metadata?.numRows ? Number(t.metadata.numRows) : undefined,
     sizeBytes: t.metadata?.numBytes ? Number(t.metadata.numBytes) : undefined
   }))
+}
+
+/**
+ * Catalog-wide table search across all datasets in the project.
+ * BigQuery has no project-wide INFORMATION_SCHEMA without specifying a region,
+ * so we fan out one `INFORMATION_SCHEMA.TABLES` query per dataset.
+ *
+ * Concurrency cap of 5 prevents API rate-limit storms on large projects.
+ * Results are truncated to `limit` after merging.
+ */
+export async function searchTables(
+  connection: BigQueryConnection,
+  query: string,
+  limit: number
+): Promise<TableSearchHit[]> {
+  const client = getClient(connection)
+  const [datasets] = await client.getDatasets()
+  const datasetIds = datasets.map((d) => d.id!).filter(Boolean)
+
+  // Escape % and _ in the LIKE pattern; BigQuery doesn't have ILIKE, use LOWER(...) LIKE LOWER(...)
+  const escaped = query.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
+  const pattern = `%${escaped}%`
+  const perDatasetLimit = Math.min(limit, 50)
+
+  // Run datasets in batches of 5 to stay polite to BigQuery
+  const CONCURRENCY = 5
+  const hits: TableSearchHit[] = []
+
+  for (let i = 0; i < datasetIds.length; i += CONCURRENCY) {
+    if (hits.length >= limit) break
+    const batch = datasetIds.slice(i, i + CONCURRENCY)
+    const results = await Promise.all(
+      batch.map(async (datasetId) => {
+        try {
+          const sql = `
+            SELECT table_name, table_type
+              FROM \`${connection.projectId}.${datasetId}.INFORMATION_SCHEMA.TABLES\`
+             WHERE LOWER(table_name) LIKE LOWER(@pattern) ESCAPE '\\\\'
+             LIMIT ${perDatasetLimit}
+          `
+          const [rows] = await client.query({ query: sql, params: { pattern } })
+          return rows.map((r: Record<string, unknown>) => ({
+            datasetId,
+            tableId: r.table_name as string,
+            name: r.table_name as string,
+            type:
+              (r.table_type as string) === 'VIEW' ||
+              (r.table_type as string) === 'MATERIALIZED VIEW'
+                ? 'VIEW'
+                : 'TABLE'
+          } satisfies TableSearchHit))
+        } catch {
+          // Skip datasets we can't query (permission errors, regional mismatches)
+          return [] as TableSearchHit[]
+        }
+      })
+    )
+    for (const r of results) hits.push(...r)
+  }
+
+  return hits.slice(0, limit)
 }
 
 export async function getTableSchema(

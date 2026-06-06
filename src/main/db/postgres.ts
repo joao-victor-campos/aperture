@@ -1,7 +1,7 @@
 import { Pool, Client, PoolClient } from 'pg'
 import type { WebContents } from 'electron'
 import { CHANNELS } from '../../shared/ipc'
-import type { PostgresConnection, Dataset, Table, TableField, QueryResult } from '../../shared/types'
+import type { PostgresConnection, Dataset, Table, TableField, TableSearchHit, QueryResult } from '../../shared/types'
 
 const QUERY_TIMEOUT_MS = 180_000
 const HEARTBEAT_INTERVAL_MS = 10_000
@@ -80,6 +80,31 @@ export async function listTables(connection: PostgresConnection, datasetId: stri
     projectId: connection.database,
     name: t.table_name,
     type: t.table_type === 'VIEW' ? 'VIEW' : 'TABLE'
+  }))
+}
+
+/**
+ * Catalog-wide table search. One `information_schema.tables` query covers the whole DB.
+ */
+export async function searchTables(
+  connection: PostgresConnection,
+  query: string,
+  limit: number
+): Promise<TableSearchHit[]> {
+  const pool = getPool(connection)
+  const res = await pool.query(
+    `SELECT table_schema, table_name, table_type
+       FROM information_schema.tables
+      WHERE table_name ILIKE $1
+        AND table_schema NOT IN ('pg_catalog', 'information_schema')
+      LIMIT $2`,
+    [`%${query}%`, limit]
+  )
+  return res.rows.map((r) => ({
+    datasetId: r.table_schema as string,
+    tableId: r.table_name as string,
+    name: r.table_name as string,
+    type: (r.table_type === 'VIEW' ? 'VIEW' : 'TABLE') as 'TABLE' | 'VIEW'
   }))
 }
 

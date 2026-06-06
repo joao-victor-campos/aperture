@@ -52,6 +52,7 @@ const {
   listDatasets,
   listTables,
   getTableSchema,
+  searchTables,
   runQuery,
   dryRunQuery,
   invalidateClient,
@@ -220,6 +221,42 @@ describe('Postgres adapter', () => {
     it('throws when EXPLAIN fails', async () => {
       mockPool.query.mockRejectedValueOnce(new Error('syntax error'))
       await expect(dryRunQuery(conn, 'GARBAGE')).rejects.toThrow('syntax error')
+    })
+  })
+
+  // ── searchTables ────────────────────────────────────────────────────────
+  describe('searchTables', () => {
+    it('runs an ILIKE query against information_schema.tables', async () => {
+      mockPool.query.mockResolvedValueOnce({
+        rows: [
+          { table_schema: 'public', table_name: 'orders',  table_type: 'BASE TABLE' },
+          { table_schema: 'public', table_name: 'order_v', table_type: 'VIEW' },
+        ],
+      })
+
+      const hits = await searchTables(conn, 'ord', 50)
+
+      const callArgs = mockPool.query.mock.calls[0]
+      expect(callArgs[0]).toMatch(/information_schema\.tables/i)
+      expect(callArgs[0]).toMatch(/ILIKE \$1/i)
+      expect(callArgs[1]).toEqual(['%ord%', 50])
+      expect(hits).toEqual([
+        { datasetId: 'public', tableId: 'orders',  name: 'orders',  type: 'TABLE' },
+        { datasetId: 'public', tableId: 'order_v', name: 'order_v', type: 'VIEW'  },
+      ])
+    })
+
+    it('filters out system schemas via the WHERE clause', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [] })
+      await searchTables(conn, 'tab', 50)
+      const sql = mockPool.query.mock.calls[0][0] as string
+      expect(sql).toMatch(/NOT IN \('pg_catalog', 'information_schema'\)/)
+    })
+
+    it('returns an empty array when no rows match', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [] })
+      const hits = await searchTables(conn, 'nothing', 50)
+      expect(hits).toEqual([])
     })
   })
 
