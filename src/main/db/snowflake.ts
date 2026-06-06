@@ -6,6 +6,7 @@ import type {
   Dataset,
   Table,
   TableField,
+  TableSearchHit,
   QueryResult
 } from '../../shared/types'
 
@@ -272,6 +273,56 @@ export async function getTableSchema(
       mode: nullable.toUpperCase() === 'Y' ? 'NULLABLE' : 'REQUIRED',
       description: str(r, 'comment') || undefined
     } satisfies TableField
+  })
+}
+
+/**
+ * Catalog-wide table search.
+ *   - If connection.database is set, uses that DB's INFORMATION_SCHEMA (fast, scoped).
+ *   - Otherwise falls back to `SHOW TABLES LIKE '%query%' IN ACCOUNT` (capped at 10k by Snowflake).
+ */
+export async function searchTables(
+  connection: SnowflakeConnection,
+  query: string,
+  limit: number
+): Promise<TableSearchHit[]> {
+  const sfConn = await getConnection(connection)
+  // Snowflake binding placeholders are `?`; the SDK escapes them safely.
+  const pattern = `%${query}%`
+
+  if (connection.database) {
+    const sql = `SELECT TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE
+                   FROM ${connection.database}.INFORMATION_SCHEMA.TABLES
+                  WHERE TABLE_NAME ILIKE '${pattern.replace(/'/g, "''")}'
+                  LIMIT ${limit}`
+    const rows = await executeAll(sfConn, sql)
+    return rows.map((r) => {
+      const dbName = str(r, 'TABLE_CATALOG')
+      const schemaName = str(r, 'TABLE_SCHEMA')
+      const tableName = str(r, 'TABLE_NAME')
+      const tableType = str(r, 'TABLE_TYPE').toUpperCase()
+      return {
+        datasetId: `${dbName}.${schemaName}`,
+        tableId: tableName,
+        name: tableName,
+        type: tableType === 'VIEW' ? 'VIEW' : 'TABLE'
+      } satisfies TableSearchHit
+    })
+  }
+
+  // Fallback: account-wide SHOW TABLES (no INFORMATION_SCHEMA available without a DB)
+  const sql = `SHOW TABLES LIKE '${pattern.replace(/'/g, "''")}' IN ACCOUNT`
+  const rows = await executeAll(sfConn, sql)
+  return rows.slice(0, limit).map((r) => {
+    const dbName = str(r, 'database_name')
+    const schemaName = str(r, 'schema_name')
+    const tableName = str(r, 'name')
+    return {
+      datasetId: `${dbName}.${schemaName}`,
+      tableId: tableName,
+      name: tableName,
+      type: 'TABLE'
+    } satisfies TableSearchHit
   })
 }
 

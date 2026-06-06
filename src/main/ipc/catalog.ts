@@ -30,4 +30,19 @@ export function registerCatalogHandlers(): void {
       return getAdapterForConnection(conn).getTableSchema(conn, req.datasetId, req.tableId)
     }
   )
+
+  ipcMain.handle(
+    CHANNELS.CATALOG_SEARCH_TABLES,
+    async (
+      _event,
+      req: { connectionId: string; query: string; limit?: number }
+    ) => {
+      // Don't scan on a single keystroke
+      if (req.query.trim().length < 2) return []
+      const conn = store.get('connections').find((c) => c.id === req.connectionId)
+      if (!conn) throw new Error(`Connection not found: ${req.connectionId}`)
+      const limit = req.limit ?? 50
+      return getAdapterForConnection(conn).searchTables(conn, req.query.trim(), limit)
+    }
+  )
 }

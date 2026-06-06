@@ -1,23 +1,32 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import TitleBar from './components/layout/TitleBar'
 import Sidebar from './components/layout/Sidebar'
 import Editor from './pages/Editor'
 import ConnectionModal from './components/connections/ConnectionModal'
 import { useConnectionStore } from './store/connectionStore'
+import { useSavedQueryStore } from './store/savedQueryStore'
+import { useHistoryStore } from './store/historyStore'
 import type { Connection } from '@shared/types'
+import type { CommandPaletteHandle } from './components/command/CommandPalette'
 
 type ModalState = null | { mode: 'add' } | { mode: 'edit'; connection: Connection }
 
 export default function App() {
   const [modal, setModal] = useState<ModalState>(null)
   const { connections, load } = useConnectionStore()
+  const loadSavedQueries = useSavedQueryStore((s) => s.load)
+  const loadHistory = useHistoryStore((s) => s.load)
+  const paletteRef = useRef<CommandPaletteHandle>(null)
 
   // Theme — persisted in localStorage; dark is the default
   const [isDark, setIsDark] = useState(() => localStorage.getItem('theme') !== 'light')
 
   useEffect(() => {
+    // Eager-load every persistent store the ⌘K palette searches over.
     load()
-  }, [load])
+    loadSavedQueries()
+    loadHistory()
+  }, [load, loadSavedQueries, loadHistory])
 
   useEffect(() => {
     const html = document.documentElement
@@ -29,6 +38,18 @@ export default function App() {
     localStorage.setItem('theme', isDark ? 'dark' : 'light')
   }, [isDark])
 
+  // Global ⌘K (or Ctrl+K on Linux) — focuses the palette input
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault()
+        paletteRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
   return (
     <div className="flex flex-col h-screen bg-app-bg text-app-text">
       <TitleBar
@@ -36,6 +57,7 @@ export default function App() {
         onEditConnection={(conn) => setModal({ mode: 'edit', connection: conn })}
         isDark={isDark}
         onToggleTheme={() => setIsDark((d) => !d)}
+        paletteRef={paletteRef}
       />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar onAddConnection={() => setModal({ mode: 'add' })} />

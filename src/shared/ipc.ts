@@ -1,4 +1,4 @@
-import type { Connection, ConnectionCreate, Dataset, Table, TableField, QueryResult, SavedQuery, Folder, HistoryEntry } from './types'
+import type { Connection, ConnectionCreate, Dataset, Table, TableField, TableSearchHit, QueryResult, SavedQuery, Folder, HistoryEntry } from './types'
 
 export const CHANNELS = {
   // Connections
@@ -11,6 +11,7 @@ export const CHANNELS = {
   CATALOG_DATASETS: 'catalog:datasets',
   CATALOG_TABLES: 'catalog:tables',
   CATALOG_TABLE_SCHEMA: 'catalog:table-schema',
+  CATALOG_SEARCH_TABLES: 'catalog:search-tables',
   // Query
   QUERY_EXECUTE: 'query:execute',
   QUERY_GET_PAGE: 'query:get-page',
@@ -48,6 +49,10 @@ export interface IpcMap {
   [CHANNELS.CATALOG_TABLE_SCHEMA]: {
     req: { connectionId: string; projectId: string; datasetId: string; tableId: string }
     res: TableField[]
+  }
+  [CHANNELS.CATALOG_SEARCH_TABLES]: {
+    req: { connectionId: string; query: string; limit?: number }
+    res: TableSearchHit[]
   }
   [CHANNELS.QUERY_EXECUTE]: {
     req: { connectionId: string; sql: string; tabId: string }

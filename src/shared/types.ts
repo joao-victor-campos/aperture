@@ -62,6 +62,14 @@ export interface TableField {
   fields?: TableField[]
 }
 
+/** Result row of a catalog-wide table search (no full schema metadata). */
+export interface TableSearchHit {
+  datasetId: string
+  tableId: string
+  name: string
+  type: 'TABLE' | 'VIEW'
+}
+
 export interface Table {
   id: string
   datasetId: string

@@ -20,13 +20,15 @@ vi.mock('electron', () => ({
 const bigAdapter = {
   listDatasets: vi.fn(),
   listTables: vi.fn(),
-  getTableSchema: vi.fn()
+  getTableSchema: vi.fn(),
+  searchTables: vi.fn()
 }
 
 const pgAdapter = {
   listDatasets: vi.fn(),
   listTables: vi.fn(),
-  getTableSchema: vi.fn()
+  getTableSchema: vi.fn(),
+  searchTables: vi.fn()
 }
 
 vi.mock('../../../main/db/adapterRegistry', () => ({
@@ -157,6 +159,54 @@ describe('Catalog IPC handlers', () => {
       await expect(
         handler({}, { connectionId: 'bad-id', projectId: 'p', datasetId: 'ds1', tableId: 'tbl1' })
       ).rejects.toThrow('Connection not found')
+    })
+  })
+
+  describe(CHANNELS.CATALOG_SEARCH_TABLES, () => {
+    it('returns an empty array when query.trim().length < 2 (no adapter call)', async () => {
+      const handler = handlers.get(CHANNELS.CATALOG_SEARCH_TABLES)!
+
+      const result = await handler({}, { connectionId: 'conn-1', query: 'a' })
+
+      expect(result).toEqual([])
+      expect(bigAdapter.searchTables).not.toHaveBeenCalled()
+    })
+
+    it('treats whitespace-only queries the same as too-short', async () => {
+      const handler = handlers.get(CHANNELS.CATALOG_SEARCH_TABLES)!
+
+      const result = await handler({}, { connectionId: 'conn-1', query: '   ' })
+
+      expect(result).toEqual([])
+      expect(bigAdapter.searchTables).not.toHaveBeenCalled()
+    })
+
+    it('dispatches to the matching adapter for queries that are long enough', async () => {
+      const hits = [{ datasetId: 'ds1', tableId: 't1', name: 't1', type: 'TABLE' as const }]
+      bigAdapter.searchTables.mockResolvedValueOnce(hits)
+      const handler = handlers.get(CHANNELS.CATALOG_SEARCH_TABLES)!
+
+      const result = await handler({}, { connectionId: 'conn-1', query: 'order' })
+
+      expect(result).toEqual(hits)
+      expect(bigAdapter.searchTables).toHaveBeenCalledWith(bigConn, 'order', 50)
+    })
+
+    it('uses the request limit when provided', async () => {
+      bigAdapter.searchTables.mockResolvedValueOnce([])
+      const handler = handlers.get(CHANNELS.CATALOG_SEARCH_TABLES)!
+
+      await handler({}, { connectionId: 'conn-1', query: 'order', limit: 25 })
+
+      expect(bigAdapter.searchTables).toHaveBeenCalledWith(bigConn, 'order', 25)
+    })
+
+    it('throws when the connection id is unknown', async () => {
+      const handler = handlers.get(CHANNELS.CATALOG_SEARCH_TABLES)!
+
+      await expect(handler({}, { connectionId: 'bad-id', query: 'foo' })).rejects.toThrow(
+        'Connection not found'
+      )
     })
   })
 })

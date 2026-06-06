@@ -87,6 +87,7 @@ const {
   listDatasets,
   listTables,
   getTableSchema,
+  searchTables,
   runQuery,
   cancelRunningQuery,
   dryRunQuery,
@@ -317,6 +318,49 @@ describe('Snowflake adapter', () => {
 
     it('is a no-op when no connection is cached', () => {
       expect(() => invalidateClient('no-such-id')).not.toThrow()
+    })
+  })
+
+  // ── searchTables ────────────────────────────────────────────────────────
+  describe('searchTables', () => {
+    it('uses INFORMATION_SCHEMA scoped to connection.database when set', async () => {
+      const scopedConn: SnowflakeConnection = { ...conn, database: 'ANALYTICS' }
+      mockExecuteAll([
+        { TABLE_CATALOG: 'ANALYTICS', TABLE_SCHEMA: 'PUBLIC', TABLE_NAME: 'ORDERS', TABLE_TYPE: 'BASE TABLE' },
+        { TABLE_CATALOG: 'ANALYTICS', TABLE_SCHEMA: 'PUBLIC', TABLE_NAME: 'ORDER_V', TABLE_TYPE: 'VIEW' },
+      ])
+
+      const hits = await searchTables(scopedConn, 'ord', 50)
+
+      const callArgs = mockSfConn.execute.mock.calls[0][0]
+      expect(callArgs.sqlText).toMatch(/ANALYTICS\.INFORMATION_SCHEMA\.TABLES/i)
+      expect(callArgs.sqlText).toMatch(/ILIKE '%ord%'/)
+      expect(hits).toEqual([
+        { datasetId: 'ANALYTICS.PUBLIC', tableId: 'ORDERS',  name: 'ORDERS',  type: 'TABLE' },
+        { datasetId: 'ANALYTICS.PUBLIC', tableId: 'ORDER_V', name: 'ORDER_V', type: 'VIEW' },
+      ])
+    })
+
+    it('falls back to SHOW TABLES IN ACCOUNT when no database is set', async () => {
+      mockExecuteAll([
+        { database_name: 'DB1', schema_name: 'PUB', name: 'TBL1' },
+      ])
+
+      await searchTables(conn, 'tbl', 50)
+
+      const callArgs = mockSfConn.execute.mock.calls[0][0]
+      expect(callArgs.sqlText).toMatch(/SHOW TABLES LIKE '%tbl%' IN ACCOUNT/)
+    })
+
+    it('respects the limit on the SHOW TABLES fallback', async () => {
+      mockExecuteAll([
+        { database_name: 'DB1', schema_name: 'PUB', name: 't1' },
+        { database_name: 'DB1', schema_name: 'PUB', name: 't2' },
+        { database_name: 'DB1', schema_name: 'PUB', name: 't3' },
+      ])
+
+      const hits = await searchTables(conn, 't', 2)
+      expect(hits).toHaveLength(2)
     })
   })
 

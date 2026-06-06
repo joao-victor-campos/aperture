@@ -1,35 +1,24 @@
 import { useEffect, useState } from 'react'
 import { Trash2, Clock } from 'lucide-react'
-import { CHANNELS } from '@shared/ipc'
 import type { HistoryEntry } from '@shared/types'
 import { useQueryStore } from '../../store/queryStore'
 import { useConnectionStore } from '../../store/connectionStore'
+import { useHistoryStore } from '../../store/historyStore'
 
 export default function HistoryPanel() {
-  const [entries, setEntries] = useState<HistoryEntry[]>([])
-  const [loading, setLoading] = useState(true)
+  const { entries, loaded, reload, clearAll } = useHistoryStore()
   const [clearing, setClearing] = useState(false)
   const { openTab } = useQueryStore()
   const { activeConnectionId } = useConnectionStore()
 
   useEffect(() => {
-    loadHistory()
-  }, [])
-
-  const loadHistory = async () => {
-    setLoading(true)
-    try {
-      const data = await window.api.invoke(CHANNELS.HISTORY_LIST)
-      setEntries(data)
-    } finally {
-      setLoading(false)
-    }
-  }
+    // Always pull fresh when the panel mounts (covers post-query-run cases)
+    reload()
+  }, [reload])
 
   const handleClear = async () => {
     setClearing(true)
-    await window.api.invoke(CHANNELS.HISTORY_CLEAR)
-    setEntries([])
+    await clearAll()
     setClearing(false)
   }
 
@@ -41,7 +30,7 @@ export default function HistoryPanel() {
     })
   }
 
-  if (loading) {
+  if (!loaded) {
     return <div className="p-4 text-xs text-app-text-3 animate-pulse">Loading history…</div>
   }
 

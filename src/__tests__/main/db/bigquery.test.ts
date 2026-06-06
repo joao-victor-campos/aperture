@@ -62,6 +62,7 @@ const {
   listDatasets,
   listTables,
   getTableSchema,
+  searchTables,
   runQuery,
   cancelRunningQuery,
   dryRunQuery,
@@ -374,6 +375,70 @@ describe('BigQuery bridge', () => {
 
       // Assert
       expect(result.bytesProcessed).toBe(0)
+    })
+  })
+
+  // ── searchTables ────────────────────────────────────────────────────────
+  describe('searchTables', () => {
+    it('runs one INFORMATION_SCHEMA query per dataset', async () => {
+      mockClient.getDatasets.mockResolvedValueOnce([[
+        { id: 'analytics' }, { id: 'staging' },
+      ]])
+      mockClient.query
+        .mockResolvedValueOnce([[{ table_name: 'orders', table_type: 'BASE TABLE' }]])
+        .mockResolvedValueOnce([[{ table_name: 'order_v', table_type: 'VIEW' }]])
+
+      const hits = await searchTables(conn, 'ord', 50)
+
+      expect(mockClient.query).toHaveBeenCalledTimes(2)
+      // Each call must reference the per-dataset INFORMATION_SCHEMA.TABLES
+      const sql0 = (mockClient.query.mock.calls[0][0] as { query: string }).query
+      const sql1 = (mockClient.query.mock.calls[1][0] as { query: string }).query
+      expect(sql0).toMatch(/`my-project\.analytics\.INFORMATION_SCHEMA\.TABLES`/)
+      expect(sql1).toMatch(/`my-project\.staging\.INFORMATION_SCHEMA\.TABLES`/)
+
+      expect(hits).toEqual([
+        { datasetId: 'analytics', tableId: 'orders',  name: 'orders',  type: 'TABLE' },
+        { datasetId: 'staging',   tableId: 'order_v', name: 'order_v', type: 'VIEW'  },
+      ])
+    })
+
+    it('passes the bind parameter for the LIKE pattern', async () => {
+      mockClient.getDatasets.mockResolvedValueOnce([[{ id: 'd1' }]])
+      mockClient.query.mockResolvedValueOnce([[]])
+
+      await searchTables(conn, 'foo', 25)
+
+      const callArgs = mockClient.query.mock.calls[0][0] as { query: string; params: { pattern: string } }
+      expect(callArgs.params.pattern).toBe('%foo%')
+      expect(callArgs.query).toMatch(/LOWER\(table_name\) LIKE LOWER\(@pattern\)/)
+    })
+
+    it('respects the overall limit when merging across datasets', async () => {
+      mockClient.getDatasets.mockResolvedValueOnce([[
+        { id: 'a' }, { id: 'b' }, { id: 'c' },
+      ]])
+      mockClient.query
+        .mockResolvedValueOnce([[{ table_name: 't_a', table_type: 'BASE TABLE' }]])
+        .mockResolvedValueOnce([[{ table_name: 't_b', table_type: 'BASE TABLE' }]])
+        .mockResolvedValueOnce([[{ table_name: 't_c', table_type: 'BASE TABLE' }]])
+
+      const hits = await searchTables(conn, 't', 2)
+      expect(hits).toHaveLength(2)
+    })
+
+    it('skips datasets that throw (permission errors, regional mismatch)', async () => {
+      mockClient.getDatasets.mockResolvedValueOnce([[
+        { id: 'restricted' }, { id: 'open' },
+      ]])
+      mockClient.query
+        .mockRejectedValueOnce(new Error('Access Denied'))
+        .mockResolvedValueOnce([[{ table_name: 'users', table_type: 'BASE TABLE' }]])
+
+      const hits = await searchTables(conn, 'us', 50)
+      expect(hits).toEqual([
+        { datasetId: 'open', tableId: 'users', name: 'users', type: 'TABLE' },
+      ])
     })
   })
 
