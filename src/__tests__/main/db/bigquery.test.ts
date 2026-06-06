@@ -375,6 +375,22 @@ describe('BigQuery bridge', () => {
 
       // Assert
       expect(result.bytesProcessed).toBe(0)
+      expect(result.plan).toBeUndefined()
+      expect(result.planFormat).toBeUndefined()
+    })
+
+    it('returns queryPlan as JSON when present in metadata', async () => {
+      const stages = [{ name: 'S00: Input', id: '0', inputStages: [] }]
+      const dryJob = {
+        metadata: { statistics: { query: { totalBytesProcessed: '5000', queryPlan: stages } } }
+      }
+      mockClient.createQueryJob.mockResolvedValueOnce([dryJob])
+
+      const result = await dryRunQuery(conn, 'SELECT * FROM t')
+
+      expect(result.bytesProcessed).toBe(5000)
+      expect(result.planFormat).toBe('json')
+      expect(JSON.parse(result.plan!)).toEqual(stages)
     })
   })
 
