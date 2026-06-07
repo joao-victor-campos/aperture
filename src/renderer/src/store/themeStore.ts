@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { CHANNELS } from '@shared/ipc'
-import type { Theme, ThemeImportPayload } from '@shared/types'
+import type { Theme } from '@shared/types'
 import { applyTheme } from '../lib/applyTheme'
 
 type ImportResult =

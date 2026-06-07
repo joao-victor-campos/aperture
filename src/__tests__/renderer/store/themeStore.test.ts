@@ -59,6 +59,15 @@ describe('themeStore', () => {
 
       expect(mockApplyTheme).not.toHaveBeenCalled()
     })
+
+    it('does not apply when activeThemeId is set but theme is missing from list (stale state)', async () => {
+      invoke().mockResolvedValueOnce({ themes: [makeTheme('t1')], activeThemeId: 'stale-id' })
+
+      await useThemeStore.getState().load()
+
+      expect(useThemeStore.getState().activeThemeId).toBe('stale-id')
+      expect(mockApplyTheme).not.toHaveBeenCalled()
+    })
   })
 
   describe('importFromFile', () => {
@@ -151,6 +160,18 @@ describe('themeStore', () => {
       await useThemeStore.getState().setActive(null)
 
       expect(useThemeStore.getState().activeThemeId).toBeNull()
+      expect(mockApplyTheme).toHaveBeenCalledWith(null)
+    })
+
+    it('falls back to applyTheme(null) when the id is not in the themes list', async () => {
+      const themes = [makeTheme('t1')]
+      invoke().mockResolvedValueOnce({ themes, activeThemeId: null })
+      await useThemeStore.getState().load()
+      mockApplyTheme.mockReset()
+      invoke().mockResolvedValueOnce(undefined)
+
+      await useThemeStore.getState().setActive('unknown-id')
+
       expect(mockApplyTheme).toHaveBeenCalledWith(null)
     })
   })

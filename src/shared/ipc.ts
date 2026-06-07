@@ -96,7 +96,7 @@ export interface IpcMap {
   }
   [CHANNELS.THEMES_OPEN_FILE_DIALOG]: {
     req: undefined
-    res: ThemeImportPayload | { error: string }
+    res: ThemeImportPayload | { error: string } | null
   }
   [CHANNELS.THEMES_ADD]: { req: ThemeImportPayload; res: Theme }
   [CHANNELS.THEMES_REMOVE]: { req: string; res: void }
