@@ -41,7 +41,7 @@ function parseThemeFile(content: string, filePath: string): ThemeImportPayload |
     typeof obj.scheme === 'string' && obj.scheme.trim()
       ? obj.scheme.trim()
       : basename(filePath, extname(filePath))
-  const author = typeof obj.author === 'string' ? obj.author.trim() : undefined
+  const author = typeof obj.author === 'string' ? (obj.author.trim() || undefined) : undefined
   return { scheme, author, base }
 }
 

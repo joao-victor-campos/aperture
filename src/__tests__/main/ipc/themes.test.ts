@@ -257,6 +257,36 @@ ${Array.from({ length: 16 }, (_, i) => {
       expect(result).toBeNull()
     })
 
+    it('returns a structured error when the file cannot be read', async () => {
+      mockShowOpenDialog.mockResolvedValueOnce({
+        canceled: false,
+        filePaths: ['/tmp/unreadable.json'],
+      })
+      mockReadFileSync.mockImplementationOnce(() => {
+        throw new Error('EACCES: permission denied')
+      })
+      const handler = handlers.get(CHANNELS.THEMES_OPEN_FILE_DIALOG)!
+
+      const result = (await handler({})) as { error: string }
+
+      expect(result.error).toMatch(/could not read file/i)
+      expect(result.error).toMatch(/EACCES/)
+    })
+
+    it('falls back to the filename when scheme is missing or whitespace-only', async () => {
+      const themeBody = { scheme: '   ', ...validBase16() }
+      mockShowOpenDialog.mockResolvedValueOnce({
+        canceled: false,
+        filePaths: ['/tmp/dracula.yaml'],
+      })
+      mockReadFileSync.mockReturnValueOnce(JSON.stringify(themeBody))
+      const handler = handlers.get(CHANNELS.THEMES_OPEN_FILE_DIALOG)!
+
+      const result = (await handler({})) as ThemeImportPayload
+
+      expect(result.scheme).toBe('dracula')
+    })
+
     it('normalizes hex strings to lowercase and strips leading #', async () => {
       const themeBody = {
         scheme: 'Norm',
