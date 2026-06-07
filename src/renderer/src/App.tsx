@@ -4,9 +4,11 @@ import Sidebar from './components/layout/Sidebar'
 import Editor from './pages/Editor'
 import ConnectionModal from './components/connections/ConnectionModal'
 import ShortcutCheatsheet from './components/command/ShortcutCheatsheet'
+import SettingsModal from './components/settings/SettingsModal'
 import { useConnectionStore } from './store/connectionStore'
 import { useSavedQueryStore } from './store/savedQueryStore'
 import { useHistoryStore } from './store/historyStore'
+import { useThemeStore } from './store/themeStore'
 import type { Connection } from '@shared/types'
 import type { CommandPaletteHandle } from './components/command/CommandPalette'
 
@@ -17,30 +19,21 @@ export default function App() {
   const { connections, load } = useConnectionStore()
   const loadSavedQueries = useSavedQueryStore((s) => s.load)
   const loadHistory = useHistoryStore((s) => s.load)
+  const loadThemes = useThemeStore((s) => s.load)
   const paletteRef = useRef<CommandPaletteHandle>(null)
   const [cheatsheetOpen, setCheatsheetOpen] = useState(false)
-
-  // Theme — persisted in localStorage; dark is the default
-  const [isDark, setIsDark] = useState(() => localStorage.getItem('theme') !== 'light')
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => {
-    // Eager-load every persistent store the ⌘K palette searches over.
+    // Eager-load every persistent store the ⌘K palette searches over,
+    // plus the theme library so the active theme is applied before first paint.
     load()
     loadSavedQueries()
     loadHistory()
-  }, [load, loadSavedQueries, loadHistory])
+    loadThemes()
+  }, [load, loadSavedQueries, loadHistory, loadThemes])
 
-  useEffect(() => {
-    const html = document.documentElement
-    if (isDark) {
-      html.classList.add('dark')
-    } else {
-      html.classList.remove('dark')
-    }
-    localStorage.setItem('theme', isDark ? 'dark' : 'light')
-  }, [isDark])
-
-  // Global ⌘K (or Ctrl+K on Linux) — focuses the palette input
+  // Global ⌘K — focuses the palette input
   // Global ⌘/ — toggles shortcut cheatsheet
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -63,8 +56,7 @@ export default function App() {
       <TitleBar
         onAddConnection={() => setModal({ mode: 'add' })}
         onEditConnection={(conn) => setModal({ mode: 'edit', connection: conn })}
-        isDark={isDark}
-        onToggleTheme={() => setIsDark((d) => !d)}
+        onOpenSettings={() => setSettingsOpen(true)}
         onShowShortcuts={() => setCheatsheetOpen(true)}
         paletteRef={paletteRef}
       />
@@ -85,6 +77,7 @@ export default function App() {
         />
       )}
       <ShortcutCheatsheet open={cheatsheetOpen} onClose={() => setCheatsheetOpen(false)} />
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   )
 }
