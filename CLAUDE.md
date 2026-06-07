@@ -148,6 +148,48 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-06-07] Feature: Theme import (Base16)
+
+**Type:** Change
+**Context:** The app shipped with exactly two hardcoded themes (light, dark) and a Sun/Moon toggle. Users wanted to bring their own colour schemes — specifically community themes from the Base16 ecosystem (Dracula, Nord, Gruvbox, Catppuccin, Solarized…).
+**Problem / Change:**
+- No way to import or manage custom palettes.
+- Hardcoded light/dark toggle was redundant once arbitrary palettes are possible (each Base16 theme is already a complete self-contained palette, dark or light).
+- No UI scaffolding for app settings beyond a flat title-bar toggle.
+
+**Solution / Outcome:**
+- **Base16 → Aperture token mapping**: pure `applyTheme(theme | null)` utility (`src/renderer/src/lib/applyTheme.ts`) deterministically derives Aperture's full ~30-token CSS-variable palette from the 16 Base16 slots. Direct mappings cover the 25 named tokens; the 5 "subtle" variants are computed via linear blending toward `base00` (e.g. `--c-accent-subtle = blend(base00, base09, 0.14)`). Output is injected as a `<style id="aperture-theme">` block that overrides `index.css`'s `:root`. Calling `applyTheme(null)` removes the override, re-adds `.dark` (so the built-in dark palette is restored), and clears the localStorage cache. Defensive: malformed hex falls back to the built-in.
+- **Boot-time FOUC prevention**: `applyTheme` persists the computed CSS to `localStorage` under key `aperture-theme-css`. `bootstrapTheme()` is called from `src/renderer/src/main.tsx` synchronously *before* React mounts, reading the cached CSS and injecting the `<style>` tag in `<head>`. This eliminates the brief flash of the built-in palette that a pure `useEffect`-driven load would cause.
+- **Persistent storage**: `themes: Theme[]` and `activeThemeId: string | null` added to `StoreData` in `aperture-store.json`. Five new IPC channels (`THEMES_LIST`, `THEMES_OPEN_FILE_DIALOG`, `THEMES_ADD`, `THEMES_REMOVE`, `THEMES_SET_ACTIVE`). Handlers in `src/main/ipc/themes.ts` validate Base16 files (parse with `js-yaml` — handles JSON as a subset — verify all 16 `base0X` slots are 6-char hex). Both uppercase (`base0A`) and lowercase (`base0a`) slot keys are accepted (community themes use both). Validation errors return a structured `{ error: string }` payload instead of throwing across the IPC boundary; user-cancelled dialog returns `null`.
+- **Zustand store**: `useThemeStore` in `src/renderer/src/store/themeStore.ts` mirrors the `connectionStore` shape (`load`, `importFromFile`, `remove`, `setActive`). `load()` is called at app boot in `App.tsx` and applies the active theme (the bootstrap step has already taken care of the synchronous CSS injection; the IPC load refreshes the in-memory state).
+- **Settings modal**: new `SettingsModal.tsx` (portal-rendered, ⌘+/Escape to close, click outside to close) with a left-nav (currently just "Themes" — architected for future sections) and a 3-column card grid. Each card is a real `<button>` with `aria-pressed` for keyboard activation and shows 4 representative colour swatches + name + author. Active theme has a terracotta border + accent dot. Built-in "Aperture Default" card is always first and not deletable; clicking it sets `activeThemeId` to `null`. Imported cards get a trash icon on hover (via `group-hover` on the wrapper) with an inline "Delete? No / Yes" confirm + 3s auto-dismiss. Local UI state resets on close. Modal has `role="dialog"`, `aria-modal`, and `aria-labelledby`; close + delete buttons have `aria-label`.
+- **Removed light/dark toggle**: `Sun`/`Moon` button in title bar replaced with a `Settings` (gear) button. `App.tsx`'s `isDark` state, the `useEffect` managing the `.dark` class + `localStorage['theme']`, and the `onToggleTheme`/`isDark` prop chain are all gone. `index.css`'s `:root`/`.dark` blocks remain untouched (they are the built-in palette), and `html { @apply dark }` stays — dark is the permanent built-in default. Users get a light look by importing a light Base16 theme. The `CommandPalette` "Toggle theme" action is replaced with a "Settings" action that opens the modal.
+- **Tests** (~50 new): `themes.test.ts` (18 IPC handler tests covering list/add/remove/set-active + file-dialog happy paths + invalid/cancelled/unreadable paths + hex normalisation + lowercase-key acceptance + empty-scheme filename fallback + author trim), `applyTheme.test.ts` (22 tests covering `hexToRgb`, `blend` math, style-tag lifecycle, `.dark` add/remove, derived-token correctness, full token-set coverage, bootstrap from localStorage, malformed-hex guard), `themeStore.test.ts` (12 tests covering initial state, load with/without active + stale-id guard, importFromFile happy/error/cancelled paths, remove with/without active, setActive with id/null + unknown-id fallback).
+
+**Files affected:**
+- `package.json` — added `js-yaml` + `@types/js-yaml`
+- `src/shared/types.ts` — `Theme`, `ThemeImportPayload`
+- `src/shared/ipc.ts` — 5 `THEMES_*` channels + IpcMap entries
+- `src/main/db/store.ts` — `themes`, `activeThemeId` on `StoreData`
+- `src/main/ipc/themes.ts` — created (5 handlers + Base16 file parser)
+- `src/main/ipc/index.ts` — register themes handlers
+- `src/renderer/src/lib/applyTheme.ts` — created (applyTheme + bootstrapTheme + hexToRgb + blend)
+- `src/renderer/src/store/themeStore.ts` — created
+- `src/renderer/src/components/settings/SettingsModal.tsx` — created
+- `src/renderer/src/main.tsx` — call `bootstrapTheme()` before React mounts
+- `src/renderer/src/App.tsx` — removed toggle, mount themes, render SettingsModal
+- `src/renderer/src/components/layout/TitleBar.tsx` — gear icon replaces Sun/Moon
+- `src/renderer/src/components/command/CommandPalette.tsx` — Settings action
+- `src/renderer/src/lib/commandSearch.ts` — `CommandIcon` union: `'settings'` instead of `'sun'`
+- `src/__tests__/main/ipc/themes.test.ts` — created (18 tests)
+- `src/__tests__/renderer/lib/applyTheme.test.ts` — created (22 tests)
+- `src/__tests__/renderer/store/themeStore.test.ts` — created (12 tests)
+- `CHANGELOG.md` — Unreleased entry
+- `docs/superpowers/specs/2026-06-06-theme-import-design.md` — design spec
+- `docs/superpowers/plans/2026-06-06-theme-import.md` — implementation plan
+
+---
+
 ### [2026-06-06] Feature: Quality-of-life — Auto-limit guard, Explain plan viewer, Shortcut cheatsheet
 
 **Type:** Change
