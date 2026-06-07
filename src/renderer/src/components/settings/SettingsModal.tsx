@@ -134,8 +134,8 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
                 swatchColors={[
                   `#${theme.base.base00}`,
                   `#${theme.base.base09}`,
-                  `#${theme.base.base0B}`,
-                  `#${theme.base.base0D}`,
+                  `#${theme.base.base0b}`,
+                  `#${theme.base.base0d}`,
                 ]}
                 name={theme.name}
                 author={theme.author ?? 'imported'}
@@ -190,7 +190,7 @@ function ThemeCard({
   onCancelDelete,
 }: ThemeCardProps) {
   return (
-    <div className="relative">
+    <div className="relative group">
       <button
         type="button"
         onClick={onClick}
@@ -241,7 +241,7 @@ function ThemeCard({
             <button
               type="button"
               onClick={onDelete}
-              className="absolute top-2 right-2 opacity-0 hover:opacity-100 p-1 rounded text-app-text-3 hover:text-app-err hover:bg-app-err-subtle/60 transition-all focus:opacity-100"
+              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 rounded text-app-text-3 hover:text-app-err hover:bg-app-err-subtle/60 transition-all focus:opacity-100"
               title="Delete theme"
               aria-label={`Delete ${name}`}
             >

@@ -21,7 +21,7 @@ beforeEach(async () => {
 function makeTheme(overrides: Partial<Theme['base']> = {}): Theme {
   const base: Record<string, string> = {}
   for (let i = 0; i <= 0x0f; i++) {
-    const k = `base0${i.toString(16).toUpperCase()}`
+    const k = `base0${i.toString(16)}`
     base[k] = `0${i.toString(16)}${i.toString(16)}${i.toString(16)}${i.toString(16)}${i.toString(16)}`
   }
   return {
@@ -94,13 +94,14 @@ describe('applyTheme', () => {
     expect(document.getElementById('aperture-theme')!.textContent!).toMatch(/--c-accent:\s*255 170 0/)
   })
 
-  it('removes the style tag when called with null', () => {
+  it('removes the style tag and restores .dark when called with null', () => {
     applyTheme(makeTheme())
     expect(document.getElementById('aperture-theme')).not.toBeNull()
 
     applyTheme(null)
 
     expect(document.getElementById('aperture-theme')).toBeNull()
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
   })
 
   it('removes the .dark class from <html> when applying an imported theme', () => {
@@ -163,6 +164,20 @@ describe('applyTheme', () => {
     applyTheme(null)
 
     expect(localStorage.getItem('aperture-theme-css')).toBeNull()
+  })
+
+  it('falls back to built-in when a theme has malformed hex', () => {
+    document.documentElement.classList.remove('dark')
+    // First apply a valid theme so the style tag and cache exist
+    applyTheme(makeTheme())
+    expect(document.getElementById('aperture-theme')).not.toBeNull()
+
+    // Now apply a malformed theme — should remove the override and restore .dark
+    const broken = makeTheme({ base09: 'zzzzzz' })
+    applyTheme(broken)
+
+    expect(document.getElementById('aperture-theme')).toBeNull()
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
   })
 })
 

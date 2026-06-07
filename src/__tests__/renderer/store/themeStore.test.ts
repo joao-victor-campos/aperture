@@ -25,7 +25,7 @@ beforeEach(async () => {
 function makeTheme(id = 't1', name = 'Test'): Theme {
   const base: Record<string, string> = {}
   for (let i = 0; i <= 0x0f; i++) {
-    const k = `base0${i.toString(16).toUpperCase()}`
+    const k = `base0${i.toString(16)}`
     base[k] = '000000'
   }
   return { id, name, base, importedAt: '2026-06-06T00:00:00.000Z' }

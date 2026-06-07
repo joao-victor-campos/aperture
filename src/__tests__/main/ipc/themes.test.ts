@@ -287,6 +287,25 @@ ${Array.from({ length: 16 }, (_, i) => {
       expect(result.scheme).toBe('dracula')
     })
 
+    it('accepts lowercase slot keys (base0a–base0f) from community themes', async () => {
+      const lowercaseBody: Record<string, string> = { scheme: 'Lowercase' }
+      for (let i = 0; i <= 0x0f; i++) {
+        const k = `base0${i.toString(16)}` // lowercase
+        lowercaseBody[k] = `${i.toString(16)}${i.toString(16)}${i.toString(16)}${i.toString(16)}${i.toString(16)}${i.toString(16)}`
+      }
+      mockShowOpenDialog.mockResolvedValueOnce({
+        canceled: false,
+        filePaths: ['/tmp/lowercase.json'],
+      })
+      mockReadFileSync.mockReturnValueOnce(JSON.stringify(lowercaseBody))
+      const handler = handlers.get(CHANNELS.THEMES_OPEN_FILE_DIALOG)!
+
+      const result = (await handler({})) as ThemeImportPayload
+
+      expect(result.scheme).toBe('Lowercase')
+      expect(Object.keys(result.base)).toHaveLength(16)
+    })
+
     it('normalizes hex strings to lowercase and strips leading #', async () => {
       const themeBody = {
         scheme: 'Norm',

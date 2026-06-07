@@ -42,13 +42,13 @@ function buildCss(theme: Theme): string {
   const b = theme.base
   const bg = hexToRgb(b.base00)
   const c09 = hexToRgb(b.base09) // accent (orange)
-  const c0A = hexToRgb(b.base0A) // warn (yellow)
-  const c0B = hexToRgb(b.base0B) // ok (green)
+  const c0A = hexToRgb(b.base0a) // warn (yellow)
+  const c0B = hexToRgb(b.base0b) // ok (green)
   const c08 = hexToRgb(b.base08) // err (red)
-  const c0D = hexToRgb(b.base0D) // blue (functions)
+  const c0D = hexToRgb(b.base0d) // blue (functions)
   // base0F's Base16 meaning is "deprecated/embedded tags" — repurposed here
   // as a deeper shade to blend with the accent for the hover state.
-  const c0F = hexToRgb(b.base0F)
+  const c0F = hexToRgb(b.base0f)
 
   const lines: string[] = [
     `:root {`,
@@ -72,17 +72,17 @@ function buildCss(theme: Theme): string {
     `  --c-accent-sub-2: ${blend(bg, c09, 0.22)};`,
     `  --c-accent-text: ${rgbString(b.base09)};`,
     // Status — ok/warn/err
-    `  --c-state-ok: ${rgbString(b.base0B)};`,
+    `  --c-state-ok: ${rgbString(b.base0b)};`,
     `  --c-state-ok-subtle: ${blend(bg, c0B, 0.18)};`,
-    `  --c-state-warn: ${rgbString(b.base0A)};`,
+    `  --c-state-warn: ${rgbString(b.base0a)};`,
     `  --c-state-warn-subtle: ${blend(bg, c0A, 0.18)};`,
     `  --c-state-err: ${rgbString(b.base08)};`,
     `  --c-state-err-subtle: ${blend(bg, c08, 0.18)};`,
     // Categorical
-    `  --c-cat-blue: ${rgbString(b.base0D)};`,
+    `  --c-cat-blue: ${rgbString(b.base0d)};`,
     `  --c-cat-blue-subtle: ${blend(bg, c0D, 0.16)};`,
-    `  --c-cat-purple: ${rgbString(b.base0E)};`,
-    `  --c-cat-green: ${rgbString(b.base0B)};`,
+    `  --c-cat-purple: ${rgbString(b.base0e)};`,
+    `  --c-cat-green: ${rgbString(b.base0b)};`,
     `}`,
   ]
   return lines.join('\n')
@@ -102,9 +102,25 @@ export function applyTheme(theme: Theme | null): void {
   const existing = document.getElementById(STYLE_TAG_ID)
   if (theme === null) {
     if (existing) existing.remove()
+    // Re-add .dark so the built-in dark palette in index.css applies again.
+    document.documentElement.classList.add('dark')
     try { localStorage.removeItem(CACHE_KEY) } catch { /* localStorage unavailable */ }
     return
   }
+  // Defensive: if the theme is malformed (missing or non-hex slot), fall back
+  // to the built-in palette instead of rendering garbage.
+  const REQUIRED_SLOTS = ['base00','base01','base02','base03','base04','base05','base06','base08','base09','base0a','base0b','base0d','base0e','base0f']
+  for (const slot of REQUIRED_SLOTS) {
+    const v = theme.base[slot]
+    if (typeof v !== 'string' || !/^[0-9a-f]{6}$/.test(v)) {
+      // Treat as "no theme" — restore built-in
+      if (existing) existing.remove()
+      document.documentElement.classList.add('dark')
+      try { localStorage.removeItem(CACHE_KEY) } catch { /* localStorage unavailable */ }
+      return
+    }
+  }
+
   const css = buildCss(theme)
   if (existing) {
     existing.textContent = css

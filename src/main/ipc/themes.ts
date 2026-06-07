@@ -8,7 +8,7 @@ import type { Theme, ThemeImportPayload } from '../../shared/types'
 import { store } from '../db/store'
 
 const BASE16_SLOTS = Array.from({ length: 16 }, (_, i) =>
-  `base0${i.toString(16).toUpperCase()}`
+  `base0${i.toString(16)}`
 )
 
 function normalizeHex(input: unknown): string | null {
@@ -28,7 +28,14 @@ function parseThemeFile(content: string, filePath: string): ThemeImportPayload |
   if (!parsed || typeof parsed !== 'object') {
     return { error: 'Theme file is empty or not an object.' }
   }
-  const obj = parsed as Record<string, unknown>
+  // Accept both `base0A` (uppercase, official spec) and `base0a` (lowercase,
+  // common in community-distributed YAML files). Normalize keys to lowercase
+  // before the slot lookup so either case works.
+  const rawObj = parsed as Record<string, unknown>
+  const obj: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(rawObj)) {
+    obj[k.toLowerCase()] = v
+  }
   const base: Record<string, string> = {}
   for (const slot of BASE16_SLOTS) {
     const norm = normalizeHex(obj[slot])
