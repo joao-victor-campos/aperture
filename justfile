@@ -94,7 +94,7 @@ tag-release:
     VERSION="v$(just version)"
     echo "Tagging $VERSION …"
     git add package.json package-lock.json
-    git commit -m "chore: release $VERSION" || true
+    git commit -m "🔖 chore: release $VERSION" || true
     git tag "$VERSION"
     git push origin HEAD
     git push origin "$VERSION"
