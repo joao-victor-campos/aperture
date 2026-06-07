@@ -8,3 +8,4 @@ coverage/
 *.log
 CLAUDE.md
 .env.example
+.superpowers/

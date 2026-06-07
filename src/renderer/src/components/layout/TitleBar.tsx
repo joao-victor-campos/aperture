@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import { Sun, Moon, Plus, ChevronDown, Trash2, Pencil } from 'lucide-react'
+import { Settings, Plus, ChevronDown, Trash2, Pencil } from 'lucide-react'
 import { useConnectionStore } from '../../store/connectionStore'
 import type { ConnectionStatus } from '../../store/connectionStore'
 import ApertureIcon from '../ApertureIcon'
@@ -10,8 +10,7 @@ import type { BigQueryConnection, Connection, PostgresConnection, SnowflakeConne
 interface TitleBarProps {
   onAddConnection: () => void
   onEditConnection: (conn: Connection) => void
-  isDark: boolean
-  onToggleTheme: () => void
+  onOpenSettings: () => void
   onShowShortcuts?: () => void
   /** Receives the palette's imperative `focus()` so a global ⌘K can target it. */
   paletteRef?: RefObject<CommandPaletteHandle>
@@ -24,7 +23,7 @@ function connectionLabel(c: Connection): string {
   return (c as PostgresConnection).database ?? (c as PostgresConnection).host
 }
 
-export default function TitleBar({ onAddConnection, onEditConnection, isDark, onToggleTheme, onShowShortcuts, paletteRef }: TitleBarProps) {
+export default function TitleBar({ onAddConnection, onEditConnection, onOpenSettings, onShowShortcuts, paletteRef }: TitleBarProps) {
   const { connections, activeConnectionId, setActive, remove, statuses } = useConnectionStore()
   const [open, setOpen] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -156,21 +155,21 @@ export default function TitleBar({ onAddConnection, onEditConnection, isDark, on
         <CommandPalette
           ref={paletteRef}
           onAddConnection={onAddConnection}
-          onToggleTheme={onToggleTheme}
+          onOpenSettings={onOpenSettings}
           onShowShortcuts={onShowShortcuts}
         />
 
         {/* Right spacer — inherits drag from parent */}
         <div className="flex-1" />
 
-        {/* Theme toggle */}
+        {/* Settings */}
         <button
-          onClick={onToggleTheme}
-          title={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+          onClick={onOpenSettings}
+          title="Settings"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           className="p-1.5 rounded-md text-app-text-2 hover:text-app-text hover:bg-app-elevated transition-colors"
         >
-          {isDark ? <Sun size={14} /> : <Moon size={14} />}
+          <Settings size={14} />
         </button>
       </div>
 

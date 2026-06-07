@@ -16,7 +16,7 @@
 
 export type CommandKind = 'table' | 'saved' | 'history' | 'connection' | 'action'
 
-export type CommandIcon = 'table' | 'bookmark' | 'clock' | 'plug' | 'play' | 'sun' | 'plus' | 'wand'
+export type CommandIcon = 'table' | 'bookmark' | 'clock' | 'plug' | 'play' | 'settings' | 'plus' | 'wand'
 
 export interface CommandItem {
   id: string

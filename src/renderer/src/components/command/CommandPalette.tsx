@@ -1,7 +1,7 @@
 import { useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, forwardRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  Search, Table2, Bookmark, Clock, Plug, Plus, Sun, Play
+  Search, Table2, Bookmark, Clock, Plug, Plus, Settings, Play
 } from 'lucide-react'
 import { CHANNELS } from '@shared/ipc'
 import type { TableSearchHit, Connection, ConnectionEngine } from '@shared/types'
@@ -19,7 +19,7 @@ export interface CommandPaletteHandle {
 
 interface CommandPaletteProps {
   onAddConnection: () => void
-  onToggleTheme: () => void
+  onOpenSettings: () => void
   onShowShortcuts?: () => void
 }
 
@@ -42,7 +42,7 @@ const ICON_MAP: Record<CommandIcon, typeof Search> = {
   clock: Clock,
   plug: Plug,
   play: Play,
-  sun: Sun,
+  settings: Settings,
   plus: Plus,
   wand: Search, // not currently used but kept for future Format SQL action
 }
@@ -53,13 +53,13 @@ const ICON_COLOR: Record<CommandIcon, string> = {
   clock: 'text-app-text-3',
   plug: 'text-app-cat-blue',
   play: 'text-app-accent',
-  sun: 'text-app-warn',
+  settings: 'text-app-text-2',
   plus: 'text-app-text-3',
   wand: 'text-app-text-3',
 }
 
 const CommandPalette = forwardRef<CommandPaletteHandle, CommandPaletteProps>(function CommandPalette(
-  { onAddConnection, onToggleTheme, onShowShortcuts },
+  { onAddConnection, onOpenSettings, onShowShortcuts },
   ref,
 ) {
   // ── State ─────────────────────────────────────────────────────────────────
@@ -312,12 +312,12 @@ const CommandPalette = forwardRef<CommandPaletteHandle, CommandPaletteProps>(fun
       action: onAddConnection,
     })
     out.push({
-      id: 'action:toggle-theme',
+      id: 'action:settings',
       kind: 'action',
-      label: 'Toggle theme',
-      searchText: 'theme toggle dark light mode',
-      icon: 'sun',
-      action: onToggleTheme,
+      label: 'Settings',
+      searchText: 'settings theme preferences',
+      icon: 'settings',
+      action: onOpenSettings,
     })
     if (onShowShortcuts) {
       out.push({

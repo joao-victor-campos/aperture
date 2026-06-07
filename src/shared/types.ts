@@ -154,3 +154,23 @@ export interface HistoryEntry {
   durationMs: number
   rowCount: number
 }
+
+/**
+ * An imported Base16 colour theme. Persisted via the main store.
+ * `base` is a map of Base16 slot keys ("base00"–"base0F") to lowercase
+ * hex strings without a leading `#`.
+ */
+export interface Theme {
+  id: string
+  name: string
+  author?: string
+  base: Record<string, string>
+  importedAt: string
+}
+
+/** Validated Base16 payload returned from the file-dialog IPC. */
+export interface ThemeImportPayload {
+  scheme: string
+  author?: string
+  base: Record<string, string>
+}
