@@ -10,8 +10,10 @@ const invoke = () => window.api.invoke as ReturnType<typeof vi.fn>
 
 // Spy on applyTheme via module mock
 const mockApplyTheme = vi.fn()
+const mockApplyBuiltinLight = vi.fn()
 vi.mock('../../../renderer/src/lib/applyTheme', () => ({
   applyTheme: (theme: Theme | null) => mockApplyTheme(theme),
+  applyBuiltinLight: () => mockApplyBuiltinLight(),
 }))
 
 let useThemeStore: typeof import('../../../renderer/src/store/themeStore').useThemeStore
@@ -19,6 +21,7 @@ let useThemeStore: typeof import('../../../renderer/src/store/themeStore').useTh
 beforeEach(async () => {
   vi.resetModules()
   mockApplyTheme.mockReset()
+  mockApplyBuiltinLight.mockReset()
   ;({ useThemeStore } = await import('../../../renderer/src/store/themeStore'))
 })
 
@@ -66,6 +69,16 @@ describe('themeStore', () => {
       await useThemeStore.getState().load()
 
       expect(useThemeStore.getState().activeThemeId).toBe('stale-id')
+      expect(mockApplyTheme).not.toHaveBeenCalled()
+    })
+
+    it('calls applyBuiltinLight when activeThemeId is the light sentinel', async () => {
+      invoke().mockResolvedValueOnce({ themes: [makeTheme()], activeThemeId: 'aperture-light' })
+
+      await useThemeStore.getState().load()
+
+      expect(useThemeStore.getState().activeThemeId).toBe('aperture-light')
+      expect(mockApplyBuiltinLight).toHaveBeenCalled()
       expect(mockApplyTheme).not.toHaveBeenCalled()
     })
   })
@@ -173,6 +186,20 @@ describe('themeStore', () => {
       await useThemeStore.getState().setActive('unknown-id')
 
       expect(mockApplyTheme).toHaveBeenCalledWith(null)
+    })
+
+    it('calls applyBuiltinLight when setting active to the light sentinel', async () => {
+      invoke().mockResolvedValueOnce({ themes: [], activeThemeId: null })
+      await useThemeStore.getState().load()
+      mockApplyTheme.mockReset()
+      mockApplyBuiltinLight.mockReset()
+      invoke().mockResolvedValueOnce(undefined)
+
+      await useThemeStore.getState().setActive('aperture-light')
+
+      expect(useThemeStore.getState().activeThemeId).toBe('aperture-light')
+      expect(mockApplyBuiltinLight).toHaveBeenCalled()
+      expect(mockApplyTheme).not.toHaveBeenCalled()
     })
   })
 })

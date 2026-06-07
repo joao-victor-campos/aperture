@@ -13,6 +13,7 @@ import type { Theme } from '../../../shared/types'
 
 const STYLE_TAG_ID = 'aperture-theme'
 const CACHE_KEY = 'aperture-theme-css'
+const LIGHT_SENTINEL = '__aperture_light__'
 
 export type RGB = [number, number, number]
 
@@ -135,24 +136,58 @@ export function applyTheme(theme: Theme | null): void {
 }
 
 /**
- * Inject the previously-applied theme's CSS synchronously at app boot,
- * before any React rendering, to prevent a flash of the built-in palette.
- * No-op if no theme has been applied yet.
+ * Inject the previously-applied theme synchronously at app boot, before any
+ * React rendering, to prevent a flash of the wrong palette.
+ *
+ * Boot sequence:
+ *   - no cache  → built-in Aperture Dark (add `.dark` class)
+ *   - LIGHT_SENTINEL → built-in Aperture Light (remove `.dark` class)
+ *   - CSS text  → imported theme (inject as <style> tag, remove `.dark`)
  *
  * Call this from main.tsx before createRoot(...).render(...).
  */
 export function bootstrapTheme(): void {
-  let css: string | null = null
-  try { css = localStorage.getItem(CACHE_KEY) } catch { return }
-  if (!css) return
+  let cached: string | null = null
+  try {
+    cached = localStorage.getItem(CACHE_KEY)
+  } catch {
+    document.documentElement.classList.add('dark')
+    return
+  }
+  if (!cached) {
+    // First boot or Aperture Dark was last active — apply built-in dark
+    document.documentElement.classList.add('dark')
+    return
+  }
+  if (cached === LIGHT_SENTINEL) {
+    document.documentElement.classList.remove('dark')
+    return
+  }
+  // Cached value is CSS for an imported theme
   const existing = document.getElementById(STYLE_TAG_ID)
   if (existing) {
-    existing.textContent = css
+    existing.textContent = cached
   } else {
     const styleEl = document.createElement('style')
     styleEl.id = STYLE_TAG_ID
-    styleEl.textContent = css
+    styleEl.textContent = cached
     document.head.appendChild(styleEl)
   }
   document.documentElement.classList.remove('dark')
+}
+
+/**
+ * Apply the built-in Aperture Light palette: removes any injected override,
+ * removes the `.dark` class so `:root` values in index.css apply, and caches
+ * the selection so `bootstrapTheme()` can restore it next boot.
+ */
+export function applyBuiltinLight(): void {
+  const existing = document.getElementById(STYLE_TAG_ID)
+  if (existing) existing.remove()
+  document.documentElement.classList.remove('dark')
+  try {
+    localStorage.setItem(CACHE_KEY, LIGHT_SENTINEL)
+  } catch {
+    /* localStorage unavailable */
+  }
 }

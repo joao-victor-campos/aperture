@@ -117,14 +117,22 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
           )}
 
           <div className="p-4 overflow-y-auto grid grid-cols-3 gap-3">
-            {/* Built-in default — always first, not deletable */}
+            {/* Built-in dark — always first, not deletable */}
             <ThemeCard
               builtin
               active={activeThemeId === null}
-              swatchColors={['#FAF7F1', '#C8633B', '#2E8B6A', '#2E6FB8']}
-              name="Aperture Default"
+              swatchColors={['#15110D', '#D97757', '#5BC98A', '#7AB3F0']}
+              name="Aperture Dark"
               author="built-in"
               onClick={() => setActive(null)}
+            />
+            <ThemeCard
+              builtin
+              active={activeThemeId === 'aperture-light'}
+              swatchColors={['#FAF7F1', '#C8633B', '#2E8B6A', '#2E6FB8']}
+              name="Aperture Light"
+              author="built-in"
+              onClick={() => setActive('aperture-light')}
             />
 
             {themes.map((theme) => (

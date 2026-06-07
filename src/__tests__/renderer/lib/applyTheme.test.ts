@@ -9,9 +9,10 @@ let applyTheme: typeof import('../../../renderer/src/lib/applyTheme').applyTheme
 let hexToRgb: typeof import('../../../renderer/src/lib/applyTheme').hexToRgb
 let blend: typeof import('../../../renderer/src/lib/applyTheme').blend
 let bootstrapTheme: typeof import('../../../renderer/src/lib/applyTheme').bootstrapTheme
+let applyBuiltinLight: typeof import('../../../renderer/src/lib/applyTheme').applyBuiltinLight
 
 beforeEach(async () => {
-  ;({ applyTheme, hexToRgb, blend, bootstrapTheme } = await import('../../../renderer/src/lib/applyTheme'))
+  ;({ applyTheme, hexToRgb, blend, bootstrapTheme, applyBuiltinLight } = await import('../../../renderer/src/lib/applyTheme'))
   // Reset DOM between tests
   document.head.innerHTML = ''
   document.documentElement.className = ''
@@ -182,9 +183,20 @@ describe('applyTheme', () => {
 })
 
 describe('bootstrapTheme', () => {
-  it('is a no-op when localStorage is empty', () => {
-    expect(() => bootstrapTheme()).not.toThrow()
+  it('defaults to Aperture Dark when localStorage is empty', () => {
+    bootstrapTheme()
     expect(document.getElementById('aperture-theme')).toBeNull()
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+  })
+
+  it('applies Aperture Light when LIGHT_SENTINEL is cached', () => {
+    document.documentElement.classList.add('dark')
+    localStorage.setItem('aperture-theme-css', '__aperture_light__')
+
+    bootstrapTheme()
+
+    expect(document.getElementById('aperture-theme')).toBeNull()
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
   })
 
   it('injects cached css into <head> synchronously', () => {
@@ -218,5 +230,28 @@ describe('bootstrapTheme', () => {
 
     expect(document.querySelectorAll('#aperture-theme')).toHaveLength(1)
     expect(document.getElementById('aperture-theme')!.textContent).toBe('new')
+  })
+})
+
+describe('applyBuiltinLight', () => {
+  it('removes the .dark class and caches the light sentinel', () => {
+    document.documentElement.classList.add('dark')
+
+    applyBuiltinLight()
+
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
+    expect(localStorage.getItem('aperture-theme-css')).toBe('__aperture_light__')
+  })
+
+  it('removes any injected style tag', () => {
+    // Pre-seed with an imported theme
+    const style = document.createElement('style')
+    style.id = 'aperture-theme'
+    style.textContent = ':root { --c-bg: 1 2 3; }'
+    document.head.appendChild(style)
+
+    applyBuiltinLight()
+
+    expect(document.getElementById('aperture-theme')).toBeNull()
   })
 })

@@ -99,9 +99,6 @@
 @layer base {
   * { @apply box-border; }
 
-  /* Default to dark; remove this line if you want OS-preference default. */
-  html { @apply dark; }
-
   body {
     background-color: rgb(var(--c-bg));
     color: rgb(var(--c-text));

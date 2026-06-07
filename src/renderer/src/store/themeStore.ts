@@ -1,7 +1,10 @@
 import { create } from 'zustand'
 import { CHANNELS } from '@shared/ipc'
 import type { Theme } from '@shared/types'
-import { applyTheme } from '../lib/applyTheme'
+import { applyTheme, applyBuiltinLight } from '../lib/applyTheme'
+
+/** Sentinel ID for the built-in Aperture Light theme. */
+export const APERTURE_LIGHT_ID = 'aperture-light'
 
 type ImportResult =
   | { theme: Theme }
@@ -28,10 +31,16 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   load: async () => {
     const { themes, activeThemeId } = await window.api.invoke(CHANNELS.THEMES_LIST)
     set({ themes, activeThemeId })
-    if (activeThemeId) {
-      const active = themes.find((t) => t.id === activeThemeId)
-      if (active) applyTheme(active)
+    if (activeThemeId === null) {
+      // Bootstrap already applied dark default
+      return
     }
+    if (activeThemeId === APERTURE_LIGHT_ID) {
+      applyBuiltinLight()
+      return
+    }
+    const active = themes.find((t) => t.id === activeThemeId)
+    if (active) applyTheme(active)
   },
 
   importFromFile: async () => {
@@ -58,6 +67,10 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     set({ activeThemeId: id })
     if (id === null) {
       applyTheme(null)
+      return
+    }
+    if (id === APERTURE_LIGHT_ID) {
+      applyBuiltinLight()
       return
     }
     const theme = get().themes.find((t) => t.id === id)
