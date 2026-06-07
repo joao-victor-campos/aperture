@@ -19,7 +19,7 @@ export interface CommandPaletteHandle {
 
 interface CommandPaletteProps {
   onAddConnection: () => void
-  onOpenSettings?: () => void
+  onOpenSettings: () => void
   onShowShortcuts?: () => void
 }
 
@@ -311,16 +311,14 @@ const CommandPalette = forwardRef<CommandPaletteHandle, CommandPaletteProps>(fun
       icon: 'plus',
       action: onAddConnection,
     })
-    if (onOpenSettings) {
-      out.push({
-        id: 'action:settings',
-        kind: 'action',
-        label: 'Settings',
-        icon: 'settings',
-        action: onOpenSettings,
-        searchText: 'settings theme preferences',
-      })
-    }
+    out.push({
+      id: 'action:settings',
+      kind: 'action',
+      label: 'Settings',
+      searchText: 'settings theme preferences',
+      icon: 'settings',
+      action: onOpenSettings,
+    })
     if (onShowShortcuts) {
       out.push({
         id: 'action:shortcuts',

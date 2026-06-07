@@ -33,7 +33,7 @@ export default function App() {
     loadThemes()
   }, [load, loadSavedQueries, loadHistory, loadThemes])
 
-  // Global ⌘K — focuses the palette input
+  // Global ⌘K (or Ctrl+K on Linux) — focuses the palette input
   // Global ⌘/ — toggles shortcut cheatsheet
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

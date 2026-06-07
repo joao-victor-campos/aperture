@@ -12,6 +12,7 @@
 import type { Theme } from '../../../shared/types'
 
 const STYLE_TAG_ID = 'aperture-theme'
+const CACHE_KEY = 'aperture-theme-css'
 
 export type RGB = [number, number, number]
 
@@ -93,14 +94,42 @@ function buildCss(theme: Theme): string {
  *
  * Also removes the `.dark` class from <html> when applying an imported theme,
  * so the built-in dark overrides do not combine with the imported palette.
+ *
+ * The applied CSS is also persisted to localStorage so that `bootstrapTheme()`
+ * can re-apply it synchronously at the next app boot, avoiding a FOUC.
  */
 export function applyTheme(theme: Theme | null): void {
   const existing = document.getElementById(STYLE_TAG_ID)
   if (theme === null) {
     if (existing) existing.remove()
+    try { localStorage.removeItem(CACHE_KEY) } catch { /* localStorage unavailable */ }
     return
   }
   const css = buildCss(theme)
+  if (existing) {
+    existing.textContent = css
+  } else {
+    const styleEl = document.createElement('style')
+    styleEl.id = STYLE_TAG_ID
+    styleEl.textContent = css
+    document.head.appendChild(styleEl)
+  }
+  document.documentElement.classList.remove('dark')
+  try { localStorage.setItem(CACHE_KEY, css) } catch { /* localStorage unavailable or quota */ }
+}
+
+/**
+ * Inject the previously-applied theme's CSS synchronously at app boot,
+ * before any React rendering, to prevent a flash of the built-in palette.
+ * No-op if no theme has been applied yet.
+ *
+ * Call this from main.tsx before createRoot(...).render(...).
+ */
+export function bootstrapTheme(): void {
+  let css: string | null = null
+  try { css = localStorage.getItem(CACHE_KEY) } catch { return }
+  if (!css) return
+  const existing = document.getElementById(STYLE_TAG_ID)
   if (existing) {
     existing.textContent = css
   } else {

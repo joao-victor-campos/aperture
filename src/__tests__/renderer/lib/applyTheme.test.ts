@@ -8,12 +8,14 @@ import type { Theme } from '../../../shared/types'
 let applyTheme: typeof import('../../../renderer/src/lib/applyTheme').applyTheme
 let hexToRgb: typeof import('../../../renderer/src/lib/applyTheme').hexToRgb
 let blend: typeof import('../../../renderer/src/lib/applyTheme').blend
+let bootstrapTheme: typeof import('../../../renderer/src/lib/applyTheme').bootstrapTheme
 
 beforeEach(async () => {
-  ;({ applyTheme, hexToRgb, blend } = await import('../../../renderer/src/lib/applyTheme'))
+  ;({ applyTheme, hexToRgb, blend, bootstrapTheme } = await import('../../../renderer/src/lib/applyTheme'))
   // Reset DOM between tests
   document.head.innerHTML = ''
   document.documentElement.className = ''
+  localStorage.clear()
 })
 
 function makeTheme(overrides: Partial<Theme['base']> = {}): Theme {
@@ -147,5 +149,59 @@ describe('applyTheme', () => {
     expect(document.getElementById('aperture-theme')).toBeNull()
     expect(() => applyTheme(null)).not.toThrow()
     expect(document.getElementById('aperture-theme')).toBeNull()
+  })
+
+  it('writes the CSS to localStorage when applying a theme', () => {
+    applyTheme(makeTheme())
+    expect(localStorage.getItem('aperture-theme-css')).toMatch(/:root\s*\{/)
+  })
+
+  it('clears the localStorage cache when called with null', () => {
+    applyTheme(makeTheme())
+    expect(localStorage.getItem('aperture-theme-css')).not.toBeNull()
+
+    applyTheme(null)
+
+    expect(localStorage.getItem('aperture-theme-css')).toBeNull()
+  })
+})
+
+describe('bootstrapTheme', () => {
+  it('is a no-op when localStorage is empty', () => {
+    expect(() => bootstrapTheme()).not.toThrow()
+    expect(document.getElementById('aperture-theme')).toBeNull()
+  })
+
+  it('injects cached css into <head> synchronously', () => {
+    const cachedCss = ':root { --c-bg: 12 34 56; }'
+    localStorage.setItem('aperture-theme-css', cachedCss)
+
+    bootstrapTheme()
+
+    const styleEl = document.getElementById('aperture-theme')!
+    expect(styleEl).not.toBeNull()
+    expect(styleEl.textContent).toBe(cachedCss)
+  })
+
+  it('removes the .dark class when bootstrapping a cached theme', () => {
+    document.documentElement.classList.add('dark')
+    localStorage.setItem('aperture-theme-css', ':root { --c-bg: 0 0 0; }')
+
+    bootstrapTheme()
+
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
+  })
+
+  it('replaces existing style content if a tag already exists', () => {
+    const existing = document.createElement('style')
+    existing.id = 'aperture-theme'
+    existing.textContent = 'old'
+    document.head.appendChild(existing)
+    localStorage.setItem('aperture-theme-css', 'new')
+
+    bootstrapTheme()
+
+    expect(document.querySelectorAll('#aperture-theme')).toHaveLength(1)
+    expect(document.getElementById('aperture-theme')!.textContent).toBe('new')
   })
 })
