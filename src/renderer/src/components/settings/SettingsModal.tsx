@@ -30,6 +30,18 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
     if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current)
   }, [])
 
+  // Reset transient state when the modal closes (component stays mounted).
+  useEffect(() => {
+    if (!open) {
+      setImportError(null)
+      setConfirmDeleteId(null)
+      if (confirmTimeoutRef.current) {
+        clearTimeout(confirmTimeoutRef.current)
+        confirmTimeoutRef.current = null
+      }
+    }
+  }, [open])
+
   if (!open) return null
 
   const handleImport = async () => {
@@ -61,6 +73,9 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-modal-title"
         className="bg-app-surface border border-app-border rounded-xl shadow-app-card w-[640px] max-h-[80vh] flex overflow-hidden"
       >
         {/* Left nav */}
@@ -75,7 +90,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
         {/* Content */}
         <div className="flex-1 flex flex-col min-w-0">
           <div className="flex items-center justify-between px-4 py-3 border-b border-app-border">
-            <div className="text-ui-md font-semibold text-app-text">Theme Library</div>
+            <div id="settings-modal-title" className="text-ui-md font-semibold text-app-text">Theme Library</div>
             <div className="flex items-center gap-2">
               <button
                 onClick={handleImport}
@@ -87,6 +102,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
               </button>
               <button
                 onClick={onClose}
+                aria-label="Close settings"
                 className="p-1.5 rounded-md text-app-text-3 hover:text-app-text hover:bg-app-elevated transition-colors"
               >
                 <X size={14} />
@@ -174,44 +190,47 @@ function ThemeCard({
   onCancelDelete,
 }: ThemeCardProps) {
   return (
-    <div
-      onClick={onClick}
-      className={`group relative cursor-pointer rounded-lg p-3 transition-colors ${
-        active
-          ? 'bg-app-accent-subtle border-2 border-app-accent'
-          : 'bg-app-elevated border border-app-border hover:border-app-border-2'
-      }`}
-    >
-      <div className="flex gap-1 mb-2">
-        {swatchColors.map((c, i) => (
-          <div
-            key={i}
-            className="w-5 h-5 rounded"
-            style={{ backgroundColor: c, border: '1px solid rgba(0,0,0,0.05)' }}
-          />
-        ))}
-      </div>
-      <div className="text-ui font-semibold text-app-text truncate">{name}</div>
-      <div className="text-ui-xs text-app-text-3 truncate">{author}</div>
+    <div className="relative">
+      <button
+        type="button"
+        onClick={onClick}
+        aria-pressed={active}
+        className={`group relative cursor-pointer rounded-lg p-3 transition-colors text-left w-full ${
+          active
+            ? 'bg-app-accent-subtle border-2 border-app-accent'
+            : 'bg-app-elevated border border-app-border hover:border-app-border-2'
+        }`}
+      >
+        <div className="flex gap-1 mb-2">
+          {swatchColors.map((c, i) => (
+            <div
+              key={i}
+              className="w-5 h-5 rounded"
+              style={{ backgroundColor: c, border: '1px solid rgba(0,0,0,0.05)' }}
+            />
+          ))}
+        </div>
+        <div className="text-ui font-semibold text-app-text truncate">{name}</div>
+        <div className="text-ui-xs text-app-text-3 truncate">{author}</div>
 
-      {active && (
-        <div className="absolute top-2 right-2 app-dot app-dot--ok" style={{ backgroundColor: 'rgb(var(--c-accent))' }} />
-      )}
+        {active && (
+          <div className="absolute top-2 right-2 app-dot" style={{ backgroundColor: 'rgb(var(--c-accent))' }} />
+        )}
+      </button>
 
       {!builtin && onDelete && (
         <>
           {confirmingDelete ? (
-            <div
-              className="absolute top-2 right-2 flex items-center gap-1 bg-app-surface rounded px-1 py-0.5 shadow-app-card"
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div className="absolute top-2 right-2 flex items-center gap-1 bg-app-surface rounded px-1 py-0.5 shadow-app-card">
               <button
+                type="button"
                 onClick={onCancelDelete}
                 className="text-ui-xs px-1.5 py-0.5 text-app-text-2 hover:text-app-text"
               >
                 No
               </button>
               <button
+                type="button"
                 onClick={onConfirmDelete}
                 className="text-ui-xs px-1.5 py-0.5 rounded bg-app-err-subtle text-app-err"
               >
@@ -220,12 +239,11 @@ function ThemeCard({
             </div>
           ) : (
             <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onDelete()
-              }}
-              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 rounded text-app-text-3 hover:text-app-err hover:bg-app-err-subtle/60 transition-all"
+              type="button"
+              onClick={onDelete}
+              className="absolute top-2 right-2 opacity-0 hover:opacity-100 p-1 rounded text-app-text-3 hover:text-app-err hover:bg-app-err-subtle/60 transition-all focus:opacity-100"
               title="Delete theme"
+              aria-label={`Delete ${name}`}
             >
               <Trash2 size={11} />
             </button>
