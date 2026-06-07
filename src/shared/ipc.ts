@@ -1,4 +1,4 @@
-import type { Connection, ConnectionCreate, Dataset, Table, TableField, TableSearchHit, QueryResult, SavedQuery, Folder, HistoryEntry } from './types'
+import type { Connection, ConnectionCreate, Dataset, Table, TableField, TableSearchHit, QueryResult, SavedQuery, Folder, HistoryEntry, Theme, ThemeImportPayload } from './types'
 
 export const CHANNELS = {
   // Connections
@@ -34,6 +34,12 @@ export const CHANNELS = {
   HISTORY_CLEAR: 'history:clear',
   // Export
   EXPORT_RESULTS: 'export:results',
+  // Themes
+  THEMES_LIST: 'themes:list',
+  THEMES_OPEN_FILE_DIALOG: 'themes:open-file-dialog',
+  THEMES_ADD: 'themes:add',
+  THEMES_REMOVE: 'themes:remove',
+  THEMES_SET_ACTIVE: 'themes:set-active',
 } as const
 
 export type Channel = (typeof CHANNELS)[keyof typeof CHANNELS]
@@ -84,6 +90,17 @@ export interface IpcMap {
     req: { rows: Record<string, unknown>[]; columns: string[]; format: 'csv' | 'json' | 'tsv' }
     res: { path: string | null }
   }
+  [CHANNELS.THEMES_LIST]: {
+    req: undefined
+    res: { themes: Theme[]; activeThemeId: string | null }
+  }
+  [CHANNELS.THEMES_OPEN_FILE_DIALOG]: {
+    req: undefined
+    res: ThemeImportPayload | { error: string }
+  }
+  [CHANNELS.THEMES_ADD]: { req: ThemeImportPayload; res: Theme }
+  [CHANNELS.THEMES_REMOVE]: { req: string; res: void }
+  [CHANNELS.THEMES_SET_ACTIVE]: { req: string | null; res: void }
 }
 
 // Channel is a superset of IpcMap keys (QUERY_LOG is push-only, not request/response).
