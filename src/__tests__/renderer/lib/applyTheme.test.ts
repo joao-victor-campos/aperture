@@ -136,4 +136,16 @@ describe('applyTheme', () => {
       expect(css).toContain(tok)
     }
   })
+
+  it('places the style tag inside <head>', () => {
+    applyTheme(makeTheme())
+    const styleEl = document.getElementById('aperture-theme')!
+    expect(document.head.contains(styleEl)).toBe(true)
+  })
+
+  it('is a no-op when applyTheme(null) is called with no existing tag', () => {
+    expect(document.getElementById('aperture-theme')).toBeNull()
+    expect(() => applyTheme(null)).not.toThrow()
+    expect(document.getElementById('aperture-theme')).toBeNull()
+  })
 })

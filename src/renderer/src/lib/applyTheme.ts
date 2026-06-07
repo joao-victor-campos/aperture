@@ -45,7 +45,9 @@ function buildCss(theme: Theme): string {
   const c0B = hexToRgb(b.base0B) // ok (green)
   const c08 = hexToRgb(b.base08) // err (red)
   const c0D = hexToRgb(b.base0D) // blue (functions)
-  const c0F = hexToRgb(b.base0F) // deprecated (used to blend hover)
+  // base0F's Base16 meaning is "deprecated/embedded tags" — repurposed here
+  // as a deeper shade to blend with the accent for the hover state.
+  const c0F = hexToRgb(b.base0F)
 
   const lines: string[] = [
     `:root {`,
