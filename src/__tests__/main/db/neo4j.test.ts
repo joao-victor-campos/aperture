@@ -149,6 +149,36 @@ describe('neo4j adapter — listTables', () => {
     expect(knows).toMatchObject({ type: 'RELATIONSHIP_TYPE', rowCount: 3, datasetId: 'neo4j' })
     expect(mockDriver.session).toHaveBeenCalledWith({ database: 'neo4j' })
   })
+
+  it('serializes session calls — labels resolves before relationship types is requested', async () => {
+    // Regression for the parallel-on-shared-session bug that caused relationship
+    // types to silently drop. A Session is not concurrency-safe, so the second
+    // .run() must NOT be issued before the first resolves.
+    let labelsResolve!: (v: unknown) => void
+    let relRequestedBeforeLabelsResolved = false
+
+    mockSession.run.mockImplementationOnce(() => new Promise((res) => { labelsResolve = res }))
+    mockSession.run.mockImplementationOnce(() => {
+      // If labels promise is still pending and we're already being asked for
+      // relationship types, the call ordering violates the contract.
+      if (!labelsResolved) relRequestedBeforeLabelsResolved = true
+      return Promise.resolve(makeResult(['relationshipType'], []))
+    })
+
+    let labelsResolved = false
+    const p = listTables(conn, 'neo4j')
+
+    // Give the microtask queue a chance to run — if labels and rel-types were
+    // dispatched in parallel, rel-types' run() would already have been called.
+    await Promise.resolve()
+    await Promise.resolve()
+
+    labelsResolve(makeResult(['label'], []))
+    labelsResolved = true
+    await p
+
+    expect(relRequestedBeforeLabelsResolved).toBe(false)
+  })
 })
 
 describe('neo4j adapter — getTableSchema', () => {

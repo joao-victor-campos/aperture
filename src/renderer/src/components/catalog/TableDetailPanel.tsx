@@ -5,6 +5,7 @@ import type { TableField, QueryResult, ConnectionEngine } from '@shared/types'
 import { useCatalogStore } from '../../store/catalogStore'
 import { useConnectionStore } from '../../store/connectionStore'
 import { buildSelectQuery } from '../../lib/buildSelectQuery'
+import { buildLabelQuery, buildRelationshipTypeQuery } from '../../lib/buildCypherQuery'
 
 interface TableDetailPanelProps {
   connectionId: string
@@ -31,15 +32,25 @@ export default function TableDetailPanel({
 
   const [copied, setCopied] = useState(false)
 
-  const { loadSchema } = useCatalogStore()
+  const { loadSchema, tablesByDataset } = useCatalogStore()
   const { connections } = useConnectionStore()
   const engine = connections.find((c) => c.id === connectionId)?.engine ?? 'bigquery'
 
   const previewTabId = useMemo(() => crypto.randomUUID(), [connectionId, projectId, datasetId, tableId])
 
   const tableRef = `${datasetId}.${tableId}`
-  // Use the shared builder (engine-specific quoting); strip " LIMIT 100" for the preview SQL
-  const previewRef = buildSelectQuery(engine, projectId, datasetId, tableId).replace(' LIMIT 100', ' LIMIT 50')
+  // For Neo4j we need to know whether this is a LABEL or a RELATIONSHIP_TYPE to
+  // pick the right Cypher builder — read it from the catalog cache.
+  const tableType = tablesByDataset[`${connectionId}:${datasetId}`]?.find((t) => t.id === tableId)?.type
+
+  // Engine-specific preview Cypher / SQL. We strip the builder's default LIMIT
+  // and use 50 instead — preview is meant to be a quick peek, not a page.
+  const previewRef = engine === 'neo4j'
+    ? (tableType === 'RELATIONSHIP_TYPE'
+        ? buildRelationshipTypeQuery(tableId)
+        : buildLabelQuery(tableId)
+      ).replace(' LIMIT 100', ' LIMIT 50')
+    : buildSelectQuery(engine, projectId, datasetId, tableId).replace(' LIMIT 100', ' LIMIT 50')
 
   useEffect(() => {
     setSchema(null)
