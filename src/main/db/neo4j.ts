@@ -90,8 +90,33 @@ export function invalidateClient(connectionId: string): void {
 // The methods below are implemented in subsequent tasks (5–11) — stubs throw
 // so any premature wiring fails loudly rather than silently returning empty.
 
-export async function listDatasets(_connection: Neo4jConnection): Promise<Dataset[]> {
-  throw new Error('Not implemented (Task 5)')
+/**
+ * Each Neo4j database becomes one "dataset" in the existing catalog tree shape.
+ * Runs `SHOW DATABASES` against the system database. In a cluster the same
+ * database name appears once per server, so results are de-duped by name and
+ * the internal `system` database is hidden.
+ */
+export async function listDatasets(connection: Neo4jConnection): Promise<Dataset[]> {
+  const driver = getDriver(connection)
+  const session = driver.session({ database: 'system' })
+  try {
+    const result = await session.run('SHOW DATABASES')
+    const seen = new Set<string>()
+    const datasets: Dataset[] = []
+    for (const record of result.records) {
+      const name = record.get('name') as string
+      if (name === 'system' || seen.has(name)) continue
+      seen.add(name)
+      datasets.push({ id: name, projectId: connection.uri, name })
+    }
+    return datasets
+  } catch {
+    // Older Neo4j (no multi-db) or insufficient privileges — fall back to the configured DB
+    const fallback = databaseName(connection)
+    return [{ id: fallback, projectId: connection.uri, name: fallback }]
+  } finally {
+    await session.close().catch(() => {})
+  }
 }
 
 export async function listTables(_connection: Neo4jConnection, _datasetId: string): Promise<Table[]> {

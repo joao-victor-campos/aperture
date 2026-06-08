@@ -116,5 +116,22 @@ describe('neo4j adapter — connection lifecycle', () => {
   })
 })
 
+describe('neo4j adapter — listDatasets', () => {
+  it('returns each database (de-duped, excluding system) as a Dataset', async () => {
+    mockSession.run.mockResolvedValueOnce(
+      makeResult(['name'], [{ name: 'neo4j' }, { name: 'movies' }, { name: 'neo4j' }, { name: 'system' }]),
+    )
+    const datasets = await listDatasets(conn)
+    expect(datasets.map((d) => d.name)).toEqual(['neo4j', 'movies'])
+    expect(mockDriver.session).toHaveBeenCalledWith({ database: 'system' })
+  })
+
+  it('falls back to the configured database when SHOW DATABASES is unsupported', async () => {
+    mockSession.run.mockRejectedValueOnce(new Error('not supported'))
+    const datasets = await listDatasets(conn)
+    expect(datasets).toEqual([{ id: 'neo4j', projectId: conn.uri, name: 'neo4j' }])
+  })
+})
+
 // Export test helpers for later tasks (re-used in the same file)
 export { makeResult, conn, mockSession, mockDriver, mockWC, FakeInteger, FakeNode, FakeRelationship, FakePath }
