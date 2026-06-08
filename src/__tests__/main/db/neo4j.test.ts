@@ -151,5 +151,34 @@ describe('neo4j adapter — listTables', () => {
   })
 })
 
+describe('neo4j adapter — getTableSchema', () => {
+  it('infers node property keys + types from a sample (first-observed-type-wins)', async () => {
+    mockSession.run
+      .mockResolvedValueOnce(makeResult(['relationshipType'], [{ relationshipType: 'KNOWS' }])) // not a rel type
+      .mockResolvedValueOnce(
+        makeResult(['sample'], [
+          { sample: new FakeNode('1', ['Person'], { name: 'Alice', age: new FakeInteger(30) }) },
+        ]),
+      )
+    const fields = await getTableSchema(conn, 'neo4j', 'Person')
+    expect(fields).toEqual([
+      { name: 'name', type: 'STRING', mode: 'NULLABLE' },
+      { name: 'age', type: 'INTEGER', mode: 'NULLABLE' },
+    ])
+  })
+
+  it('samples relationships when the id is a relationship type', async () => {
+    mockSession.run
+      .mockResolvedValueOnce(makeResult(['relationshipType'], [{ relationshipType: 'KNOWS' }]))
+      .mockResolvedValueOnce(
+        makeResult(['sample'], [
+          { sample: new FakeRelationship('r1', 's', 'e', 'KNOWS', { since: new FakeInteger(2020) }) },
+        ]),
+      )
+    const fields = await getTableSchema(conn, 'neo4j', 'KNOWS')
+    expect(fields).toEqual([{ name: 'since', type: 'INTEGER', mode: 'NULLABLE' }])
+  })
+})
+
 // Export test helpers for later tasks (re-used in the same file)
 export { makeResult, conn, mockSession, mockDriver, mockWC, FakeInteger, FakeNode, FakeRelationship, FakePath }

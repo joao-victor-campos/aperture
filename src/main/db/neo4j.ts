@@ -176,12 +176,63 @@ export async function listTables(connection: Neo4jConnection, datasetId: string)
   }
 }
 
+/** Map a raw Neo4j property value to a type name the schema UI already color-codes. */
+function inferPropertyType(value: unknown): string {
+  if (value == null) return 'STRING'
+  if (neo4j.isInt(value)) return 'INTEGER'
+  if (typeof value === 'number') return Number.isInteger(value) ? 'INTEGER' : 'FLOAT'
+  if (typeof value === 'boolean') return 'BOOLEAN'
+  if (typeof value === 'string') return 'STRING'
+  if (Array.isArray(value)) return 'LIST'
+  if (typeof value === 'object') {
+    const ctor = (value as object).constructor?.name ?? ''
+    if (ctor.includes('DateTime')) return 'TIMESTAMP'
+    if (ctor.includes('Date')) return 'DATE'
+    if (ctor.includes('Time')) return 'TIME'
+    return 'STRING' // Duration, Point, and any other temporal/spatial type
+  }
+  return 'STRING'
+}
+
+/**
+ * Neo4j is schema-optional, so there is no authoritative schema to read. This
+ * samples up to SCHEMA_SAMPLE_SIZE nodes (or relationships) and reports the union
+ * of observed property keys, with the first observed type winning per key. The
+ * "Schema" tab frames this as sample-inferred (see TableDetailPanel banner).
+ */
 export async function getTableSchema(
-  _connection: Neo4jConnection,
-  _datasetId: string,
-  _tableId: string,
+  connection: Neo4jConnection,
+  datasetId: string,
+  tableId: string,
 ): Promise<TableField[]> {
-  throw new Error('Not implemented (Task 7)')
+  const driver = getDriver(connection)
+  const session = driver.session({ database: datasetId })
+  try {
+    const relResult = await session.run('CALL db.relationshipTypes()').catch(() => null)
+    const relTypes = relResult ? relResult.records.map((r) => r.get('relationshipType') as string) : []
+    const isRel = relTypes.includes(tableId)
+
+    const cypher = isRel
+      ? `MATCH ()-[r:${quoteIdentifier(tableId)}]->() RETURN r AS sample LIMIT ${SCHEMA_SAMPLE_SIZE}`
+      : `MATCH (n:${quoteIdentifier(tableId)}) RETURN n AS sample LIMIT ${SCHEMA_SAMPLE_SIZE}`
+
+    const result = await session.run(cypher)
+    const propTypes = new Map<string, string>()
+    for (const record of result.records) {
+      const entity = record.get('sample') as { properties?: Record<string, unknown> } | null
+      const props = entity?.properties ?? {}
+      for (const [key, value] of Object.entries(props)) {
+        if (!propTypes.has(key)) propTypes.set(key, inferPropertyType(value))
+      }
+    }
+    return Array.from(propTypes.entries()).map(([name, type]) => ({
+      name,
+      type,
+      mode: 'NULLABLE' as const,
+    } satisfies TableField))
+  } finally {
+    await session.close().catch(() => {})
+  }
 }
 
 export async function searchTables(
