@@ -47,12 +47,26 @@ vi.mock('../../../main/db/snowflake', () => ({
   invalidateClient: vi.fn()
 }))
 
+vi.mock('../../../main/db/neo4j', () => ({
+  testConnection: vi.fn(),
+  listDatasets: vi.fn(),
+  listTables: vi.fn(),
+  getTableSchema: vi.fn(),
+  searchTables: vi.fn(),
+  runQuery: vi.fn(),
+  getQueryPage: vi.fn(),
+  cancelRunningQuery: vi.fn(),
+  dryRunQuery: vi.fn(),
+  invalidateClient: vi.fn()
+}))
+
 vi.mock('electron', () => ({}))
 
 const { getAdapterForEngine, getAdapterForConnection } = await import('../../../main/db/adapterRegistry')
 const bq = await import('../../../main/db/bigquery')
 const pg = await import('../../../main/db/postgres')
 const sf = await import('../../../main/db/snowflake')
+const nf = await import('../../../main/db/neo4j')
 
 describe('adapterRegistry', () => {
   describe('getAdapterForEngine', () => {
@@ -69,6 +83,11 @@ describe('adapterRegistry', () => {
     it('returns the Snowflake adapter for "snowflake"', () => {
       const adapter = getAdapterForEngine('snowflake')
       expect(adapter.testConnection).toBe(sf.testConnection)
+    })
+
+    it('returns the Neo4j adapter for "neo4j"', () => {
+      const adapter = getAdapterForEngine('neo4j')
+      expect(adapter.testConnection).toBe(nf.testConnection)
     })
   })
 
@@ -102,6 +121,16 @@ describe('adapterRegistry', () => {
       }
       const adapter = getAdapterForConnection(conn)
       expect(adapter.testConnection).toBe(sf.testConnection)
+    })
+
+    it('dispatches to the Neo4j adapter for a neo4j connection', () => {
+      const conn: Connection = {
+        id: 'neo-1', name: 'Neo', engine: 'neo4j',
+        uri: 'neo4j://localhost:7687', username: 'neo4j', password: 'pw',
+        createdAt: '2024-01-01T00:00:00Z'
+      }
+      const adapter = getAdapterForConnection(conn)
+      expect(adapter.testConnection).toBe(nf.testConnection)
     })
 
     it('falls back to BigQuery for legacy connections without an engine field', () => {
