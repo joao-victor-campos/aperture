@@ -19,12 +19,15 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.20.1",
     "@codemirror/lang-sql": "^6.8.0",
+    "@codemirror/language": "^6.12.2",
     "@codemirror/theme-one-dark": "^6.1.2",
     "@google-cloud/bigquery": "^7.9.0",
     "@uiw/react-codemirror": "^4.23.5",
     "js-yaml": "^4.2.0",
     "lucide-react": "^0.460.0",
+    "neo4j-driver": "^6.1.0",
     "pg": "^8.20.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
