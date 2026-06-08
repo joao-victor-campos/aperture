@@ -194,5 +194,36 @@ describe('neo4j adapter — searchTables', () => {
   })
 })
 
+describe('neo4j adapter — runQuery', () => {
+  it('serializes scalar + Node values and returns the first page', async () => {
+    const node = new FakeNode('n-1', ['Person'], { name: 'Alice', age: new FakeInteger(30) })
+    mockSession.run.mockResolvedValueOnce(makeResult(['n', 'score'], [{ n: node, score: new FakeInteger(7) }]))
+
+    const result = await runQuery(conn, 'MATCH (n) RETURN n, 7 AS score', 'tab-run', mockWC as never)
+
+    expect(result.columns).toEqual(['n', 'score'])
+    expect(result.rows[0].score).toBe(7)
+    expect(result.rows[0].n).toEqual({
+      __neo4jType: 'Node',
+      identity: 'n-1',
+      labels: ['Person'],
+      properties: { name: 'Alice', age: 30 },
+    })
+    expect(mockWC.send).toHaveBeenCalledWith(CHANNELS.QUERY_LOG, expect.objectContaining({ tabId: 'tab-run' }))
+  })
+
+  it('returns columns + empty rows for a zero-record result', async () => {
+    mockSession.run.mockResolvedValueOnce(makeResult(['n'], []))
+    const result = await runQuery(conn, 'MATCH (n) RETURN n', 'tab-empty', mockWC as never)
+    expect(result).toMatchObject({ columns: ['n'], rows: [], rowCount: 0, totalRows: 0, hasMore: false })
+  })
+
+  it('rejects and closes the session on query error', async () => {
+    mockSession.run.mockRejectedValueOnce(new Error('SyntaxError: bad cypher'))
+    await expect(runQuery(conn, 'BAD', 'tab-err', mockWC as never)).rejects.toThrow('bad cypher')
+    expect(mockSession.close).toHaveBeenCalled()
+  })
+})
+
 // Export test helpers for later tasks (re-used in the same file)
 export { makeResult, conn, mockSession, mockDriver, mockWC, FakeInteger, FakeNode, FakeRelationship, FakePath }

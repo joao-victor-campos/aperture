@@ -276,13 +276,173 @@ export async function searchTables(
   return hits.slice(0, limit)
 }
 
+// ── Running / completed query state ───────────────────────────────────────────────
+interface RunningJob {
+  session: Session
+  webContents: WebContents
+}
+const runningJobs = new Map<string, RunningJob>()
+// Full serialized result retained after execution for in-memory pagination.
+const completedResults = new Map<string, { columns: string[]; rows: Record<string, unknown>[]; totalRows: number }>()
+
+// ── Value serialization (driver class instances → plain IPC-safe objects) ──────────
+
+function serializeNode(node: Node): Neo4jNode {
+  return {
+    __neo4jType: 'Node',
+    identity: node.elementId,
+    labels: node.labels,
+    properties: serializeProperties(node.properties),
+  }
+}
+
+function serializeRelationship(rel: Relationship): Neo4jRelationship {
+  return {
+    __neo4jType: 'Relationship',
+    identity: rel.elementId,
+    start: rel.startNodeElementId,
+    end: rel.endNodeElementId,
+    type: rel.type,
+    properties: serializeProperties(rel.properties),
+  }
+}
+
+function serializePath(path: Path): Neo4jPath {
+  return {
+    __neo4jType: 'Path',
+    segments: path.segments.map((seg) => ({
+      start: serializeNode(seg.start),
+      relationship: serializeRelationship(seg.relationship),
+      end: serializeNode(seg.end),
+    })),
+  }
+}
+
+function serializeProperties(props: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(props)) out[k] = serializeValue(v)
+  return out
+}
+
+/**
+ * Convert any Bolt-returned value to an IPC-safe equivalent:
+ *   Integer            → number (or string when out of safe range)
+ *   Node/Rel/Path      → tagged plain objects
+ *   array              → recursively serialized
+ *   plain object       → recursively serialized
+ *   temporal/spatial   → String() (any non-plain object that isn't Node/Rel/Path)
+ */
+function serializeValue(value: unknown): unknown {
+  if (value === null || value === undefined) return null
+  if (neo4j.isInt(value)) {
+    const int = value as Integer
+    return neo4j.integer.inSafeRange(int) ? int.toNumber() : int.toString()
+  }
+  if (value instanceof neo4j.types.Node) return serializeNode(value as Node)
+  if (value instanceof neo4j.types.Relationship) return serializeRelationship(value as Relationship)
+  if (value instanceof neo4j.types.Path) return serializePath(value as Path)
+  if (Array.isArray(value)) return value.map(serializeValue)
+  if (typeof value === 'object') {
+    if ((value as object).constructor === Object) {
+      const out: Record<string, unknown> = {}
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = serializeValue(v)
+      return out
+    }
+    return String(value) // Date, DateTime, Duration, Point, … driver types
+  }
+  return value
+}
+
+function serializeRecord(record: { keys: ReadonlyArray<string>; get: (k: string) => unknown }): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const key of record.keys) out[key] = serializeValue(record.get(key))
+  return out
+}
+
+/**
+ * Execute a Cypher query. Neo4j has no native page-token cursor, so the full
+ * result is collected, serialized, and retained; the first DEFAULT_PAGE_SIZE
+ * rows are returned and getQueryPage() slices the rest. Mirrors the Snowflake
+ * heartbeat / 180s-timeout / cancel pattern (a session's .close() aborts cleanly).
+ */
 export async function runQuery(
-  _connection: Neo4jConnection,
-  _cypher: string,
-  _tabId: string,
-  _webContents: WebContents,
+  connection: Neo4jConnection,
+  cypher: string,
+  tabId: string,
+  webContents: WebContents,
 ): Promise<QueryResult> {
-  throw new Error('Not implemented (Task 9)')
+  const driver = getDriver(connection)
+  const session = driver.session({ database: databaseName(connection) })
+  const start = Date.now()
+
+  const log = (message: string) => {
+    if (!webContents.isDestroyed()) {
+      webContents.send(CHANNELS.QUERY_LOG, { tabId, message })
+    }
+  }
+  log('Submitting query to Neo4j…')
+
+  let done = false
+  let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+  let timeoutTimer: ReturnType<typeof setTimeout> | null = null
+
+  const cleanup = () => {
+    if (done) return
+    done = true
+    if (heartbeatTimer) clearInterval(heartbeatTimer)
+    if (timeoutTimer) clearTimeout(timeoutTimer)
+    runningJobs.delete(tabId)
+  }
+
+  heartbeatTimer = setInterval(() => log(`Still running… ${elapsed(start)} elapsed`), HEARTBEAT_INTERVAL_MS)
+
+  // Register the session immediately so cancelRunningQuery can close it mid-flight.
+  runningJobs.set(tabId, { session, webContents })
+
+  const queryPromise = session
+    .run(cypher)
+    .then(async (result) => {
+      const columns = result.keys as string[]
+      const allRows = result.records.map(serializeRecord)
+      await session.close().catch(() => {})
+      cleanup()
+
+      const totalRows = allRows.length
+      const pageRows = allRows.slice(0, DEFAULT_PAGE_SIZE)
+      const hasMore = totalRows > DEFAULT_PAGE_SIZE
+      completedResults.set(tabId, { columns, rows: allRows, totalRows })
+      log(`Fetched ${totalRows.toLocaleString()} rows · ${elapsed(start)}`)
+
+      return {
+        columns,
+        rows: pageRows,
+        rowCount: pageRows.length,
+        executionTimeMs: Date.now() - start,
+        totalRows,
+        pageToken: hasMore ? String(DEFAULT_PAGE_SIZE) : null,
+        hasMore,
+      } satisfies QueryResult
+    })
+    .catch(async (err: Error) => {
+      await session.close().catch(() => {})
+      cleanup()
+      throw err
+    })
+
+  // Prevent unhandled rejection after Promise.race settles.
+  queryPromise.catch(() => {})
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutTimer = setTimeout(async () => {
+      log('Timeout reached (180s) · Cancelling…')
+      const running = runningJobs.get(tabId)
+      if (running) await running.session.close().catch(() => {})
+      cleanup()
+      reject(new Error('Query timed out after 180 seconds. The session has been closed.'))
+    }, QUERY_TIMEOUT_MS)
+  })
+
+  return Promise.race([queryPromise, timeoutPromise])
 }
 
 export async function getQueryPage(_tabId: string, _pageToken: string): Promise<QueryResult> {
