@@ -119,8 +119,61 @@ export async function listDatasets(connection: Neo4jConnection): Promise<Dataset
   }
 }
 
-export async function listTables(_connection: Neo4jConnection, _datasetId: string): Promise<Table[]> {
-  throw new Error('Not implemented (Task 6)')
+function countNodes(session: Session, label: string): Promise<number | undefined> {
+  return session
+    .run(`MATCH (n:${quoteIdentifier(label)}) RETURN count(n) AS count`)
+    .then((r) => intToNumber(r.records[0]?.get('count')))
+    .catch(() => undefined)
+}
+
+function countRelationships(session: Session, relType: string): Promise<number | undefined> {
+  return session
+    .run(`MATCH ()-[r:${quoteIdentifier(relType)}]->() RETURN count(r) AS count`)
+    .then((r) => intToNumber(r.records[0]?.get('count')))
+    .catch(() => undefined)
+}
+
+/**
+ * "Tables" in a Neo4j database are its node labels and relationship types.
+ * Each is tagged with a `type` discriminator ('LABEL' | 'RELATIONSHIP_TYPE')
+ * so the catalog tree can group them under two section headers, and carries a
+ * cheap count (cached upstream the same way relational table-counts are).
+ */
+export async function listTables(connection: Neo4jConnection, datasetId: string): Promise<Table[]> {
+  const driver = getDriver(connection)
+  const session = driver.session({ database: datasetId })
+  try {
+    const [labelResult, relResult] = await Promise.all([
+      session.run('CALL db.labels()').catch(() => null),
+      session.run('CALL db.relationshipTypes()').catch(() => null),
+    ])
+    const labels = labelResult ? labelResult.records.map((r) => r.get('label') as string) : []
+    const relTypes = relResult ? relResult.records.map((r) => r.get('relationshipType') as string) : []
+
+    const labelTables = await Promise.all(
+      labels.map(async (label) => ({
+        id: label,
+        datasetId,
+        projectId: connection.uri,
+        name: label,
+        type: 'LABEL' as const,
+        rowCount: await countNodes(session, label),
+      } satisfies Table)),
+    )
+    const relTables = await Promise.all(
+      relTypes.map(async (relType) => ({
+        id: relType,
+        datasetId,
+        projectId: connection.uri,
+        name: relType,
+        type: 'RELATIONSHIP_TYPE' as const,
+        rowCount: await countRelationships(session, relType),
+      } satisfies Table)),
+    )
+    return [...labelTables, ...relTables]
+  } finally {
+    await session.close().catch(() => {})
+  }
 }
 
 export async function getTableSchema(

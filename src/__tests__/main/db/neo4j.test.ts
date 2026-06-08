@@ -133,5 +133,23 @@ describe('neo4j adapter — listDatasets', () => {
   })
 })
 
+describe('neo4j adapter — listTables', () => {
+  it('returns labels and relationship types tagged with kind + counts', async () => {
+    mockSession.run
+      .mockResolvedValueOnce(makeResult(['label'], [{ label: 'Person' }]))                 // db.labels()
+      .mockResolvedValueOnce(makeResult(['relationshipType'], [{ relationshipType: 'KNOWS' }])) // db.relationshipTypes()
+      .mockResolvedValueOnce(makeResult(['count'], [{ count: new FakeInteger(5) }]))        // count Person nodes
+      .mockResolvedValueOnce(makeResult(['count'], [{ count: new FakeInteger(3) }]))        // count KNOWS rels
+
+    const tables = await listTables(conn, 'neo4j')
+
+    const person = tables.find((t) => t.name === 'Person')
+    const knows = tables.find((t) => t.name === 'KNOWS')
+    expect(person).toMatchObject({ type: 'LABEL', rowCount: 5, datasetId: 'neo4j' })
+    expect(knows).toMatchObject({ type: 'RELATIONSHIP_TYPE', rowCount: 3, datasetId: 'neo4j' })
+    expect(mockDriver.session).toHaveBeenCalledWith({ database: 'neo4j' })
+  })
+})
+
 // Export test helpers for later tasks (re-used in the same file)
 export { makeResult, conn, mockSession, mockDriver, mockWC, FakeInteger, FakeNode, FakeRelationship, FakePath }
