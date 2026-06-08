@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Copy, Check, Search, X } from 'lucide-react'
 import { CHANNELS } from '@shared/ipc'
-import type { TableField, QueryResult } from '@shared/types'
+import type { TableField, QueryResult, ConnectionEngine } from '@shared/types'
 import { useCatalogStore } from '../../store/catalogStore'
 import { useConnectionStore } from '../../store/connectionStore'
 import { buildSelectQuery } from '../../lib/buildSelectQuery'
@@ -123,7 +123,7 @@ export default function TableDetailPanel({
 
       <div className="flex-1 overflow-auto">
         {section === 'schema' && (
-          <SchemaSection schema={schema} loading={schemaLoading} error={schemaError} />
+          <SchemaSection schema={schema} loading={schemaLoading} error={schemaError} engine={engine} />
         )}
         {section === 'preview' && (
           <PreviewSection result={preview} loading={previewLoading} error={previewError} onRetry={loadPreview} />
@@ -133,7 +133,7 @@ export default function TableDetailPanel({
   )
 }
 
-function SchemaSection({ schema, loading, error }: { schema: TableField[] | null; loading: boolean; error: string | null }) {
+function SchemaSection({ schema, loading, error, engine }: { schema: TableField[] | null; loading: boolean; error: string | null; engine?: ConnectionEngine }) {
   const [filter, setFilter] = useState('')
 
   if (loading) return <div className="p-4 text-xs text-app-text-3 animate-pulse">Loading schema…</div>
@@ -177,6 +177,12 @@ function SchemaSection({ schema, loading, error }: { schema: TableField[] | null
           </span>
         )}
       </div>
+
+      {engine === 'neo4j' && (
+        <div className="px-3 py-1.5 text-[11px] text-app-text-3 bg-app-warn-subtle/30 border-b border-app-border shrink-0">
+          Inferred from up to 50 sampled records — Neo4j is schema-optional, so this list may be incomplete.
+        </div>
+      )}
 
       <table className="w-full text-xs border-collapse">
         <thead className="sticky top-0 bg-app-bg z-10">
