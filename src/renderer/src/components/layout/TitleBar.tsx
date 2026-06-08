@@ -5,7 +5,7 @@ import { useConnectionStore } from '../../store/connectionStore'
 import type { ConnectionStatus } from '../../store/connectionStore'
 import ApertureIcon from '../ApertureIcon'
 import CommandPalette, { type CommandPaletteHandle } from '../command/CommandPalette'
-import type { BigQueryConnection, Connection, PostgresConnection, SnowflakeConnection } from '@shared/types'
+import type { BigQueryConnection, Connection, Neo4jConnection, PostgresConnection, SnowflakeConnection } from '@shared/types'
 
 interface TitleBarProps {
   onAddConnection: () => void
@@ -20,6 +20,7 @@ function connectionLabel(c: Connection): string {
   const engine = c.engine ?? 'bigquery'
   if (engine === 'bigquery') return (c as BigQueryConnection).projectId
   if (engine === 'snowflake') return (c as SnowflakeConnection).account
+  if (engine === 'neo4j') return (c as Neo4jConnection).database || (c as Neo4jConnection).uri
   return (c as PostgresConnection).database ?? (c as PostgresConnection).host
 }
 
@@ -97,6 +98,7 @@ export default function TitleBar({ onAddConnection, onEditConnection, onOpenSett
     engineLabel === 'bigquery'  ? 'text-app-cat-blue' :
     engineLabel === 'snowflake' ? 'text-app-accent-text' :   // Snowflake stays terracotta
     engineLabel === 'postgres'  ? 'text-app-cat-purple' :
+    engineLabel === 'neo4j'     ? 'text-app-cat-teal' :
                                   'text-app-text'
 
   return (
@@ -267,6 +269,7 @@ function engineAccent(engine: string): string {
   if (engine === 'bigquery')  return 'text-app-cat-blue'
   if (engine === 'snowflake') return 'text-app-accent-text'
   if (engine === 'postgres')  return 'text-app-cat-purple'
+  if (engine === 'neo4j')     return 'text-app-cat-teal'
   return 'text-app-text-3'
 }
 
