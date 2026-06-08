@@ -164,6 +164,20 @@ Best for production deployments, CI environments, or when you need to run as a s
 
 The predefined roles **BigQuery Data Viewer** + **BigQuery Job User** cover all of the above.
 
+### Neo4j
+
+Connect with a Bolt URI, username, and password:
+
+- **Connection URI** — `neo4j://localhost:7687` (or `neo4j+s://…` for encrypted Aura instances)
+- **Username / Password** — basic auth
+- **Database** — optional; defaults to `neo4j` (Neo4j 4.0+ multi-database)
+
+Query with **Cypher**. The catalog browses each database's node **Labels** and
+**Relationship Types**; the schema tab shows property keys **inferred from a
+sample** (Neo4j is schema-optional, so it is not authoritative). Node /
+Relationship / Path values render as compact Cypher-style chips in the
+results table.
+
 ---
 
 ## Installation
@@ -302,7 +316,7 @@ The project uses **Vitest** with a **70 % coverage minimum** enforced in CI.
 
 | Layer | Environment | What is tested |
 |---|---|---|
-| `src/main/db/` | Node | Store persistence, DB adapter registry, BigQuery/Postgres/Snowflake adapters |
+| `src/main/db/` | Node | Store persistence, DB adapter registry, BigQuery/Postgres/Snowflake/Neo4j adapters |
 | `src/main/ipc/` | Node | IPC handlers (connections, catalog, query) |
 | `src/renderer/src/store/` | jsdom | Zustand stores (connection, catalog, query) |
 

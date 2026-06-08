@@ -499,7 +499,7 @@ function makeTableItem(
   datasetId: string,
   tableId: string,
   name: string,
-  type: 'TABLE' | 'VIEW',
+  type: 'TABLE' | 'VIEW' | 'LABEL' | 'RELATIONSHIP_TYPE',
   openTableTab: (
     connectionId: string,
     engine: ConnectionEngine,
@@ -515,7 +515,12 @@ function makeTableItem(
     id: `table:${connectionId}:${ref}`,
     kind: 'table',
     label: name,
-    sublabel: `${type === 'VIEW' ? 'view · ' : ''}${ref}`,
+    sublabel: `${
+      type === 'VIEW' ? 'view · ' :
+      type === 'LABEL' ? 'label · ' :
+      type === 'RELATIONSHIP_TYPE' ? 'rel · ' :
+      ''
+    }${ref}`,
     // buildSelectQuery isn't called here — we only use it if user picks the row.
     // Including the ref in searchText so "schema.table" queries also match.
     searchText: `${name} ${ref}`.toLowerCase(),

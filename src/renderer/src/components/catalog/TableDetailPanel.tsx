@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Copy, Check, Search, X } from 'lucide-react'
 import { CHANNELS } from '@shared/ipc'
-import type { TableField, QueryResult } from '@shared/types'
+import type { TableField, QueryResult, ConnectionEngine } from '@shared/types'
 import { useCatalogStore } from '../../store/catalogStore'
 import { useConnectionStore } from '../../store/connectionStore'
 import { buildSelectQuery } from '../../lib/buildSelectQuery'
+import { buildLabelQuery, buildRelationshipTypeQuery } from '../../lib/buildCypherQuery'
 
 interface TableDetailPanelProps {
   connectionId: string
@@ -31,15 +32,25 @@ export default function TableDetailPanel({
 
   const [copied, setCopied] = useState(false)
 
-  const { loadSchema } = useCatalogStore()
+  const { loadSchema, tablesByDataset } = useCatalogStore()
   const { connections } = useConnectionStore()
   const engine = connections.find((c) => c.id === connectionId)?.engine ?? 'bigquery'
 
   const previewTabId = useMemo(() => crypto.randomUUID(), [connectionId, projectId, datasetId, tableId])
 
   const tableRef = `${datasetId}.${tableId}`
-  // Use the shared builder (engine-specific quoting); strip " LIMIT 100" for the preview SQL
-  const previewRef = buildSelectQuery(engine, projectId, datasetId, tableId).replace(' LIMIT 100', ' LIMIT 50')
+  // For Neo4j we need to know whether this is a LABEL or a RELATIONSHIP_TYPE to
+  // pick the right Cypher builder — read it from the catalog cache.
+  const tableType = tablesByDataset[`${connectionId}:${datasetId}`]?.find((t) => t.id === tableId)?.type
+
+  // Engine-specific preview Cypher / SQL. We strip the builder's default LIMIT
+  // and use 50 instead — preview is meant to be a quick peek, not a page.
+  const previewRef = engine === 'neo4j'
+    ? (tableType === 'RELATIONSHIP_TYPE'
+        ? buildRelationshipTypeQuery(tableId)
+        : buildLabelQuery(tableId)
+      ).replace(' LIMIT 100', ' LIMIT 50')
+    : buildSelectQuery(engine, projectId, datasetId, tableId).replace(' LIMIT 100', ' LIMIT 50')
 
   useEffect(() => {
     setSchema(null)
@@ -123,7 +134,7 @@ export default function TableDetailPanel({
 
       <div className="flex-1 overflow-auto">
         {section === 'schema' && (
-          <SchemaSection schema={schema} loading={schemaLoading} error={schemaError} />
+          <SchemaSection schema={schema} loading={schemaLoading} error={schemaError} engine={engine} />
         )}
         {section === 'preview' && (
           <PreviewSection result={preview} loading={previewLoading} error={previewError} onRetry={loadPreview} />
@@ -133,7 +144,7 @@ export default function TableDetailPanel({
   )
 }
 
-function SchemaSection({ schema, loading, error }: { schema: TableField[] | null; loading: boolean; error: string | null }) {
+function SchemaSection({ schema, loading, error, engine }: { schema: TableField[] | null; loading: boolean; error: string | null; engine?: ConnectionEngine }) {
   const [filter, setFilter] = useState('')
 
   if (loading) return <div className="p-4 text-xs text-app-text-3 animate-pulse">Loading schema…</div>
@@ -177,6 +188,12 @@ function SchemaSection({ schema, loading, error }: { schema: TableField[] | null
           </span>
         )}
       </div>
+
+      {engine === 'neo4j' && (
+        <div className="px-3 py-1.5 text-[11px] text-app-text-3 bg-app-warn-subtle/30 border-b border-app-border shrink-0">
+          Inferred from up to 50 sampled records — Neo4j is schema-optional, so this list may be incomplete.
+        </div>
+      )}
 
       <table className="w-full text-xs border-collapse">
         <thead className="sticky top-0 bg-app-bg z-10">

@@ -55,6 +55,7 @@
   --c-cat-blue-subtle:  211 224 245;
   --c-cat-purple:       109  79 168;
   --c-cat-green:         46 139 106;
+  --c-cat-teal:          31 140 140;
 }
 
 .dark {
@@ -94,6 +95,7 @@
   --c-cat-blue-subtle:   29  47  68;
   --c-cat-purple:       182 155 255;
   --c-cat-green:         91 201 138;
+  --c-cat-teal:          94 211 211;
 }
 
 @layer base {

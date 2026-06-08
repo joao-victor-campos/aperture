@@ -4,6 +4,7 @@ import type {
   Connection,
   ConnectionEngine,
   Dataset,
+  Neo4jConnection,
   PostgresConnection,
   SnowflakeConnection,
   QueryResult,
@@ -50,6 +51,19 @@ import {
   dryRunQuery as dryRunSnowflake,
   invalidateClient as invalidateSnowflake
 } from './snowflake'
+
+import {
+  testConnection as testNeo4j,
+  listDatasets as listNeo4jDatasets,
+  listTables as listNeo4jTables,
+  getTableSchema as getNeo4jTableSchema,
+  searchTables as searchNeo4jTables,
+  runQuery as runNeo4jQuery,
+  getQueryPage as getNeo4jPage,
+  cancelRunningQuery as cancelNeo4j,
+  dryRunQuery as dryRunNeo4j,
+  invalidateClient as invalidateNeo4j
+} from './neo4j'
 
 export interface DbAdapter<TConnection extends Connection> {
   testConnection(connection: TConnection): Promise<{ ok: boolean; error?: string }>
@@ -112,10 +126,24 @@ const snowflakeAdapter: DbAdapter<SnowflakeConnection> = {
   invalidateClient: invalidateSnowflake
 }
 
+const neo4jAdapter: DbAdapter<Neo4jConnection> = {
+  testConnection: testNeo4j,
+  listDatasets: listNeo4jDatasets,
+  listTables: listNeo4jTables,
+  getTableSchema: getNeo4jTableSchema,
+  searchTables: searchNeo4jTables,
+  runQuery: runNeo4jQuery,
+  getQueryPage: getNeo4jPage,
+  cancelRunningQuery: cancelNeo4j,
+  dryRunQuery: dryRunNeo4j,
+  invalidateClient: invalidateNeo4j
+}
+
 const registry: Record<ConnectionEngine, DbAdapter<Connection>> = {
   bigquery: bigQueryAdapter as DbAdapter<Connection>,
   postgres: postgresAdapter as DbAdapter<Connection>,
-  snowflake: snowflakeAdapter as DbAdapter<Connection>
+  snowflake: snowflakeAdapter as DbAdapter<Connection>,
+  neo4j: neo4jAdapter as DbAdapter<Connection>
 }
 
 export function getAdapterForEngine(engine: ConnectionEngine): DbAdapter<Connection> {

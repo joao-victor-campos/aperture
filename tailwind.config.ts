@@ -54,6 +54,7 @@ const config: Config = {
         'app-cat-blue-subtle':  'rgb(var(--c-cat-blue-subtle)  / <alpha-value>)',
         'app-cat-purple':       'rgb(var(--c-cat-purple)       / <alpha-value>)',
         'app-cat-green':        'rgb(var(--c-cat-green)        / <alpha-value>)',
+        'app-cat-teal':         'rgb(var(--c-cat-teal)         / <alpha-value>)',
       },
       fontFamily: {
         sans: [

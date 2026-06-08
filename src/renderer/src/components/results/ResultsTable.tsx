@@ -3,6 +3,9 @@ import { ChevronLeft, ChevronRight, Loader2, Download, Pin, SlidersHorizontal, X
 import { CHANNELS } from '@shared/ipc'
 import type { QueryResult } from '@shared/types'
 import { filterSortRows } from '../../lib/filterSortRows'
+import type { Neo4jGraphValue } from '@shared/types'
+import { isGraphElement } from '../../lib/formatGraphElement'
+import GraphElementChip from './GraphElementChip'
 
 interface ResultsTableProps {
   result?: QueryResult
@@ -407,16 +410,23 @@ export default function ResultsTable({
                 key={`${page}-${i}`}
                 className={`hover:bg-app-elevated/40 transition-colors ${i % 2 === 0 ? '' : 'bg-app-surface/30'}`}
               >
-                {columns.map((col) => (
-                  <td
-                    key={col}
-                    className="px-3 py-1.5 text-app-text font-mono border-b border-app-border/40 overflow-hidden"
-                    style={{ width: colWidths[col] ?? DEFAULT_COL_WIDTH, maxWidth: colWidths[col] ?? DEFAULT_COL_WIDTH }}
-                    title={formatCell(row[col])}
-                  >
-                    <span className="block truncate">{formatCell(row[col])}</span>
-                  </td>
-                ))}
+                {columns.map((col) => {
+                  const cell = row[col]
+                  return (
+                    <td
+                      key={col}
+                      className="px-3 py-1.5 text-app-text font-mono border-b border-app-border/40 overflow-hidden"
+                      style={{ width: colWidths[col] ?? DEFAULT_COL_WIDTH, maxWidth: colWidths[col] ?? DEFAULT_COL_WIDTH }}
+                      title={isGraphElement(cell) ? undefined : formatCell(cell)}
+                    >
+                      {isGraphElement(cell) ? (
+                        <GraphElementChip value={cell as Neo4jGraphValue} />
+                      ) : (
+                        <span className="block truncate">{formatCell(cell)}</span>
+                      )}
+                    </td>
+                  )
+                })}
               </tr>
             ))}
           </tbody>
