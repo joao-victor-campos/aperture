@@ -5,11 +5,12 @@ import type {
   BigQueryConnection,
   Connection,
   ConnectionCreate,
+  Neo4jConnection,
   PostgresConnection,
   SnowflakeConnection,
 } from '@shared/types'
 
-type Engine = 'bigquery' | 'snowflake' | 'postgres'
+type Engine = 'bigquery' | 'snowflake' | 'postgres' | 'neo4j'
 
 interface ConnectionModalProps {
   onClose: () => void
@@ -21,6 +22,7 @@ const ENGINES: { id: Engine; label: string }[] = [
   { id: 'bigquery', label: 'BigQuery' },
   { id: 'snowflake', label: 'Snowflake' },
   { id: 'postgres', label: 'Postgres' },
+  { id: 'neo4j', label: 'Neo4j' },
 ]
 
 export default function ConnectionModal({ onClose, initialConnection }: ConnectionModalProps) {
@@ -59,6 +61,13 @@ export default function ConnectionModal({ onClose, initialConnection }: Connecti
   const [sfSchema, setSfSchema] = useState(sfInit?.schema ?? '')
   const [sfRole, setSfRole] = useState(sfInit?.role ?? '')
 
+  // ── Neo4j ───────────────────────────────────────────────────────────────────
+  const neoInit = initEngine === 'neo4j' ? (initialConnection as Neo4jConnection) : undefined
+  const [neoUri, setNeoUri] = useState(neoInit?.uri ?? '')
+  const [neoUsername, setNeoUsername] = useState(neoInit?.username ?? '')
+  const [neoPassword, setNeoPassword] = useState(neoInit?.password ?? '')
+  const [neoDatabase, setNeoDatabase] = useState(neoInit?.database ?? '')
+
   const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
@@ -77,6 +86,8 @@ export default function ConnectionModal({ onClose, initialConnection }: Connecti
             Number.isFinite(Number(port)) &&
             Number(port) > 0
         )
+      if (engine === 'neo4j')
+        return Boolean(neoUri.trim() && neoUsername.trim() && neoPassword.trim())
       // snowflake
       return Boolean(sfAccount.trim() && sfUsername.trim() && sfPassword.trim() && sfWarehouse.trim())
     })()
@@ -101,6 +112,16 @@ export default function ConnectionModal({ onClose, initialConnection }: Connecti
         database: pgDatabase.trim(),
         user: pgUser.trim(),
         password: pgPassword,
+      }
+    }
+    if (engine === 'neo4j') {
+      return {
+        engine: 'neo4j',
+        name: name.trim(),
+        uri: neoUri.trim(),
+        username: neoUsername.trim(),
+        password: neoPassword,
+        database: neoDatabase.trim() || undefined,
       }
     }
     return {
@@ -355,6 +376,47 @@ export default function ConnectionModal({ onClose, initialConnection }: Connecti
                   />
                 </Field>
               </div>
+            </>
+          )}
+
+          {/* Neo4j fields */}
+          {engine === 'neo4j' && (
+            <>
+              <Field label="Connection URI">
+                <input
+                  value={neoUri}
+                  onChange={(e) => setNeoUri(e.target.value)}
+                  placeholder="neo4j://localhost:7687"
+                  className={inputCls}
+                />
+              </Field>
+              <div className="flex gap-4">
+                <Field label="Username">
+                  <input
+                    value={neoUsername}
+                    onChange={(e) => setNeoUsername(e.target.value)}
+                    placeholder="neo4j"
+                    className={inputCls}
+                  />
+                </Field>
+                <Field label="Password">
+                  <input
+                    type="password"
+                    value={neoPassword}
+                    onChange={(e) => setNeoPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className={inputCls}
+                  />
+                </Field>
+              </div>
+              <Field label="Database (optional)">
+                <input
+                  value={neoDatabase}
+                  onChange={(e) => setNeoDatabase(e.target.value)}
+                  placeholder="neo4j"
+                  className={inputCls}
+                />
+              </Field>
             </>
           )}
 
