@@ -148,10 +148,17 @@ export async function listTables(connection: Neo4jConnection, datasetId: string)
   const driver = getDriver(connection)
   const session = driver.session({ database: datasetId })
   try {
-    const labelResult = await session.run('CALL db.labels()').catch(() => null)
-    const relResult = await session.run('CALL db.relationshipTypes()').catch(() => null)
+    const labelResult = await session.run('CALL db.labels()').catch((err) => {
+      console.warn(`[neo4j] db.labels() failed for database "${datasetId}":`, (err as Error).message)
+      return null
+    })
+    const relResult = await session.run('CALL db.relationshipTypes()').catch((err) => {
+      console.warn(`[neo4j] db.relationshipTypes() failed for database "${datasetId}":`, (err as Error).message)
+      return null
+    })
     const labels = labelResult ? labelResult.records.map((r) => r.get('label') as string) : []
     const relTypes = relResult ? relResult.records.map((r) => r.get('relationshipType') as string) : []
+    console.log(`[neo4j] catalog for "${datasetId}": ${labels.length} labels, ${relTypes.length} relationship types`)
 
     const labelTables: Table[] = []
     for (const label of labels) {
