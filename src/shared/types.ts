@@ -1,4 +1,4 @@
-export type ConnectionEngine = 'bigquery' | 'postgres' | 'snowflake'
+export type ConnectionEngine = 'bigquery' | 'postgres' | 'snowflake' | 'neo4j'
 
 interface ConnectionBase {
   id: string
@@ -39,12 +39,23 @@ export interface SnowflakeConnection extends ConnectionBase {
   role?: string
 }
 
-export type Connection = BigQueryConnection | PostgresConnection | SnowflakeConnection
+export interface Neo4jConnection extends ConnectionBase {
+  engine: 'neo4j'
+  /** Bolt URI, e.g. "neo4j://localhost:7687" or "neo4j+s://xxxx.databases.neo4j.io" */
+  uri: string
+  username: string
+  password: string
+  /** Optional default database (Neo4j 4.0+ multi-database); defaults to "neo4j" */
+  database?: string
+}
+
+export type Connection = BigQueryConnection | PostgresConnection | SnowflakeConnection | Neo4jConnection
 
 export type ConnectionCreate =
   | Omit<BigQueryConnection, 'id' | 'createdAt'>
   | Omit<PostgresConnection, 'id' | 'createdAt'>
   | Omit<SnowflakeConnection, 'id' | 'createdAt'>
+  | Omit<Neo4jConnection, 'id' | 'createdAt'>
 
 export interface Dataset {
   id: string
@@ -67,7 +78,7 @@ export interface TableSearchHit {
   datasetId: string
   tableId: string
   name: string
-  type: 'TABLE' | 'VIEW'
+  type: 'TABLE' | 'VIEW' | 'LABEL' | 'RELATIONSHIP_TYPE'
 }
 
 export interface Table {
@@ -75,7 +86,7 @@ export interface Table {
   datasetId: string
   projectId: string
   name: string
-  type: 'TABLE' | 'VIEW' | 'MATERIALIZED_VIEW' | 'EXTERNAL'
+  type: 'TABLE' | 'VIEW' | 'MATERIALIZED_VIEW' | 'EXTERNAL' | 'LABEL' | 'RELATIONSHIP_TYPE'
   description?: string
   rowCount?: number
   sizeBytes?: number
@@ -95,6 +106,35 @@ export interface QueryResult {
   /** True when more pages exist */
   hasMore?: boolean
 }
+
+/**
+ * Neo4j graph values, serialized for IPC transport. The Bolt driver returns
+ * class instances (Node/Relationship/Path) that can't cross the structured-clone
+ * boundary, so the adapter converts them to these plain, `__neo4jType`-tagged
+ * objects. `identity`/`start`/`end` hold Neo4j element IDs (stable strings).
+ */
+export interface Neo4jNode {
+  __neo4jType: 'Node'
+  identity: string
+  labels: string[]
+  properties: Record<string, unknown>
+}
+
+export interface Neo4jRelationship {
+  __neo4jType: 'Relationship'
+  identity: string
+  start: string
+  end: string
+  type: string
+  properties: Record<string, unknown>
+}
+
+export interface Neo4jPath {
+  __neo4jType: 'Path'
+  segments: { start: Neo4jNode; relationship: Neo4jRelationship; end: Neo4jNode }[]
+}
+
+export type Neo4jGraphValue = Neo4jNode | Neo4jRelationship | Neo4jPath
 
 /** State for one side of a split-pane view (right pane). */
 export interface QueryPane {
