@@ -225,5 +225,37 @@ describe('neo4j adapter — runQuery', () => {
   })
 })
 
+describe('neo4j adapter — pagination + cancel', () => {
+  it('getQueryPage slices the retained result by numeric offset', async () => {
+    const rows = Array.from({ length: 150 }, (_, i) => ({ n: i }))
+    mockSession.run.mockResolvedValueOnce(makeResult(['n'], rows))
+    await runQuery(conn, 'MATCH (n) RETURN n', 'tab-page', mockWC as never)
+
+    const page = await getQueryPage('tab-page', '100')
+    expect(page.rows).toHaveLength(50)
+    expect(page.rows[0].n).toBe(100)
+    expect(page.hasMore).toBe(false)
+    expect(page.totalRows).toBe(150)
+  })
+
+  it('getQueryPage throws when no retained result exists', async () => {
+    await expect(getQueryPage('missing-tab', '0')).rejects.toThrow()
+  })
+
+  it('cancelRunningQuery closes the active session and logs', async () => {
+    let resolveRun!: (v: unknown) => void
+    mockSession.run.mockReturnValueOnce(new Promise((res) => { resolveRun = res }))
+    const p = runQuery(conn, 'MATCH (n) RETURN n', 'tab-cancel', mockWC as never)
+    await Promise.resolve() // let runningJobs.set register
+
+    await cancelRunningQuery('tab-cancel')
+    expect(mockSession.close).toHaveBeenCalled()
+    expect(mockWC.send).toHaveBeenCalledWith(CHANNELS.QUERY_LOG, { tabId: 'tab-cancel', message: 'Cancelled by user.' })
+
+    resolveRun(makeResult(['n'], []))
+    await p.catch(() => {})
+  })
+})
+
 // Export test helpers for later tasks (re-used in the same file)
 export { makeResult, conn, mockSession, mockDriver, mockWC, FakeInteger, FakeNode, FakeRelationship, FakePath }

@@ -445,12 +445,40 @@ export async function runQuery(
   return Promise.race([queryPromise, timeoutPromise])
 }
 
-export async function getQueryPage(_tabId: string, _pageToken: string): Promise<QueryResult> {
-  throw new Error('Not implemented (Task 10)')
+/**
+ * Return the next page from the retained result for this tab.
+ * @param pageToken numeric string offset (e.g. "100", "200")
+ */
+export async function getQueryPage(tabId: string, pageToken: string): Promise<QueryResult> {
+  const cached = completedResults.get(tabId)
+  if (!cached) throw new Error('No completed result found for this tab. Re-run the query.')
+
+  const start = parseInt(pageToken, 10)
+  const pageRows = cached.rows.slice(start, start + DEFAULT_PAGE_SIZE)
+  const nextOffset = start + DEFAULT_PAGE_SIZE
+  const hasMore = nextOffset < cached.totalRows
+
+  return {
+    columns: cached.columns,
+    rows: pageRows,
+    rowCount: pageRows.length,
+    executionTimeMs: 0,
+    totalRows: cached.totalRows,
+    pageToken: hasMore ? String(nextOffset) : null,
+    hasMore,
+  }
 }
 
-export async function cancelRunningQuery(_tabId: string): Promise<void> {
-  throw new Error('Not implemented (Task 10)')
+/** Cancel the running query for the given tab by closing its session. No-op if none active. */
+export async function cancelRunningQuery(tabId: string): Promise<void> {
+  const running = runningJobs.get(tabId)
+  if (!running) return
+  const { session, webContents } = running
+  if (!webContents.isDestroyed()) {
+    webContents.send(CHANNELS.QUERY_LOG, { tabId, message: 'Cancelled by user.' })
+  }
+  await session.close().catch(() => {})
+  runningJobs.delete(tabId)
 }
 
 export async function dryRunQuery(
