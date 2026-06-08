@@ -257,5 +257,24 @@ describe('neo4j adapter — pagination + cancel', () => {
   })
 })
 
+describe('neo4j adapter — dryRunQuery', () => {
+  it('returns the EXPLAIN plan tree as JSON', async () => {
+    mockSession.run.mockResolvedValueOnce(
+      makeResult([], [], { operatorType: 'ProduceResults', identifiers: ['n'], children: [] }),
+    )
+    const out = await dryRunQuery(conn, 'MATCH (n) RETURN n')
+    expect(out.bytesProcessed).toBe(0)
+    expect(out.planFormat).toBe('json')
+    expect(out.plan).toContain('ProduceResults')
+    expect(mockSession.run).toHaveBeenCalledWith('EXPLAIN MATCH (n) RETURN n')
+  })
+
+  it('returns no plan when the summary has none', async () => {
+    mockSession.run.mockResolvedValueOnce(makeResult([], [], false))
+    const out = await dryRunQuery(conn, 'MATCH (n) RETURN n')
+    expect(out).toEqual({ bytesProcessed: 0, plan: undefined, planFormat: undefined })
+  })
+})
+
 // Export test helpers for later tasks (re-used in the same file)
 export { makeResult, conn, mockSession, mockDriver, mockWC, FakeInteger, FakeNode, FakeRelationship, FakePath }

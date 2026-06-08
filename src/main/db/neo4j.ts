@@ -481,11 +481,28 @@ export async function cancelRunningQuery(tabId: string): Promise<void> {
   runningJobs.delete(tabId)
 }
 
+/**
+ * Validate a query without executing it via EXPLAIN. Neo4j has no byte-cost
+ * dry-run, so bytesProcessed is always 0 (same convention Postgres/Snowflake use).
+ * The structured plan tree is returned as pretty-printed JSON; any Integer values
+ * inside it are stringified so JSON.stringify never emits {low, high} pairs.
+ */
 export async function dryRunQuery(
-  _connection: Neo4jConnection,
-  _cypher: string,
+  connection: Neo4jConnection,
+  cypher: string,
 ): Promise<{ bytesProcessed: number; plan?: string; planFormat?: 'text' | 'json' }> {
-  throw new Error('Not implemented (Task 11)')
+  const driver = getDriver(connection)
+  const session = driver.session({ database: databaseName(connection) })
+  try {
+    const result = await session.run(`EXPLAIN ${cypher}`)
+    const plan = result.summary.plan
+    const planText = plan
+      ? JSON.stringify(plan, (_k, v) => (neo4j.isInt(v) ? (v as Integer).toString() : v), 2)
+      : undefined
+    return { bytesProcessed: 0, plan: planText, planFormat: planText ? 'json' : undefined }
+  } finally {
+    await session.close().catch(() => {})
+  }
 }
 
 // Re-export internals so subsequent tasks can extend the file in-place.
