@@ -148,6 +148,44 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-06-08] Feature: Neo4j support — Phase 1 (Foundation: "Cypher-as-SQL")
+
+**Type:** Change
+**Context:** The app supported BigQuery, Postgres, and Snowflake — all SQL/relational. A user requested Neo4j (graph database, Cypher query language). Phase 1 of the approved two-phase design spec (`docs/superpowers/specs/2026-06-07-neo4j-support-design.md`) makes Neo4j a fully usable fourth engine; Phase 2 (graph visualization canvas) is deferred to its own plan.
+**Problem / Change:**
+- No `Neo4jConnection` type, no Bolt adapter, no Cypher editor support, no graph-native catalog shape, and no way to render Node/Relationship/Path result values.
+
+**Solution / Outcome:**
+- **`src/main/db/neo4j.ts`** (new): full `DbAdapter<Neo4jConnection>` over `neo4j-driver` (Bolt). `testConnection` (`verifyConnectivity`), `listDatasets` (`SHOW DATABASES`, de-duped, system hidden, fallback for single-db servers), `listTables` (`CALL db.labels()` + `db.relationshipTypes()` tagged `LABEL`/`RELATIONSHIP_TYPE` with per-item counts), `getTableSchema` (sample-inferred, first-observed-type-wins via `inferPropertyType`), `searchTables`, `runQuery` (Snowflake-style heartbeat / 180s timeout / cancel via session.close; full result retained for in-memory pagination since Cypher has no native page-token), `getQueryPage` (offset slice), `cancelRunningQuery` (`session.close()`), `dryRunQuery` (`EXPLAIN` plan tree → JSON, Integer values stringified), `invalidateClient` (`driver.close()`). Driver class instances (Node / Relationship / Path / Integer / temporal / spatial) are serialized to plain `__neo4jType`-tagged objects at the IPC boundary via `serializeValue`, with a `value.constructor !== Object` duck-typed catch-all so temporal/spatial types stringify generically.
+- **No new IPC channels** — Neo4j reuses `CONNECTIONS_*`/`CATALOG_*`/`QUERY_*` verbatim once registered in `adapterRegistry.ts`.
+- **Shared types**: `Neo4jConnection`, `Neo4jNode`/`Neo4jRelationship`/`Neo4jPath`/`Neo4jGraphValue` (all tagged with `__neo4jType` for the structured-clone boundary), `'neo4j'` engine, `LABEL`/`RELATIONSHIP_TYPE` table kinds.
+- **Renderer**: fourth `ConnectionModal` tab (inline fields — URI / Username / Password / Database — not a separate Form component); new `cat-teal` token + `TitleBar` accents (`connectionLabel`/`engineColor`/`engineAccent`); `CatalogTree` two-section grouping (Labels / Relationship Types) with `Circle`/`ArrowLeftRight` teal icons and Cypher "Query …" actions (`buildCypherQuery.ts`); `TableDetailPanel` sample-inferred caveat banner on the Schema tab when engine === 'neo4j'; Cypher CodeMirror `StreamLanguage` + schema-aware autocomplete (`cypherLanguage.ts`) wired into `QueryEditor` (engine-branched `languageExtension` memo) and `Editor.tsx` (new `cypherSchema` useMemo mirroring `sqlSchema`); compact graph-element chips (`formatGraphElement.ts` + `GraphElementChip.tsx`) in `ResultsTable`'s cell render with color-by-kind (teal nodes / purple relationships / blue paths); `detectMissingLimit` extended with Cypher read-statement starters (`MATCH`, `OPTIONAL MATCH`, `CALL`, `UNWIND`, `RETURN`).
+- **CommandPalette**: `makeTableItem`'s `type` parameter widened to accept `LABEL` / `RELATIONSHIP_TYPE` so Neo4j ⌘K hits compile; sublabel gains `label · ` / `rel · ` prefixes.
+- **Tests** (39 new): `neo4j.test.ts` (17 tests covering connection lifecycle, listDatasets de-dupe + fallback, listTables labels + relationship types + counts, getTableSchema node + relationship sampling, searchTables substring match, runQuery scalar+Node serialization + empty + error, getQueryPage + cancelRunningQuery, dryRunQuery), `buildCypherQuery.test.ts` (3 tests), `cypherLanguage.test.ts` (4 tests covering tokenizer tags + completion options), `formatGraphElement.test.ts` (5 tests covering discriminator + Node/Rel/Path format), extended `adapterRegistry.test.ts` (+2 tests for `neo4j` engine lookup + connection dispatch) + `detectMissingLimit.test.ts` (+4 Cypher cases). 318/318 tests pass, coverage on `neo4j.ts` is 88.26% statements / 71.17% branches (above the 70% gate).
+
+**Files affected:**
+- `package.json` — added `neo4j-driver`, promoted `@codemirror/autocomplete` + `@codemirror/language` to direct deps
+- `src/shared/types.ts` — `Neo4jConnection`, graph value types, union/table-kind extensions
+- `src/main/db/neo4j.ts` — created
+- `src/main/db/adapterRegistry.ts` — register neo4j adapter
+- `tailwind.config.ts`, `src/renderer/src/index.css` — `cat-teal` token (`:root` + `.dark`)
+- `src/renderer/src/components/connections/ConnectionModal.tsx` — Neo4j tab + fields
+- `src/renderer/src/components/layout/TitleBar.tsx` — teal accent
+- `src/renderer/src/components/catalog/CatalogTree.tsx` — Labels / Relationship Types sections + teal icons
+- `src/renderer/src/components/catalog/TableDetailPanel.tsx` — sample-inferred banner
+- `src/renderer/src/components/command/CommandPalette.tsx` — widened type param for graph kinds
+- `src/renderer/src/lib/buildCypherQuery.ts`, `cypherLanguage.ts`, `formatGraphElement.ts` — created
+- `src/renderer/src/components/editor/QueryEditor.tsx`, `src/renderer/src/pages/Editor.tsx` — Cypher language + autocomplete + cypherSchema memo
+- `src/renderer/src/components/results/GraphElementChip.tsx` — created
+- `src/renderer/src/components/results/ResultsTable.tsx` — graph-element cell branch
+- `src/renderer/src/lib/detectMissingLimit.ts` — Cypher read starters
+- `src/__tests__/main/db/neo4j.test.ts` — created (17 tests)
+- `src/__tests__/renderer/lib/{buildCypherQuery,cypherLanguage,formatGraphElement}.test.ts` — created (12 tests)
+- `src/__tests__/main/db/adapterRegistry.test.ts` + `src/__tests__/renderer/lib/detectMissingLimit.test.ts` — extended (6 new tests)
+- `README.md`, `CHANGELOG.md` — Neo4j subsection + Unreleased entry
+
+---
+
 ### [2026-06-07] Feature: Theme import (Base16)
 
 **Type:** Change
