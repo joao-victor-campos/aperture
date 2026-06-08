@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronRight, ChevronDown, Table2, Layers, RefreshCw, MoreHorizontal, Copy, Check, Search, X, Play } from 'lucide-react'
+import { ChevronRight, ChevronDown, Table2, Layers, RefreshCw, MoreHorizontal, Copy, Check, Search, X, Play, Circle, ArrowLeftRight } from 'lucide-react'
 import { useCatalogStore } from '../../store/catalogStore'
 import { useConnectionStore } from '../../store/connectionStore'
 import { useQueryStore } from '../../store/queryStore'
 import type { Table } from '@shared/types'
 import { buildSelectQuery } from '../../lib/buildSelectQuery'
+import { buildLabelQuery, buildRelationshipTypeQuery } from '../../lib/buildCypherQuery'
 
 interface CatalogTreeProps {
   onAddConnection: () => void
@@ -139,42 +140,62 @@ export default function CatalogTree({ onAddConnection }: CatalogTreeProps) {
               <span className="truncate">{dataset.name}</span>
             </button>
 
-            {isExpanded && (
-              <div className="ml-3 border-l border-app-border">
-                {isTableLoading ? (
-                  <div className="px-3 py-1.5 text-xs text-app-text-3 animate-pulse">Loading tables…</div>
-                ) : tables.length === 0 && !isTableLoading && allTables.length === 0 ? (
-                  <div className="px-3 py-1.5 text-xs text-app-text-3">No tables.</div>
-                ) : (
-                  tables.map((table) => (
-                    <TableRow
-                      key={table.id}
-                      table={table}
-                      datasetId={dataset.id}
-                      connectionId={activeConnectionId}
-                      isActive={
-                        activeTableRef?.tableId === table.id &&
-                        activeTableRef?.datasetId === dataset.id
-                      }
-                      onOpen={() =>
-                        openTableTab(
-                          activeConnectionId,
-                          activeEngine,
-                          projectContextId,
-                          dataset.id,
-                          table.id,
-                          table.name
-                        )
-                      }
-                      onQueryTable={() => {
-                        const sql = buildSelectQuery(activeEngine, projectContextId, dataset.id, table.id)
-                        openTab({ sql, connectionId: activeConnectionId, title: table.name })
-                      }}
-                    />
-                  ))
-                )}
-              </div>
-            )}
+            {isExpanded && (() => {
+              const renderRow = (table: Table) => (
+                <TableRow
+                  key={table.id}
+                  table={table}
+                  datasetId={dataset.id}
+                  connectionId={activeConnectionId}
+                  isActive={
+                    activeTableRef?.tableId === table.id &&
+                    activeTableRef?.datasetId === dataset.id
+                  }
+                  onOpen={() =>
+                    openTableTab(
+                      activeConnectionId,
+                      activeEngine,
+                      projectContextId,
+                      dataset.id,
+                      table.id,
+                      table.name,
+                    )
+                  }
+                  onQueryTable={() => {
+                    const sql =
+                      activeEngine === 'neo4j'
+                        ? table.type === 'RELATIONSHIP_TYPE'
+                          ? buildRelationshipTypeQuery(table.id)
+                          : buildLabelQuery(table.id)
+                        : buildSelectQuery(activeEngine, projectContextId, dataset.id, table.id)
+                    openTab({ sql, connectionId: activeConnectionId, title: table.name })
+                  }}
+                />
+              )
+
+              return (
+                <div className="ml-3 border-l border-app-border">
+                  {isTableLoading ? (
+                    <div className="px-3 py-1.5 text-xs text-app-text-3 animate-pulse">Loading tables…</div>
+                  ) : tables.length === 0 && allTables.length === 0 ? (
+                    <div className="px-3 py-1.5 text-xs text-app-text-3">No tables.</div>
+                  ) : activeEngine === 'neo4j' ? (
+                    <>
+                      {tables.some((t) => t.type === 'LABEL') && (
+                        <div className="px-3 pt-1.5 pb-0.5"><span className="app-section-label">Labels</span></div>
+                      )}
+                      {tables.filter((t) => t.type === 'LABEL').map(renderRow)}
+                      {tables.some((t) => t.type === 'RELATIONSHIP_TYPE') && (
+                        <div className="px-3 pt-2 pb-0.5"><span className="app-section-label">Relationship Types</span></div>
+                      )}
+                      {tables.filter((t) => t.type === 'RELATIONSHIP_TYPE').map(renderRow)}
+                    </>
+                  ) : (
+                    tables.map(renderRow)
+                  )}
+                </div>
+              )
+            })()}
           </div>
         )
       })}
@@ -197,7 +218,11 @@ function TableRow({ table, datasetId, isActive, onOpen, onQueryTable }: TableRow
   const [menuOpen, setMenuOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
-  const ref = `${datasetId}.${table.id}`
+  // Neo4j label / relationship type → teal; views → purple; tables → green
+  const isLabel = table.type === 'LABEL'
+  const isRelType = table.type === 'RELATIONSHIP_TYPE'
+  // For graph kinds the bare label/type name is the useful reference; else dataset.table
+  const ref = isLabel || isRelType ? table.id : `${datasetId}.${table.id}`
 
   useEffect(() => {
     if (!menuOpen) return
@@ -215,9 +240,10 @@ function TableRow({ table, datasetId, isActive, onOpen, onQueryTable }: TableRow
     setTimeout(() => { setCopied(false); setMenuOpen(false) }, 1000)
   }
 
-  // View / materialized-view → cat-purple icon; tables → cat-green
   const isView = table.type === 'VIEW' || table.type === 'MATERIALIZED_VIEW'
-  const iconColor = isView ? 'text-app-cat-purple' : 'text-app-cat-green'
+  const iconColor =
+    isLabel || isRelType ? 'text-app-cat-teal' : isView ? 'text-app-cat-purple' : 'text-app-cat-green'
+  const Icon = isRelType ? ArrowLeftRight : isLabel ? Circle : Table2
 
   return (
     <div
@@ -233,7 +259,7 @@ function TableRow({ table, datasetId, isActive, onOpen, onQueryTable }: TableRow
             : 'text-app-text-2 hover:bg-app-elevated/60 hover:text-app-text'
         }`}
       >
-        <Table2 size={11} className={`${iconColor} shrink-0`} />
+        <Icon size={11} className={`${iconColor} shrink-0`} />
         <span className="truncate">{table.name}</span>
       </button>
 
