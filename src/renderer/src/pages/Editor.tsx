@@ -76,6 +76,26 @@ export default function Editor() {
     return schema
   }, [activeConnectionId, datasetsByConnection, tablesByDataset, schemaCache])
 
+  // Build Cypher autocomplete schema (labels / relationship types / property keys)
+  // from the active Neo4j connection's loaded catalog data.
+  const cypherSchema = useMemo(() => {
+    if (!activeConnectionId || activeEngine !== 'neo4j') return undefined
+    const labels: string[] = []
+    const relationshipTypes: string[] = []
+    const propertyKeys = new Set<string>()
+    const datasets = datasetsByConnection[activeConnectionId] ?? []
+    for (const ds of datasets) {
+      const tables = tablesByDataset[`${activeConnectionId}:${ds.id}`] ?? []
+      for (const t of tables) {
+        if (t.type === 'RELATIONSHIP_TYPE') relationshipTypes.push(t.name)
+        else labels.push(t.name)
+        const fields = schemaCache[`${activeConnectionId}:${ds.id}:${t.id}`]
+        if (fields) for (const f of fields) propertyKeys.add(f.name)
+      }
+    }
+    return { labels, relationshipTypes, propertyKeys: Array.from(propertyKeys) }
+  }, [activeConnectionId, activeEngine, datasetsByConnection, tablesByDataset, schemaCache])
+
   const activeTab = tabs.find((t) => t.id === activeTabId)
 
   // Handle save: silent update if already saved, otherwise open modal
@@ -279,6 +299,7 @@ export default function Editor() {
                     isExplaining={activeTab.isExplaining}
                     savedQueryId={activeTab.savedQueryId}
                     sqlSchema={sqlSchema}
+                    cypherSchema={cypherSchema}
                     engine={activeEngine}
                   />
                   {limitWarningTabId === activeTab.id && (
@@ -330,6 +351,7 @@ export default function Editor() {
                     onCancel={() => cancelRightPane(activeTab.id)}
                     isRunning={activeTab.rightPane.isRunning}
                     sqlSchema={sqlSchema}
+                    cypherSchema={cypherSchema}
                     engine={activeEngine}
                   />
                 </div>
@@ -365,6 +387,7 @@ export default function Editor() {
                   isExplaining={activeTab.isExplaining}
                   savedQueryId={activeTab.savedQueryId}
                   sqlSchema={sqlSchema}
+                  cypherSchema={cypherSchema}
                   engine={activeEngine}
                 />
                 {limitWarningTabId === activeTab.id && (

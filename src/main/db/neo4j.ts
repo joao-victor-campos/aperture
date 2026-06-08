@@ -353,9 +353,12 @@ function serializeValue(value: unknown): unknown {
   return value
 }
 
-function serializeRecord(record: { keys: ReadonlyArray<string>; get: (k: string) => unknown }): Record<string, unknown> {
+function serializeRecord(
+  record: { keys: ReadonlyArray<PropertyKey>; get: (k: PropertyKey) => unknown },
+  columns: string[],
+): Record<string, unknown> {
   const out: Record<string, unknown> = {}
-  for (const key of record.keys) out[key] = serializeValue(record.get(key))
+  for (const key of columns) out[key] = serializeValue(record.get(key))
   return out
 }
 
@@ -402,8 +405,12 @@ export async function runQuery(
   const queryPromise = session
     .run(cypher)
     .then(async (result) => {
-      const columns = result.keys as string[]
-      const allRows = result.records.map(serializeRecord)
+      // Result.keys exists in neo4j-driver but is typed loosely; derive from first record otherwise.
+      const rawKeys = (result as { keys?: ReadonlyArray<PropertyKey> }).keys
+        ?? result.records[0]?.keys
+        ?? []
+      const columns = (rawKeys as ReadonlyArray<PropertyKey>).map((k) => String(k))
+      const allRows = result.records.map((r) => serializeRecord(r, columns))
       await session.close().catch(() => {})
       cleanup()
 

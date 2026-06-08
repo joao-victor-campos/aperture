@@ -7,6 +7,7 @@ import { EditorView, keymap } from '@codemirror/view'
 import { Prec } from '@codemirror/state'
 import { Bookmark, BookmarkCheck, Columns2, ListTree, WandSparkles } from 'lucide-react'
 import type { ConnectionEngine } from '@shared/types'
+import { cypher, type CypherSchema } from '../../lib/cypherLanguage'
 
 interface QueryEditorProps {
   value: string
@@ -21,6 +22,7 @@ interface QueryEditorProps {
   isExplaining?: boolean
   savedQueryId?: string
   sqlSchema?: Record<string, string[]>
+  cypherSchema?: CypherSchema
   engine?: ConnectionEngine
 }
 
@@ -29,6 +31,7 @@ const FORMAT_DIALECT_MAP: Record<ConnectionEngine, string> = {
   bigquery: 'bigquery',
   postgres: 'postgresql',
   snowflake: 'snowflake',
+  neo4j: 'sql', // unused — Cypher formatting is skipped (sql-formatter has no Cypher dialect)
 }
 
 // CodeMirror SQL dialect objects (for autocomplete keyword set)
@@ -36,6 +39,7 @@ const CM_DIALECT_MAP = {
   bigquery: StandardSQL,
   postgres: PostgreSQL,
   snowflake: StandardSQL,
+  neo4j: StandardSQL, // unused — Cypher uses its own StreamLanguage (see languageExtension)
 } satisfies Record<ConnectionEngine, typeof StandardSQL>
 
 const customTheme = EditorView.theme({
@@ -51,19 +55,20 @@ const customTheme = EditorView.theme({
 })
 
 export default function QueryEditor({
-  value, onChange, onRun, onCancel, onExplain, onSave, onSplit, isSplit, isRunning, isExplaining, savedQueryId, sqlSchema, engine,
+  value, onChange, onRun, onCancel, onExplain, onSave, onSplit, isSplit, isRunning, isExplaining, savedQueryId, sqlSchema, cypherSchema, engine,
 }: QueryEditorProps) {
-  const sqlExtension = useMemo(
-    () => sql({
+  const languageExtension = useMemo(() => {
+    if (engine === 'neo4j') return cypher(cypherSchema)
+    return sql({
       dialect: engine ? CM_DIALECT_MAP[engine] : StandardSQL,
       schema: sqlSchema ?? {},
       upperCaseKeywords: true,
-    }),
-    [sqlSchema, engine]
-  )
+    })
+  }, [sqlSchema, cypherSchema, engine])
 
   const handleFormat = useCallback(() => {
     if (!value.trim()) return
+    if (engine === 'neo4j') return // Cypher has no sql-formatter dialect
     try {
       const dialect = engine ? FORMAT_DIALECT_MAP[engine] : 'sql'
       const formatted = formatSQL(value, { language: dialect as never, tabWidth: 2, keywordCase: 'upper' })
@@ -187,7 +192,7 @@ export default function QueryEditor({
           value={value}
           height="100%"
           theme={oneDark}
-          extensions={[sqlExtension, keymapExtension, customTheme]}
+          extensions={[languageExtension, keymapExtension, customTheme]}
           onChange={onChange}
           style={{ height: '100%' }}
           basicSetup={{
