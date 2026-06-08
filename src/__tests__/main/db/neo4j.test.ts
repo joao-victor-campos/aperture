@@ -180,5 +180,19 @@ describe('neo4j adapter — getTableSchema', () => {
   })
 })
 
+describe('neo4j adapter — searchTables', () => {
+  it('matches labels and relationship types by substring across databases', async () => {
+    mockSession.run
+      .mockResolvedValueOnce(makeResult(['name'], [{ name: 'neo4j' }]))                       // SHOW DATABASES
+      .mockResolvedValueOnce(makeResult(['label'], [{ label: 'Person' }, { label: 'Company' }])) // db.labels()
+      .mockResolvedValueOnce(makeResult(['relationshipType'], [{ relationshipType: 'WORKS_AT' }])) // db.relationshipTypes()
+
+    const hits = await searchTables(conn, 'per', 10)
+    expect(hits).toEqual([
+      { datasetId: 'neo4j', tableId: 'Person', name: 'Person', type: 'LABEL' },
+    ])
+  })
+})
+
 // Export test helpers for later tasks (re-used in the same file)
 export { makeResult, conn, mockSession, mockDriver, mockWC, FakeInteger, FakeNode, FakeRelationship, FakePath }

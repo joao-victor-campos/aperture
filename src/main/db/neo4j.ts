@@ -235,12 +235,45 @@ export async function getTableSchema(
   }
 }
 
+/**
+ * Catalog-wide substring search powering ⌘K. Walks every database's labels and
+ * relationship types, matching their names case-insensitively against the query.
+ */
 export async function searchTables(
-  _connection: Neo4jConnection,
-  _query: string,
-  _limit: number,
+  connection: Neo4jConnection,
+  query: string,
+  limit: number,
 ): Promise<TableSearchHit[]> {
-  throw new Error('Not implemented (Task 8)')
+  const driver = getDriver(connection)
+  const datasets = await listDatasets(connection)
+  const lower = query.toLowerCase()
+  const hits: TableSearchHit[] = []
+
+  for (const ds of datasets) {
+    if (hits.length >= limit) break
+    const session = driver.session({ database: ds.id })
+    try {
+      const [labelResult, relResult] = await Promise.all([
+        session.run('CALL db.labels()').catch(() => null),
+        session.run('CALL db.relationshipTypes()').catch(() => null),
+      ])
+      const labels = labelResult ? labelResult.records.map((r) => r.get('label') as string) : []
+      const relTypes = relResult ? relResult.records.map((r) => r.get('relationshipType') as string) : []
+      for (const label of labels) {
+        if (label.toLowerCase().includes(lower)) {
+          hits.push({ datasetId: ds.id, tableId: label, name: label, type: 'LABEL' })
+        }
+      }
+      for (const relType of relTypes) {
+        if (relType.toLowerCase().includes(lower)) {
+          hits.push({ datasetId: ds.id, tableId: relType, name: relType, type: 'RELATIONSHIP_TYPE' })
+        }
+      }
+    } finally {
+      await session.close().catch(() => {})
+    }
+  }
+  return hits.slice(0, limit)
 }
 
 export async function runQuery(
