@@ -84,4 +84,20 @@ describe('detectMissingLimit', () => {
     `
     expect(detectMissingLimit(sql)).toBe(true)
   })
+
+  it('flags a MATCH … RETURN with no LIMIT', () => {
+    expect(detectMissingLimit('MATCH (n:Person) RETURN n')).toBe(true)
+  })
+
+  it('does not flag a MATCH … RETURN that has a LIMIT', () => {
+    expect(detectMissingLimit('MATCH (n:Person) RETURN n LIMIT 100')).toBe(false)
+  })
+
+  it('flags an OPTIONAL MATCH read query', () => {
+    expect(detectMissingLimit('OPTIONAL MATCH (n) RETURN n')).toBe(true)
+  })
+
+  it('does not flag a Cypher write statement (CREATE)', () => {
+    expect(detectMissingLimit('CREATE (n:Person {name: "Alice"}) RETURN n')).toBe(false)
+  })
 })

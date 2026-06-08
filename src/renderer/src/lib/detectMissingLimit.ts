@@ -11,7 +11,10 @@ export function detectMissingLimit(sql: string): boolean {
   const trimmed = cleaned.trim()
   if (!trimmed) return false
   const upper = trimmed.toUpperCase()
-  if (!upper.startsWith('SELECT') && !upper.startsWith('WITH')) return false
+  // SQL read statements + Cypher read statements (identical LIMIT placement semantics).
+  // Cypher write statements (CREATE/MERGE/DELETE/SET/REMOVE) are intentionally excluded.
+  const READ_STARTERS = ['SELECT', 'WITH', 'MATCH', 'OPTIONAL MATCH', 'CALL', 'UNWIND', 'RETURN']
+  if (!READ_STARTERS.some((kw) => upper.startsWith(kw))) return false
 
   // 3. Tokenize the cleaned SQL and look for LIMIT at paren depth 0
   return !hasLimitAtDepthZero(cleaned)
