@@ -136,6 +136,37 @@ export interface Neo4jPath {
 
 export type Neo4jGraphValue = Neo4jNode | Neo4jRelationship | Neo4jPath
 
+/**
+ * Rendering-side graph types — what react-force-graph-2d expects.
+ * Distinct from the wire types (Neo4jNode/Relationship/Path) which are tagged
+ * for the IPC boundary. `buildGraphFromRecords` converts wire → rendering.
+ */
+export interface GraphNode {
+  /** Neo4j element ID — also the force-graph node id */
+  id: string
+  /** First label, used to seed color; '(unknown)' for orphan endpoints */
+  primaryLabel: string
+  /** All labels — shown in the inspector */
+  labels: string[]
+  properties: Record<string, unknown>
+}
+
+export interface GraphLink {
+  /** Neo4j relationship element ID */
+  id: string
+  /** Source node id — must match a GraphNode.id */
+  source: string
+  /** Target node id — must match a GraphNode.id */
+  target: string
+  type: string
+  properties: Record<string, unknown>
+}
+
+export interface GraphData {
+  nodes: GraphNode[]
+  links: GraphLink[]
+}
+
 /** State for one side of a split-pane view (right pane). */
 export interface QueryPane {
   sql: string
@@ -166,6 +197,8 @@ export interface QueryTab {
   /** Explain plan / dry-run result (shown in ExplainPanel) */
   explainResult?: { bytesProcessed: number; plan?: string; planFormat?: 'text' | 'json' }
   isExplaining?: boolean
+  /** When true, the graph view replaces the results table for this tab. */
+  viewAsGraph?: boolean
 }
 
 export interface SavedQuery {
