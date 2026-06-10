@@ -5,7 +5,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
-## [Unreleased]
+## [2.2.0] - 2026-06-10
 
 ### Added
 - **Neo4j support (Phase 1 — Foundation)** — Neo4j is now a first-class fourth engine. Connect over Bolt (`neo4j://` or `neo4j+s://`), browse databases → Labels / Relationship Types, write Cypher with syntax highlighting + schema-aware autocomplete (labels, relationship types, property keys), and view results with compact Cypher-style chips for Node/Relationship/Path values, e.g. `(:Person {name: "Alice", …})`. Reuses the existing auto-limit guard (extended with Cypher read-statement starters: MATCH / OPTIONAL MATCH / CALL / UNWIND / RETURN), explain-plan viewer (Neo4j EXPLAIN plan tree → JSON), export, history, ⌘K, split panes, pagination, and cancel infrastructure. New `cat-teal` per-engine accent.
