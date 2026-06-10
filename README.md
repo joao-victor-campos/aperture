@@ -178,6 +178,14 @@ sample** (Neo4j is schema-optional, so it is not authoritative). Node /
 Relationship / Path values render as compact Cypher-style chips in the
 results table.
 
+Graph-shaped results (queries that return `Node`, `Relationship`, or `Path`
+values) also offer an **interactive graph view**: a banner above the
+results table reads "This result contains graph data → View as graph."
+Clicking swaps the results area for a force-directed canvas with a
+persistent inspector for the selected node or relationship. Results with
+more than 500 nodes are too dense to lay out meaningfully — the banner
+instead suggests adding a `LIMIT`.
+
 ---
 
 ## Installation
