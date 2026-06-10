@@ -15,3 +15,13 @@ if (typeof window !== 'undefined') {
     off: vi.fn()
   }
 }
+
+// ── react-force-graph-2d stub ────────────────────────────────────────────────
+// The canvas library drives raw 2D-context APIs jsdom doesn't implement; any
+// test that transitively imports GraphView would choke without this. The stub
+// renders nothing — graph behavior is covered by the pure-utility tests
+// (buildGraphFromRecords / detectGraphShape / graphPalette).
+vi.mock('react-force-graph-2d', () => ({
+  __esModule: true,
+  default: vi.fn(() => null)
+}))
