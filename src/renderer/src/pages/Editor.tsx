@@ -3,6 +3,8 @@ import { Plus, X, Table2, Pin, Bookmark } from 'lucide-react'
 import QueryEditor from '../components/editor/QueryEditor'
 import ResultsTable from '../components/results/ResultsTable'
 import ExplainPanel from '../components/results/ExplainPanel'
+import GraphView from '../components/results/GraphView'
+import GraphShapedBanner from '../components/results/GraphShapedBanner'
 import LimitWarningBanner from '../components/editor/LimitWarningBanner'
 import TableDetailPanel from '../components/catalog/TableDetailPanel'
 import SaveQueryModal from '../components/editor/SaveQueryModal'
@@ -11,13 +13,15 @@ import { useConnectionStore } from '../store/connectionStore'
 import { useCatalogStore } from '../store/catalogStore'
 import { useSavedQueryStore } from '../store/savedQueryStore'
 import { detectMissingLimit } from '../lib/detectMissingLimit'
+import { detectGraphShape } from '../lib/detectGraphShape'
+import { buildGraphFromRecords } from '../lib/buildGraphFromRecords'
 
 export default function Editor() {
   const {
     tabs, activeTabId,
     openTab, openResultTab, closeTab, setActiveTab, updateTabSql,
     runQuery, cancelQuery, explainQuery, clearExplain, fetchPage, reorderTabs,
-    toggleSplit, updateRightPaneSql, runRightPane, cancelRightPane,
+    toggleGraphView, toggleSplit, updateRightPaneSql, runRightPane, cancelRightPane,
   } = useQueryStore()
   const dragTabId = useRef<string | null>(null)
   const { connections, activeConnectionId } = useConnectionStore()
@@ -97,6 +101,17 @@ export default function Editor() {
   }, [activeConnectionId, activeEngine, datasetsByConnection, tablesByDataset, schemaCache])
 
   const activeTab = tabs.find((t) => t.id === activeTabId)
+
+  // Detect graph-shaped results once per tab result change. Drives the
+  // "View as graph" banner and the table ↔ graph swap.
+  const graphShape = useMemo(() => {
+    const rows = activeTab?.result?.rows
+    if (!rows || rows.length === 0) return { isGraph: false, truncated: false, nodeCount: 0 }
+    if (!detectGraphShape(rows)) return { isGraph: false, truncated: false, nodeCount: 0 }
+    const built = buildGraphFromRecords(rows)
+    if (built.truncated) return { isGraph: true, truncated: true, nodeCount: built.nodeCount }
+    return { isGraph: true, truncated: false, nodeCount: built.nodes.length }
+  }, [activeTab?.result?.rows])
 
   // Handle save: silent update if already saved, otherwise open modal
   const handleSave = async () => {
@@ -183,6 +198,43 @@ export default function Editor() {
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
   }, [])
+
+  // The results region of a query tab: explain plan > graph view > banner + table.
+  // Shared between the single-pane layout and the split layout's left pane.
+  const renderResultsRegion = (tab: NonNullable<typeof activeTab>) => {
+    if (tab.explainResult || tab.isExplaining) {
+      return (
+        <ExplainPanel
+          result={tab.explainResult ?? { bytesProcessed: 0 }}
+          isLoading={tab.isExplaining}
+          onClose={() => clearExplain(tab.id)}
+        />
+      )
+    }
+    if (tab.viewAsGraph && tab.result && graphShape.isGraph && !graphShape.truncated) {
+      return <GraphView result={tab.result} onBack={() => toggleGraphView(tab.id)} />
+    }
+    return (
+      <>
+        {graphShape.isGraph && (
+          <GraphShapedBanner
+            truncated={graphShape.truncated}
+            nodeCount={graphShape.nodeCount}
+            onViewAsGraph={() => toggleGraphView(tab.id)}
+          />
+        )}
+        <ResultsTable
+          result={tab.result}
+          error={tab.error}
+          isRunning={tab.isRunning}
+          cancelled={tab.cancelled}
+          logs={tab.logs}
+          onFetchPage={() => fetchPage(tab.id)}
+          onPin={() => openResultTab(tab.id)}
+        />
+      </>
+    )
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -315,23 +367,9 @@ export default function Editor() {
                   className="h-1.5 bg-app-border hover:bg-app-accent/60 cursor-row-resize transition-colors shrink-0"
                 />
                 <div style={{ height: `${100 - splitPct}%` }} className="overflow-hidden min-h-0">
-                  {activeTab.explainResult || activeTab.isExplaining ? (
-                    <ExplainPanel
-                      result={activeTab.explainResult ?? { bytesProcessed: 0 }}
-                      isLoading={activeTab.isExplaining}
-                      onClose={() => clearExplain(activeTab.id)}
-                    />
-                  ) : (
-                    <ResultsTable
-                      result={activeTab.result}
-                      error={activeTab.error}
-                      isRunning={activeTab.isRunning}
-                      cancelled={activeTab.cancelled}
-                      logs={activeTab.logs}
-                      onFetchPage={() => fetchPage(activeTab.id)}
-                      onPin={() => openResultTab(activeTab.id)}
-                    />
-                  )}
+                  <div className="flex flex-col h-full overflow-hidden">
+                    {renderResultsRegion(activeTab)}
+                  </div>
                 </div>
               </div>
 
@@ -405,23 +443,9 @@ export default function Editor() {
               />
 
               <div style={{ height: `${100 - splitPct}%` }} className="overflow-hidden min-h-0">
-                {activeTab.explainResult || activeTab.isExplaining ? (
-                  <ExplainPanel
-                    result={activeTab.explainResult ?? { bytesProcessed: 0 }}
-                    isLoading={activeTab.isExplaining}
-                    onClose={() => clearExplain(activeTab.id)}
-                  />
-                ) : (
-                  <ResultsTable
-                    result={activeTab.result}
-                    error={activeTab.error}
-                    isRunning={activeTab.isRunning}
-                    cancelled={activeTab.cancelled}
-                    logs={activeTab.logs}
-                    onFetchPage={() => fetchPage(activeTab.id)}
-                    onPin={() => openResultTab(activeTab.id)}
-                  />
-                )}
+                <div className="flex flex-col h-full overflow-hidden">
+                  {renderResultsRegion(activeTab)}
+                </div>
               </div>
             </>
           )
