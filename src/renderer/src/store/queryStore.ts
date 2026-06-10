@@ -24,6 +24,8 @@ interface QueryState {
   clearExplain: (id: string) => void
   fetchPage: (id: string) => Promise<void>
   reorderTabs: (fromId: string, toId: string) => void
+  /** Flip between results-table and graph view for a tab (Neo4j graph-shaped results). */
+  toggleGraphView: (id: string) => void
   // Split-pane actions
   toggleSplit: (tabId: string) => void
   updateRightPaneSql: (tabId: string, sql: string) => void
@@ -199,6 +201,14 @@ export const useQueryStore = create<QueryState>((set, get) => ({
       tabs.splice(toIdx, 0, moved)
       return { tabs }
     })
+  },
+
+  toggleGraphView: (id) => {
+    set((s) => ({
+      tabs: s.tabs.map((t) =>
+        t.id === id ? { ...t, viewAsGraph: !t.viewAsGraph } : t,
+      ),
+    }))
   },
 
   // ── Split pane ─────────────────────────────────────────────────────────────

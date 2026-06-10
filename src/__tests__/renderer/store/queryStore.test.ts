@@ -588,4 +588,33 @@ describe('queryStore', () => {
       expect(tab.explainResult).toBeUndefined()
     })
   })
+
+  describe('toggleGraphView', () => {
+    it('flips viewAsGraph on the targeted tab only', () => {
+      // Arrange
+      const id = useQueryStore.getState().openTab({ sql: 'MATCH (n) RETURN n', connectionId: 'c' })
+      const otherId = useQueryStore.getState().openTab({ sql: 'SELECT 1', connectionId: 'c' })
+
+      // Act + Assert — on
+      useQueryStore.getState().toggleGraphView(id)
+      expect(useQueryStore.getState().tabs.find((t) => t.id === id)?.viewAsGraph).toBe(true)
+      expect(useQueryStore.getState().tabs.find((t) => t.id === otherId)?.viewAsGraph).toBeUndefined()
+
+      // Act + Assert — off
+      useQueryStore.getState().toggleGraphView(id)
+      expect(useQueryStore.getState().tabs.find((t) => t.id === id)?.viewAsGraph).toBe(false)
+    })
+
+    it('is a no-op for an unknown tab id', () => {
+      // Arrange
+      useQueryStore.getState().openTab({ sql: 'SELECT 1' })
+      const before = useQueryStore.getState().tabs
+
+      // Act
+      useQueryStore.getState().toggleGraphView('does-not-exist')
+
+      // Assert
+      expect(useQueryStore.getState().tabs).toEqual(before)
+    })
+  })
 })

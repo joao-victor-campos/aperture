@@ -148,6 +148,39 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-06-10] Feature: Neo4j support — Phase 2 (Graph visualization)
+
+**Type:** Change
+**Context:** Phase 1 made Neo4j a fully usable engine but graph-shaped results — Cypher's native shape — still rendered as truncated text chips in the results table. Phase 2 adds the interactive graph canvas the design spec (`docs/superpowers/specs/2026-06-07-neo4j-support-design.md`) called for, per the plan at `docs/superpowers/plans/2026-06-08-neo4j-phase2-graph-viz.md`.
+**Problem / Change:**
+- No way to actually see the topology of a graph-shaped result. The chips communicate "this is a Node" but not "this Node connects to those Nodes through those Relationships."
+
+**Solution / Outcome:**
+- **`buildGraphFromRecords.ts`** (new, pure) — walks every record's cells, extracts Node / Relationship / Path values, de-dupes by Neo4j element ID, walks Path segments, filters orphan links (relationships whose endpoints aren't in the result set), and caps at 500 nodes. Past the cap returns `{ truncated: true, nodeCount }` instead of a graph payload.
+- **`detectGraphShape.ts`** (new, pure) — short-circuiting check reusing Phase 1's `isGraphElement`; decides whether to surface the banner.
+- **`graphPalette.ts`** (new, pure) — stable label → `cat-*` token via a small string hash, cycling past 5 distinct labels; `(unknown)` sentinel maps to the muted text token.
+- **`GraphView.tsx`** (new) — two-column layout: flexible canvas + fixed-width 280px inspector (the spec's "never floating" requirement). Wraps `react-force-graph-2d` with a custom `nodeCanvasObject` paint callback drawing Aperture-token-colored circles, an accent selection ring, and node labels past 1.4× zoom. Three integration fixes beyond the plan draft: (1) canvas 2D contexts can't resolve CSS custom properties, so `resolveCanvasColor` resolves each `rgb(var(--c-*))` token against `:root` via `getComputedStyle` (cached per token) — DOM siblings keep raw tokens; (2) force-graph mutates `link.source`/`link.target` into node object references after layout, so `normalizeLink` converts back to string ids before the inspector renders; (3) a `ResizeObserver` feeds explicit width/height (force-graph defaults to window size and would bleed under the inspector), and node/link data is cloned before handoff since the library mutates node objects in place.
+- **`GraphInspector.tsx`** + **`GraphLegend.tsx`** + **`GraphShapedBanner.tsx`** (new) — persistent side inspector (empty state / node details / relationship details with property tables), top-left `bg-app-surface/90 backdrop-blur` legend derived from on-screen labels/types, and the auto-detection banner ("View as graph" CTA, or warn-toned "too many to visualize — try adding a LIMIT" past the cap).
+- **`queryStore.toggleGraphView`** + `viewAsGraph?: boolean` on `QueryTab` — persists the view choice per tab across tab switches.
+- **`Editor.tsx`** — `graphShape` useMemo (detect gate → build for truncation/count) + shared `renderResultsRegion` helper with precedence explain panel > graph view > banner + table, used by both the single-pane layout and the split layout's left pane (split right pane intentionally stays table-only in v1).
+- **`shared/types.ts`** — rendering-side `GraphNode` / `GraphLink` / `GraphData` types, distinct from the `__neo4jType`-tagged wire types.
+- Canvas library stubbed in `src/__tests__/setup.ts` (jsdom lacks the 2D-context APIs it drives); behavior covered through the pure-utility + store tests.
+- **Tests** (17 new): `buildGraphFromRecords` (7), `detectGraphShape` (4), `graphPalette` (4), `queryStore.toggleGraphView` (2). 336/336 tests pass; coverage gate holds.
+
+**Files affected:**
+- `package.json` — added `react-force-graph-2d`
+- `src/shared/types.ts` — `viewAsGraph` on QueryTab + `GraphNode`/`GraphLink`/`GraphData`
+- `src/renderer/src/store/queryStore.ts` — `toggleGraphView`
+- `src/renderer/src/lib/{buildGraphFromRecords,detectGraphShape,graphPalette}.ts` — created
+- `src/renderer/src/components/results/{GraphView,GraphInspector,GraphLegend,GraphShapedBanner}.tsx` — created
+- `src/renderer/src/pages/Editor.tsx` — graphShape memo + renderResultsRegion + view swap
+- `src/__tests__/setup.ts` — react-force-graph-2d stub
+- `src/__tests__/renderer/lib/{buildGraphFromRecords,detectGraphShape,graphPalette}.test.ts` — created (15 tests)
+- `src/__tests__/renderer/store/queryStore.test.ts` — extended (2 tests)
+- `README.md`, `CHANGELOG.md` — graph-view docs + Unreleased entry
+
+---
+
 ### [2026-06-08] Feature: Neo4j support — Phase 1 (Foundation: "Cypher-as-SQL")
 
 **Type:** Change
