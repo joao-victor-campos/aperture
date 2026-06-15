@@ -1,24 +1,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, X, Table2, Pin, Bookmark } from 'lucide-react'
 import QueryEditor from '../components/editor/QueryEditor'
+import EditorPane from '../components/editor/EditorPane'
 import ResultsTable from '../components/results/ResultsTable'
 import ResultsRegion from '../components/results/ResultsRegion'
-import LimitWarningBanner from '../components/editor/LimitWarningBanner'
 import TableDetailPanel from '../components/catalog/TableDetailPanel'
 import SaveQueryModal from '../components/editor/SaveQueryModal'
 import { useQueryStore } from '../store/queryStore'
 import { useConnectionStore } from '../store/connectionStore'
 import { useCatalogStore } from '../store/catalogStore'
 import { useSavedQueryStore } from '../store/savedQueryStore'
-import { detectMissingLimit } from '../lib/detectMissingLimit'
 
 export default function Editor() {
-  const {
-    tabs, activeTabId,
-    openTab, openResultTab, closeTab, setActiveTab, updateTabSql,
-    runQuery, cancelQuery, explainQuery, clearExplain, fetchPage, reorderTabs,
-    toggleGraphView, toggleSplit, updateRightPaneSql, runRightPane, cancelRightPane,
-  } = useQueryStore()
+  // Narrow selector subscriptions: Editor only needs the tab list + tab-bar /
+  // layout actions. Per-tab editing + results live in EditorPane / ResultsRegion,
+  // which subscribe to their own slices. Action refs are stable in zustand.
+  const tabs = useQueryStore((s) => s.tabs)
+  const activeTabId = useQueryStore((s) => s.activeTabId)
+  const openTab = useQueryStore((s) => s.openTab)
+  const closeTab = useQueryStore((s) => s.closeTab)
+  const setActiveTab = useQueryStore((s) => s.setActiveTab)
+  const reorderTabs = useQueryStore((s) => s.reorderTabs)
+  const toggleSplit = useQueryStore((s) => s.toggleSplit)
+  const updateRightPaneSql = useQueryStore((s) => s.updateRightPaneSql)
+  const runRightPane = useQueryStore((s) => s.runRightPane)
+  const cancelRightPane = useQueryStore((s) => s.cancelRightPane)
   const dragTabId = useRef<string | null>(null)
   const { connections, activeConnectionId } = useConnectionStore()
   const activeEngine = connections.find((c) => c.id === activeConnectionId)?.engine
@@ -28,7 +34,6 @@ export default function Editor() {
   const [splitHPct, setSplitHPct] = useState(50) // horizontal split between left/right pane
   const [savingTabId, setSavingTabId] = useState<string | null>(null)
   const [savedFlash, setSavedFlash] = useState(false)
-  const [limitWarningTabId, setLimitWarningTabId] = useState<string | null>(null)
   const isDragging = useRef(false)
   const isHDragging = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -98,55 +103,25 @@ export default function Editor() {
 
   const activeTab = tabs.find((t) => t.id === activeTabId)
 
-  // Handle save: silent update if already saved, otherwise open modal
-  const handleSave = async () => {
-    if (!activeTab || !activeTab.sql.trim()) return
-    if (activeTab.savedQueryId) {
-      // Find and update the existing saved query
+  // Handle save: silent update if already saved, otherwise open modal.
+  // Reads fresh state so the ref stays stable for the memoized EditorPane.
+  const handleSave = useCallback(async () => {
+    const { tabs: cur, activeTabId: id } = useQueryStore.getState()
+    const tab = cur.find((t) => t.id === id)
+    if (!tab || !tab.sql.trim()) return
+    if (tab.savedQueryId) {
       const { queries } = useSavedQueryStore.getState()
-      const existing = queries.find((q) => q.id === activeTab.savedQueryId)
+      const existing = queries.find((q) => q.id === tab.savedQueryId)
       if (existing) {
-        await updateQuery({ ...existing, sql: activeTab.sql })
+        await updateQuery({ ...existing, sql: tab.sql })
         setSavedFlash(true)
         if (savedFlashTimerRef.current) clearTimeout(savedFlashTimerRef.current)
         savedFlashTimerRef.current = setTimeout(() => setSavedFlash(false), 1500)
       }
     } else {
-      setSavingTabId(activeTabId)
+      setSavingTabId(id)
     }
-  }
-
-  // Auto-limit guard: intercept run if SELECT has no LIMIT
-  const handleRun = (tabId: string) => {
-    const tab = tabs.find((t) => t.id === tabId)
-    if (!tab) return
-    // Clear any stale explain result when running a real query
-    if (tab.explainResult) clearExplain(tabId)
-    if (detectMissingLimit(tab.sql)) {
-      setLimitWarningTabId(tabId)
-    } else {
-      runQuery(tabId)
-    }
-  }
-
-  const handleRunAnyway = () => {
-    if (limitWarningTabId) {
-      runQuery(limitWarningTabId)
-      setLimitWarningTabId(null)
-    }
-  }
-
-  const handleAddLimit = () => {
-    if (limitWarningTabId) {
-      const tab = tabs.find((t) => t.id === limitWarningTabId)
-      if (tab) {
-        const newSql = tab.sql.trimEnd() + '\nLIMIT 1000'
-        updateTabSql(limitWarningTabId, newSql)
-        runQuery(limitWarningTabId)
-      }
-      setLimitWarningTabId(null)
-    }
-  }
+  }, [updateQuery])
 
   const handleDividerMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -286,29 +261,15 @@ export default function Editor() {
               {/* Left pane */}
               <div className="flex flex-col overflow-hidden min-h-0" style={{ width: `${splitHPct}%` }}>
                 <div style={{ height: `${splitPct}%` }} className="flex flex-col overflow-hidden min-h-0">
-                  <QueryEditor
-                    value={activeTab.sql}
-                    onChange={(sql) => updateTabSql(activeTab.id, sql)}
-                    onRun={() => handleRun(activeTab.id)}
-                    onCancel={() => cancelQuery(activeTab.id)}
-                    onExplain={() => explainQuery(activeTab.id)}
-                    onSave={handleSave}
-                    onSplit={() => toggleSplit(activeTab.id)}
-                    isSplit
-                    isRunning={activeTab.isRunning}
-                    isExplaining={activeTab.isExplaining}
-                    savedQueryId={activeTab.savedQueryId}
+                  <EditorPane
+                    tabId={activeTab.id}
+                    engine={activeEngine}
                     sqlSchema={sqlSchema}
                     cypherSchema={cypherSchema}
-                    engine={activeEngine}
+                    isSplit
+                    onSplit={() => toggleSplit(activeTab.id)}
+                    onSave={handleSave}
                   />
-                  {limitWarningTabId === activeTab.id && (
-                    <LimitWarningBanner
-                      onRunAnyway={handleRunAnyway}
-                      onAddLimit={handleAddLimit}
-                      onDismiss={() => setLimitWarningTabId(null)}
-                    />
-                  )}
                 </div>
                 <div
                   onMouseDown={handleDividerMouseDown}
@@ -360,29 +321,15 @@ export default function Editor() {
             /* ── Single-pane layout ──────────────────────────────────────── */
             <>
               <div style={{ height: `${splitPct}%` }} className="flex flex-col overflow-hidden min-h-0">
-                <QueryEditor
-                  value={activeTab.sql}
-                  onChange={(sql) => updateTabSql(activeTab.id, sql)}
-                  onRun={() => handleRun(activeTab.id)}
-                  onCancel={() => cancelQuery(activeTab.id)}
-                  onExplain={() => explainQuery(activeTab.id)}
-                  onSave={handleSave}
-                  onSplit={() => toggleSplit(activeTab.id)}
-                  isSplit={false}
-                  isRunning={activeTab.isRunning}
-                  isExplaining={activeTab.isExplaining}
-                  savedQueryId={activeTab.savedQueryId}
+                <EditorPane
+                  tabId={activeTab.id}
+                  engine={activeEngine}
                   sqlSchema={sqlSchema}
                   cypherSchema={cypherSchema}
-                  engine={activeEngine}
+                  isSplit={false}
+                  onSplit={() => toggleSplit(activeTab.id)}
+                  onSave={handleSave}
                 />
-                {limitWarningTabId === activeTab.id && (
-                  <LimitWarningBanner
-                    onRunAnyway={handleRunAnyway}
-                    onAddLimit={handleAddLimit}
-                    onDismiss={() => setLimitWarningTabId(null)}
-                  />
-                )}
               </div>
 
               <div
