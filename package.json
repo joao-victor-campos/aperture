@@ -24,6 +24,7 @@
     "@codemirror/language": "^6.12.2",
     "@codemirror/theme-one-dark": "^6.1.2",
     "@google-cloud/bigquery": "^7.9.0",
+    "@tanstack/react-virtual": "^3.14.2",
     "@uiw/react-codemirror": "^4.23.5",
     "js-yaml": "^4.2.0",
     "lucide-react": "^0.460.0",

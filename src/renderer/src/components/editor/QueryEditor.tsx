@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { memo, useCallback, useMemo } from 'react'
 import { format as formatSQL } from 'sql-formatter'
 import CodeMirror from '@uiw/react-codemirror'
 import { sql, PostgreSQL, StandardSQL } from '@codemirror/lang-sql'
@@ -54,7 +54,7 @@ const customTheme = EditorView.theme({
   '.cm-lineNumbers .cm-gutterElement': { color: '#374151' },
 })
 
-export default function QueryEditor({
+function QueryEditor({
   value, onChange, onRun, onCancel, onExplain, onSave, onSplit, isSplit, isRunning, isExplaining, savedQueryId, sqlSchema, cypherSchema, engine,
 }: QueryEditorProps) {
   const languageExtension = useMemo(() => {
@@ -103,6 +103,11 @@ export default function QueryEditor({
       },
     ])),
     [isRunning, onCancel, onRun, onExplain, onSave, handleFormat]
+  )
+
+  const extensions = useMemo(
+    () => [languageExtension, keymapExtension, customTheme],
+    [languageExtension, keymapExtension],
   )
 
   return (
@@ -192,7 +197,7 @@ export default function QueryEditor({
           value={value}
           height="100%"
           theme={oneDark}
-          extensions={[languageExtension, keymapExtension, customTheme]}
+          extensions={extensions}
           onChange={onChange}
           style={{ height: '100%' }}
           basicSetup={{
@@ -208,3 +213,5 @@ export default function QueryEditor({
     </div>
   )
 }
+
+export default memo(QueryEditor)

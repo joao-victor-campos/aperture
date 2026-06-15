@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronLeft, ChevronRight, Loader2, Download, Pin, SlidersHorizontal, X, ChevronUp, ChevronDown as ChevronDownIcon } from 'lucide-react'
 import { CHANNELS } from '@shared/ipc'
 import type { QueryResult } from '@shared/types'
 import { filterSortRows } from '../../lib/filterSortRows'
+import { paginate } from '../../lib/paginate'
 import type { Neo4jGraphValue } from '@shared/types'
 import { isGraphElement } from '../../lib/formatGraphElement'
 import GraphElementChip from './GraphElementChip'
@@ -23,7 +25,10 @@ const MIN_COL_WIDTH = 60
 const MAX_COL_WIDTH = 1200
 const DEFAULT_COL_WIDTH = 160
 
-export default function ResultsTable({
+const ROW_HEIGHT = 29 // px — fixed; cells are single-line (truncate)
+const EMPTY_ROWS: Record<string, unknown>[] = []
+
+function ResultsTable({
   result, error, isRunning, cancelled, logs = [], onFetchPage, onPin, pinned,
 }: ResultsTableProps) {
   const logEndRef = useRef<HTMLDivElement>(null)
@@ -112,6 +117,41 @@ export default function ResultsTable({
     window.addEventListener('mouseup', onUp)
   }
 
+  // Derive filtered/sorted/paged rows once — memoized so typing/resizing the
+  // parent does not recompute over the full result set.
+  const allRows = result?.rows ?? EMPTY_ROWS
+  const filteredRows = useMemo(
+    () => filterSortRows(allRows, colFilters, sortCol, sortDir),
+    [allRows, colFilters, sortCol, sortDir],
+  )
+  const pageRows = useMemo(
+    () => paginate(filteredRows, page, pageSize),
+    [filteredRows, page, pageSize],
+  )
+
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const tbodyRef = useRef<HTMLTableSectionElement>(null)
+  const [scrollMargin, setScrollMargin] = useState(0)
+  // Measure the tbody's offset from the scroll container (= sticky thead height)
+  // so the virtualizer's range math accounts for the header. Updates only on change.
+  useLayoutEffect(() => {
+    const top = tbodyRef.current?.offsetTop ?? 0
+    setScrollMargin((prev) => (prev !== top ? top : prev))
+  })
+  const rowVirtualizer = useVirtualizer({
+    count: pageRows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 12,
+    scrollMargin,
+  })
+
+  // When the visible window changes (page flip, filter/sort, new result),
+  // reset scroll to top so the virtualizer renders from the first row.
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0
+  }, [page, filteredRows])
+
   if (isRunning) {
     return (
       <div className="flex flex-col h-full">
@@ -199,11 +239,8 @@ export default function ResultsTable({
 
   const { columns, rows, executionTimeMs, bytesProcessed, totalRows: serverTotal, hasMore } = result
   const fetchedRows = rows.length
-  // Apply client-side filter + sort before pagination
-  const filteredRows = filterSortRows(rows, colFilters, sortCol, sortDir)
   const activeFilterCount = Object.values(colFilters).filter((v) => v.trim() !== '').length
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
-  const pageRows = filteredRows.slice(page * pageSize, (page + 1) * pageSize)
   const startRow = filteredRows.length === 0 ? 0 : page * pageSize + 1
   const endRow = Math.min((page + 1) * pageSize, filteredRows.length)
 
@@ -230,15 +267,12 @@ export default function ResultsTable({
     : `${fetchedRows.toLocaleString()}`
 
   const handleExport = async (format: 'csv' | 'json' | 'tsv') => {
-    console.log('[Export] handleExport called, format:', format)
     setExportOpen(false)
     setExporting(true)
     try {
-      console.log('[Export] calling IPC invoke...')
-      const res = await window.api.invoke(CHANNELS.EXPORT_RESULTS, { rows, columns, format })
-      console.log('[Export] IPC returned:', res)
-    } catch (err) {
-      console.error('[Export] IPC error:', err)
+      await window.api.invoke(CHANNELS.EXPORT_RESULTS, { rows, columns, format })
+    } catch {
+      // Export failures surface via the main-process dialog; nothing to do here.
     } finally {
       setExporting(false)
     }
@@ -349,7 +383,7 @@ export default function ResultsTable({
       )}
 
       {/* Table */}
-      <div className="flex-1 overflow-auto selectable results-area">
+      <div ref={scrollRef} className="flex-1 overflow-auto selectable results-area">
         <table className="text-xs border-collapse" style={{ tableLayout: 'fixed', width: 'max-content', minWidth: '100%' }}>
           <colgroup>
             {columns.map((col) => (
@@ -404,31 +438,60 @@ export default function ResultsTable({
               ))}
             </tr>
           </thead>
-          <tbody>
-            {pageRows.map((row, i) => (
-              <tr
-                key={`${page}-${i}`}
-                className={`hover:bg-app-elevated/40 transition-colors ${i % 2 === 0 ? '' : 'bg-app-surface/30'}`}
-              >
-                {columns.map((col) => {
-                  const cell = row[col]
-                  return (
-                    <td
-                      key={col}
-                      className="px-3 py-1.5 text-app-text font-mono border-b border-app-border/40 overflow-hidden"
-                      style={{ width: colWidths[col] ?? DEFAULT_COL_WIDTH, maxWidth: colWidths[col] ?? DEFAULT_COL_WIDTH }}
-                      title={isGraphElement(cell) ? undefined : formatCell(cell)}
-                    >
-                      {isGraphElement(cell) ? (
-                        <GraphElementChip value={cell as Neo4jGraphValue} />
-                      ) : (
-                        <span className="block truncate">{formatCell(cell)}</span>
-                      )}
-                    </td>
-                  )
-                })}
-              </tr>
-            ))}
+          <tbody ref={tbodyRef}>
+            {(() => {
+              const virtualItems = rowVirtualizer.getVirtualItems()
+              const totalSize = rowVirtualizer.getTotalSize()
+              // start/end are relative to the scroll element (incl. scrollMargin);
+              // spacers live inside the tbody which already starts at scrollMargin.
+              const paddingTop = virtualItems.length > 0 ? virtualItems[0].start - scrollMargin : 0
+              const paddingBottom =
+                virtualItems.length > 0
+                  ? totalSize - (virtualItems[virtualItems.length - 1].end - scrollMargin)
+                  : 0
+              return (
+                <>
+                  {paddingTop > 0 && (
+                    <tr aria-hidden="true">
+                      <td colSpan={columns.length} style={{ height: paddingTop, padding: 0, border: 0 }} />
+                    </tr>
+                  )}
+                  {virtualItems.map((vi) => {
+                    const row = pageRows[vi.index]
+                    return (
+                      <tr
+                        key={`${page}-${vi.index}`}
+                        style={{ height: ROW_HEIGHT }}
+                        className={`hover:bg-app-elevated/40 transition-colors ${vi.index % 2 === 0 ? '' : 'bg-app-surface/30'}`}
+                      >
+                        {columns.map((col) => {
+                          const cell = row[col]
+                          return (
+                            <td
+                              key={col}
+                              className="px-3 py-1.5 text-app-text font-mono border-b border-app-border/40 overflow-hidden"
+                              style={{ width: colWidths[col] ?? DEFAULT_COL_WIDTH, maxWidth: colWidths[col] ?? DEFAULT_COL_WIDTH }}
+                              title={isGraphElement(cell) ? undefined : formatCell(cell)}
+                            >
+                              {isGraphElement(cell) ? (
+                                <GraphElementChip value={cell as Neo4jGraphValue} />
+                              ) : (
+                                <span className="block truncate">{formatCell(cell)}</span>
+                              )}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    )
+                  })}
+                  {paddingBottom > 0 && (
+                    <tr aria-hidden="true">
+                      <td colSpan={columns.length} style={{ height: paddingBottom, padding: 0, border: 0 }} />
+                    </tr>
+                  )}
+                </>
+              )
+            })()}
           </tbody>
         </table>
       </div>
@@ -484,6 +547,8 @@ export default function ResultsTable({
     </div>
   )
 }
+
+export default memo(ResultsTable)
 
 // ── Cell formatter ───────────────────────────────────────────────────────────
 function formatCell(value: unknown): string {
