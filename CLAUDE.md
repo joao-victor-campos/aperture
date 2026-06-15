@@ -148,6 +148,30 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-06-14] Performance: Renderer responsiveness refactor
+
+**Type:** Change
+**Context:** Editor typing and large result tables felt janky. Profiling traced it to `Editor` subscribing to the whole query store: each keystroke (`updateTabSql`) re-rendered the un-memoized `ResultsTable`, which re-ran `filterSortRows` over the full result set and repainted up to 500 rows. Per the spec at `docs/superpowers/specs/2026-06-14-responsiveness-refactor-design.md` and plan at `docs/superpowers/plans/2026-06-14-responsiveness-refactor.md`, this was a renderer refactor (Approach A), not a stack swap.
+**Problem / Change:** Whole-store subscriptions + an un-memoized, un-virtualized results table made every keystroke pay for a full table repaint.
+**Solution / Outcome:**
+- **`ResultsTable`** — wrapped in `React.memo`; `filterSortRows` + `paginate` derivation hoisted above the early returns and memoized; rows virtualized with `@tanstack/react-virtual` using spacer-row (`paddingTop`/`paddingBottom`) virtualization that preserves the sticky `<thead>`, `colgroup` widths, column-resize, and `GraphElementChip` cells. Two review-caught fixes: reset `scrollTop` when the data window changes (page/filter/sort/new result), and `scrollMargin = tbody offsetTop` so the virtualizer's range accounts for the sticky header. Removed leftover `[Export]` debug logs.
+- **`ResultsRegion`** (new) — memoized; owns the explain/graph/table swap + graph-shape detection; subscribes via `useShallow` to only the active tab's result/logs/explain/graph fields; passes `useCallback`-stable `onFetchPage`/`onPin` so the `ResultsTable` memo is effective.
+- **`EditorPane`** (new) + **`QueryEditor`** — memoized; CodeMirror `extensions` array memoized so typing no longer reconfigures the editor; `EditorPane` subscribes to only the tab's `sql`/run fields and owns the auto-limit banner + run/cancel/explain handlers.
+- **`Editor.tsx`** — whole-store destructure replaced with narrow per-action selectors + a stable `useCallback` `handleSave`; the moved run/limit handlers and dead store actions removed. Split-right pane stays inline (table-only, lower-traffic). No store API change → 340 tests green; coverage gate unaffected (changed UI files are outside the coverage include set).
+- **New pure helper** `paginate()` (4 tests). `@tanstack/react-virtual` added.
+
+**Files affected:**
+- `package.json` — `@tanstack/react-virtual`
+- `src/renderer/src/lib/paginate.ts` + `src/__tests__/renderer/lib/paginate.test.ts` — created
+- `src/renderer/src/components/results/ResultsTable.tsx` — memo + virtualize
+- `src/renderer/src/components/results/ResultsRegion.tsx` — created
+- `src/renderer/src/components/editor/EditorPane.tsx` — created
+- `src/renderer/src/components/editor/QueryEditor.tsx` — memo + memoized extensions
+- `src/renderer/src/pages/Editor.tsx` — selector subscriptions; delegate to EditorPane/ResultsRegion
+- `README.md`, `CHANGELOG.md` — docs
+
+---
+
 ### [2026-06-10] Feature: Neo4j support — Phase 2 (Graph visualization)
 
 **Type:** Change
