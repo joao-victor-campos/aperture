@@ -2,9 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, X, Table2, Pin, Bookmark } from 'lucide-react'
 import QueryEditor from '../components/editor/QueryEditor'
 import ResultsTable from '../components/results/ResultsTable'
-import ExplainPanel from '../components/results/ExplainPanel'
-import GraphView from '../components/results/GraphView'
-import GraphShapedBanner from '../components/results/GraphShapedBanner'
+import ResultsRegion from '../components/results/ResultsRegion'
 import LimitWarningBanner from '../components/editor/LimitWarningBanner'
 import TableDetailPanel from '../components/catalog/TableDetailPanel'
 import SaveQueryModal from '../components/editor/SaveQueryModal'
@@ -13,8 +11,6 @@ import { useConnectionStore } from '../store/connectionStore'
 import { useCatalogStore } from '../store/catalogStore'
 import { useSavedQueryStore } from '../store/savedQueryStore'
 import { detectMissingLimit } from '../lib/detectMissingLimit'
-import { detectGraphShape } from '../lib/detectGraphShape'
-import { buildGraphFromRecords } from '../lib/buildGraphFromRecords'
 
 export default function Editor() {
   const {
@@ -102,17 +98,6 @@ export default function Editor() {
 
   const activeTab = tabs.find((t) => t.id === activeTabId)
 
-  // Detect graph-shaped results once per tab result change. Drives the
-  // "View as graph" banner and the table ↔ graph swap.
-  const graphShape = useMemo(() => {
-    const rows = activeTab?.result?.rows
-    if (!rows || rows.length === 0) return { isGraph: false, truncated: false, nodeCount: 0 }
-    if (!detectGraphShape(rows)) return { isGraph: false, truncated: false, nodeCount: 0 }
-    const built = buildGraphFromRecords(rows)
-    if (built.truncated) return { isGraph: true, truncated: true, nodeCount: built.nodeCount }
-    return { isGraph: true, truncated: false, nodeCount: built.nodes.length }
-  }, [activeTab?.result?.rows])
-
   // Handle save: silent update if already saved, otherwise open modal
   const handleSave = async () => {
     if (!activeTab || !activeTab.sql.trim()) return
@@ -198,43 +183,6 @@ export default function Editor() {
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
   }, [])
-
-  // The results region of a query tab: explain plan > graph view > banner + table.
-  // Shared between the single-pane layout and the split layout's left pane.
-  const renderResultsRegion = (tab: NonNullable<typeof activeTab>) => {
-    if (tab.explainResult || tab.isExplaining) {
-      return (
-        <ExplainPanel
-          result={tab.explainResult ?? { bytesProcessed: 0 }}
-          isLoading={tab.isExplaining}
-          onClose={() => clearExplain(tab.id)}
-        />
-      )
-    }
-    if (tab.viewAsGraph && tab.result && graphShape.isGraph && !graphShape.truncated) {
-      return <GraphView result={tab.result} onBack={() => toggleGraphView(tab.id)} />
-    }
-    return (
-      <>
-        {graphShape.isGraph && (
-          <GraphShapedBanner
-            truncated={graphShape.truncated}
-            nodeCount={graphShape.nodeCount}
-            onViewAsGraph={() => toggleGraphView(tab.id)}
-          />
-        )}
-        <ResultsTable
-          result={tab.result}
-          error={tab.error}
-          isRunning={tab.isRunning}
-          cancelled={tab.cancelled}
-          logs={tab.logs}
-          onFetchPage={() => fetchPage(tab.id)}
-          onPin={() => openResultTab(tab.id)}
-        />
-      </>
-    )
-  }
 
   return (
     <div className="flex flex-col h-full">
@@ -368,7 +316,7 @@ export default function Editor() {
                 />
                 <div style={{ height: `${100 - splitPct}%` }} className="overflow-hidden min-h-0">
                   <div className="flex flex-col h-full overflow-hidden">
-                    {renderResultsRegion(activeTab)}
+                    <ResultsRegion tabId={activeTab.id} />
                   </div>
                 </div>
               </div>
@@ -444,7 +392,7 @@ export default function Editor() {
 
               <div style={{ height: `${100 - splitPct}%` }} className="overflow-hidden min-h-0">
                 <div className="flex flex-col h-full overflow-hidden">
-                  {renderResultsRegion(activeTab)}
+                  <ResultsRegion tabId={activeTab.id} />
                 </div>
               </div>
             </>
