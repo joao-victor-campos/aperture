@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronLeft, ChevronRight, Loader2, Download, Pin, SlidersHorizontal, X, ChevronUp, ChevronDown as ChevronDownIcon } from 'lucide-react'
 import { CHANNELS } from '@shared/ipc'
@@ -130,12 +130,27 @@ function ResultsTable({
   )
 
   const scrollRef = useRef<HTMLDivElement>(null)
+  const tbodyRef = useRef<HTMLTableSectionElement>(null)
+  const [scrollMargin, setScrollMargin] = useState(0)
+  // Measure the tbody's offset from the scroll container (= sticky thead height)
+  // so the virtualizer's range math accounts for the header. Updates only on change.
+  useLayoutEffect(() => {
+    const top = tbodyRef.current?.offsetTop ?? 0
+    setScrollMargin((prev) => (prev !== top ? top : prev))
+  })
   const rowVirtualizer = useVirtualizer({
     count: pageRows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 12,
+    scrollMargin,
   })
+
+  // When the visible window changes (page flip, filter/sort, new result),
+  // reset scroll to top so the virtualizer renders from the first row.
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0
+  }, [page, filteredRows])
 
   if (isRunning) {
     return (
@@ -252,15 +267,12 @@ function ResultsTable({
     : `${fetchedRows.toLocaleString()}`
 
   const handleExport = async (format: 'csv' | 'json' | 'tsv') => {
-    console.log('[Export] handleExport called, format:', format)
     setExportOpen(false)
     setExporting(true)
     try {
-      console.log('[Export] calling IPC invoke...')
-      const res = await window.api.invoke(CHANNELS.EXPORT_RESULTS, { rows, columns, format })
-      console.log('[Export] IPC returned:', res)
-    } catch (err) {
-      console.error('[Export] IPC error:', err)
+      await window.api.invoke(CHANNELS.EXPORT_RESULTS, { rows, columns, format })
+    } catch {
+      // Export failures surface via the main-process dialog; nothing to do here.
     } finally {
       setExporting(false)
     }
@@ -426,13 +438,17 @@ function ResultsTable({
               ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody ref={tbodyRef}>
             {(() => {
               const virtualItems = rowVirtualizer.getVirtualItems()
               const totalSize = rowVirtualizer.getTotalSize()
-              const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0
+              // start/end are relative to the scroll element (incl. scrollMargin);
+              // spacers live inside the tbody which already starts at scrollMargin.
+              const paddingTop = virtualItems.length > 0 ? virtualItems[0].start - scrollMargin : 0
               const paddingBottom =
-                virtualItems.length > 0 ? totalSize - virtualItems[virtualItems.length - 1].end : 0
+                virtualItems.length > 0
+                  ? totalSize - (virtualItems[virtualItems.length - 1].end - scrollMargin)
+                  : 0
               return (
                 <>
                   {paddingTop > 0 && (
