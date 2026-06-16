@@ -1,13 +1,14 @@
 import { memo, useCallback, useMemo } from 'react'
 import { format as formatSQL } from 'sql-formatter'
 import CodeMirror from '@uiw/react-codemirror'
-import { sql, PostgreSQL, StandardSQL } from '@codemirror/lang-sql'
+import { autocompletion } from '@codemirror/autocomplete'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { EditorView, keymap } from '@codemirror/view'
 import { Prec } from '@codemirror/state'
 import { Bookmark, BookmarkCheck, Columns2, ListTree, WandSparkles } from 'lucide-react'
 import type { ConnectionEngine } from '@shared/types'
 import { cypher, type CypherSchema } from '../../lib/cypherLanguage'
+import { sqlSupport } from '../../lib/sqlCompletion'
 
 interface QueryEditorProps {
   value: string
@@ -34,14 +35,6 @@ const FORMAT_DIALECT_MAP: Record<ConnectionEngine, string> = {
   neo4j: 'sql', // unused — Cypher formatting is skipped (sql-formatter has no Cypher dialect)
 }
 
-// CodeMirror SQL dialect objects (for autocomplete keyword set)
-const CM_DIALECT_MAP = {
-  bigquery: StandardSQL,
-  postgres: PostgreSQL,
-  snowflake: StandardSQL,
-  neo4j: StandardSQL, // unused — Cypher uses its own StreamLanguage (see languageExtension)
-} satisfies Record<ConnectionEngine, typeof StandardSQL>
-
 const customTheme = EditorView.theme({
   '&': { height: '100%', fontSize: '13px' },
   '.cm-scroller': {
@@ -59,11 +52,7 @@ function QueryEditor({
 }: QueryEditorProps) {
   const languageExtension = useMemo(() => {
     if (engine === 'neo4j') return cypher(cypherSchema)
-    return sql({
-      dialect: engine ? CM_DIALECT_MAP[engine] : StandardSQL,
-      schema: sqlSchema ?? {},
-      upperCaseKeywords: true,
-    })
+    return sqlSupport(engine, sqlSchema)
   }, [sqlSchema, cypherSchema, engine])
 
   const handleFormat = useCallback(() => {
@@ -106,7 +95,12 @@ function QueryEditor({
   )
 
   const extensions = useMemo(
-    () => [languageExtension, keymapExtension, customTheme],
+    () => [
+      languageExtension,
+      keymapExtension,
+      customTheme,
+      autocompletion({ activateOnTyping: true, defaultKeymap: true, icons: true }),
+    ],
     [languageExtension, keymapExtension],
   )
 

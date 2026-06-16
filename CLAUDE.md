@@ -148,6 +148,29 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-06-14] Feature: Smarter SQL autocomplete
+
+**Type:** Change
+**Context:** SQL autocomplete only knew columns for tables the user had manually opened (the `sqlSchema` fed to `@codemirror/lang-sql` is built in `Editor.tsx` from `catalogStore.schemaCache`, which only fills on table-detail open), had no alias/CTE awareness, and didn't reliably auto-open. Per the spec at `docs/superpowers/specs/2026-06-14-sql-autocomplete-design.md` and plan at `docs/superpowers/plans/2026-06-14-sql-autocomplete.md` (Approach A). Built on top of the renderer responsiveness refactor (memoized editor extensions).
+**Problem / Change:** Completions lacked columns for un-opened tables, ignored aliases/CTEs, and felt unhelpful.
+**Solution / Outcome:**
+- **`useSchemaPrefetch`** (new hook) — debounced (250 ms); parses the active query for referenced tables (`extractTableRefs`), resolves them against loaded catalog table lists (`buildTableLookup`), and background-loads their schemas via `catalogStore.loadSchema` (concurrency-capped at 5, errors swallowed). Subscribes to `tablesByDataset`; reads `schemaCache`/`loadSchema` via `getState()` inside the debounce so schema writes don't re-trigger it. Columns now appear without opening a table.
+- **`sqlCompletion.ts`** (new) — `sqlSupport(engine, sqlSchema)` builds lang-sql's schema-aware completion (tables/columns/FROM-alias resolution) and layers a custom CTE completion source (`cteCompletionOptions` from `extractCteCompletions`) via `language.data.of({ autocomplete })`. The CTE source computes the replace-`from` offset for `alias.` and returns CTE names in table position / CTE columns after a dot.
+- **`extractTableRefs` / `extractCteCompletions` (+ `cteCompletionOptions`) / `buildTableLookup`** (new, pure, unit-tested, 20 tests total) — the parsing/resolution core; comment/string-stripping and paren-aware select-list splitting; tolerant of partial mid-typing SQL.
+- **`QueryEditor`** — SQL engines route through `sqlSupport`; added `autocompletion({ activateOnTyping: true, defaultKeymap: true, icons: true })` to the memoized extensions for auto-open. Removed the now-dead `sql`/`PostgreSQL`/`StandardSQL` import + `CM_DIALECT_MAP` (moved into `sqlCompletion`); kept `FORMAT_DIALECT_MAP`. Cypher path unchanged.
+- **`Editor.tsx`** — calls `useSchemaPrefetch(activeTab?.sql ?? '', activeConnectionId ?? undefined)`.
+- Completion stays local/instant (no IPC on the completion path; prefetch happens ahead in the background). No store API change → 360 tests pass (existing 340 + 20 new parser tests); coverage gate unaffected (new `lib/*` parsers sit outside the include set, like `detectMissingLimit`/`buildCypherQuery`).
+
+**Files affected:**
+- `src/renderer/src/lib/{extractTableRefs,extractCteCompletions,buildTableLookup,sqlCompletion}.ts` — created
+- `src/renderer/src/hooks/useSchemaPrefetch.ts` — created
+- `src/renderer/src/components/editor/QueryEditor.tsx` — sqlSupport + autocompletion config
+- `src/renderer/src/pages/Editor.tsx` — useSchemaPrefetch call
+- `src/__tests__/renderer/lib/{extractTableRefs,extractCteCompletions,buildTableLookup}.test.ts` — created (20 tests)
+- `CHANGELOG.md` — docs
+
+---
+
 ### [2026-06-14] Performance: Renderer responsiveness refactor
 
 **Type:** Change
