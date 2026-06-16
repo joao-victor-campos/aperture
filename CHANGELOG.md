@@ -9,6 +9,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - **Renderer responsiveness** — editor typing and large result tables are now smooth. The results area (`ResultsRegion`) and editor (`EditorPane`) are split into memoized components that subscribe to narrow store slices, so a keystroke re-renders only the editor and a streaming log tick re-renders only the results. `ResultsTable` is memoized, its filter/sort/page derivation is memoized, and its rows are virtualized via `@tanstack/react-virtual` (only visible rows mount). No behavior changes.
+- **Smarter SQL autocomplete** — column suggestions now appear for any table referenced in the query (a background prefetch loads referenced tables' schemas, so you no longer have to open a table first), `alias.` and CTE (`WITH t AS (…)` → `t.`) completions resolve to the right columns, and suggestions auto-open as you type and on `.` with no lag. Completion stays fully local/instant. Cypher completion is unchanged.
 
 ---
 ## [2.2.0] - 2026-06-10
