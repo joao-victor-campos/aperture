@@ -5,7 +5,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
-## [Unreleased]
+## [2.3.0] - 2026-06-14
 
 ### Changed
 - **Renderer responsiveness** — editor typing and large result tables are now smooth. The results area (`ResultsRegion`) and editor (`EditorPane`) are split into memoized components that subscribe to narrow store slices, so a keystroke re-renders only the editor and a streaming log tick re-renders only the results. `ResultsTable` is memoized, its filter/sort/page derivation is memoized, and its rows are virtualized via `@tanstack/react-virtual` (only visible rows mount). No behavior changes.
