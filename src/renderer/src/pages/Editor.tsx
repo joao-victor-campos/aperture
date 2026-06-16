@@ -10,6 +10,7 @@ import { useQueryStore } from '../store/queryStore'
 import { useConnectionStore } from '../store/connectionStore'
 import { useCatalogStore } from '../store/catalogStore'
 import { useSavedQueryStore } from '../store/savedQueryStore'
+import { useSchemaPrefetch } from '../hooks/useSchemaPrefetch'
 
 export default function Editor() {
   // Narrow selector subscriptions: Editor only needs the tab list + tab-bar /
@@ -102,6 +103,10 @@ export default function Editor() {
   }, [activeConnectionId, activeEngine, datasetsByConnection, tablesByDataset, schemaCache])
 
   const activeTab = tabs.find((t) => t.id === activeTabId)
+
+  // Background-prefetch column schemas for tables referenced in the active query
+  // so SQL autocomplete has columns even for tables the user hasn't opened.
+  useSchemaPrefetch(activeTab?.sql ?? '', activeConnectionId ?? undefined)
 
   // Handle save: silent update if already saved, otherwise open modal.
   // Reads fresh state so the ref stays stable for the memoized EditorPane.
