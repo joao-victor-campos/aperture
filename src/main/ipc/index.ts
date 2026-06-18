@@ -5,6 +5,7 @@ import { registerSavedQueryHandlers } from './savedQueries'
 import { registerHistoryHandlers } from './history'
 import { registerExportHandlers } from './export'
 import { registerThemeHandlers } from './themes'
+import { registerUpdateHandlers } from './updates'
 
 export function registerIpcHandlers(): void {
   registerConnectionHandlers()
@@ -14,4 +15,5 @@ export function registerIpcHandlers(): void {
   registerHistoryHandlers()
   registerExportHandlers()
   registerThemeHandlers()
+  registerUpdateHandlers()
 }
