@@ -1,6 +1,7 @@
 import { app, BrowserWindow, shell, nativeTheme, Menu } from 'electron'
 import { join } from 'path'
 import { registerIpcHandlers } from './ipc'
+import { pushUpdateStatus } from './ipc/updates'
 
 // Set the app name early — in dev mode Electron defaults to "Electron"
 app.setName('Aperture')
@@ -97,6 +98,17 @@ function buildAppMenu(): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
+const UPDATE_CHECK_INTERVAL_MS = 3 * 60 * 60 * 1000 // 3 hours
+
+/** Initial check ~5s after launch, then every 3h. Failures are swallowed by pushUpdateStatus. */
+function startUpdateScheduler(): void {
+  const run = (): void => {
+    void pushUpdateStatus(mainWindow)
+  }
+  setTimeout(run, 5000)
+  setInterval(run, UPDATE_CHECK_INTERVAL_MS)
+}
+
 app.whenReady().then(() => {
   // Set dock icon in dev mode — use .icns so macOS renders it correctly
   // (production uses the icon bundled in the .app by electron-builder)
@@ -112,6 +124,7 @@ app.whenReady().then(() => {
 
   registerIpcHandlers()
   createWindow()
+  startUpdateScheduler()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
