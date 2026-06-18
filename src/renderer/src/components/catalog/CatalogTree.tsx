@@ -6,6 +6,7 @@ import { useQueryStore } from '../../store/queryStore'
 import type { Table } from '@shared/types'
 import { buildSelectQuery } from '../../lib/buildSelectQuery'
 import { buildLabelQuery, buildRelationshipTypeQuery } from '../../lib/buildCypherQuery'
+import { byName } from '../../lib/sortByName'
 
 interface CatalogTreeProps {
   onAddConnection: () => void
@@ -56,13 +57,15 @@ export default function CatalogTree({ onAddConnection }: CatalogTreeProps) {
   const query = search.trim().toLowerCase()
 
   // Filter: show dataset if its name matches OR if any loaded table's name matches
-  const visibleDatasets = query
+  const filteredDatasets = query
     ? datasets.filter((ds) => {
         if (ds.name.toLowerCase().includes(query)) return true
         const key = `${activeConnectionId}:${ds.id}`
         return (tablesByDataset[key] ?? []).some((t) => t.name.toLowerCase().includes(query))
       })
     : datasets
+  // Render datasets alphabetically (sort a copy — never mutate store state)
+  const visibleDatasets = [...filteredDatasets].sort(byName)
 
   return (
     <div className="py-1">
