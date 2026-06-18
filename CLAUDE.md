@@ -162,7 +162,7 @@ just tag-release
 - `src/renderer/src/lib/sortByName.ts` — created
 - `src/__tests__/renderer/lib/sortByName.test.ts` — created (5 tests)
 - `src/renderer/src/components/catalog/CatalogTree.tsx` — sort datasets + tables before render
-- `README.md`, `CHANGELOG.md` — docs
+- `CHANGELOG.md` — docs (README has no catalog-ordering description, left unchanged)
 
 ---
 
