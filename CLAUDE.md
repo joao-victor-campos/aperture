@@ -148,6 +148,24 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-06-18] Feature: Alphabetical catalog sorting
+
+**Type:** Change
+**Context:** The catalog tree rendered datasets and tables in source order (for Neo4j, raw `CALL db.labels()` / `db.relationshipTypes()` order). Per spec `docs/superpowers/specs/2026-06-18-catalog-alphabetical-sort-design.md` and plan `docs/superpowers/plans/2026-06-18-catalog-alphabetical-sort.md`.
+**Problem / Change:** No alphabetical ordering — requested first for Neo4j, applied to all engines since the change is engine-agnostic.
+**Solution / Outcome:**
+- **`sortByName.ts`** (new, pure) — `byName` comparator over `{ name: string }`, backed by a shared `Intl.Collator` (`sensitivity: 'base'`, `numeric: true`): case-insensitive, locale-aware, natural numeric (`t2` before `t10`). 5 unit tests.
+- **`CatalogTree.tsx`** — sorts `visibleDatasets` and the per-dataset `tables` list on non-mutating copies (`[...].sort(byName)`) just before render. Sort runs after the search filter, so filtered matches are alphabetical too. Neo4j's `.filter(type === 'LABEL' / 'RELATIONSHIP_TYPE')` groups stay correct because `filter` preserves order.
+- No adapter / store / IPC / type changes. New `lib/` helper sits outside the coverage include set, so the 70% gate is unaffected.
+
+**Files affected:**
+- `src/renderer/src/lib/sortByName.ts` — created
+- `src/__tests__/renderer/lib/sortByName.test.ts` — created (5 tests)
+- `src/renderer/src/components/catalog/CatalogTree.tsx` — sort datasets + tables before render
+- `CHANGELOG.md` — docs (README has no catalog-ordering description, left unchanged)
+
+---
+
 ### [2026-06-14] Feature: Smarter SQL autocomplete
 
 **Type:** Change

@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
+## [Unreleased]
+
+### Added
+- Catalog tree now lists datasets and tables alphabetically (case-insensitive, natural numeric ordering) for all engines. Neo4j Labels and Relationship Types are each sorted within their group.
+
+---
 ## [2.3.0] - 2026-06-14
 
 ### Changed
