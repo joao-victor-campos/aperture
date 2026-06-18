@@ -148,6 +148,31 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-06-18] Feature: In-app update notifier (GitHub notify-and-redirect)
+
+**Type:** Change
+**Context:** Aperture ships unsigned, un-notarized DMGs to GitHub Releases and had no way to tell users a new version exists. Silent auto-update via electron-updater is impossible without an Apple Developer ID cert (Squirrel.Mac refuses unsigned updates), and there is no free notarization/App Store path. Per the spec at `docs/superpowers/specs/2026-06-18-auto-update-notifier-design.md` and plan at `docs/superpowers/plans/2026-06-18-auto-update-notifier.md`, this is a notify-and-redirect updater (Approach: free, no signing).
+**Problem / Change:** Users had to manually check the repo for new releases.
+**Solution / Outcome:**
+- **Main process owns the check.** `src/main/updates/` holds pure, testable helpers — `compareSemver` (numeric major.minor.patch, strips `v`/prerelease, returns 0 on garbage so no false positives) and `selectDmgAsset` (matches `-${arch}.dmg` against electron-builder's artifact names) — plus `checkForUpdate(currentVersion, arch)` which fetches GitHub `/releases/latest` (excludes drafts/prereleases), compares, and resolves to an `UpdateStatus` (never throws; failures carry an `error`).
+- **IPC:** new `UPDATES_CHECK` (req/res) handler + `pushUpdateStatus(window)` helper in `src/main/ipc/updates.ts`; `UPDATES_STATUS` push channel (mirrors `QUERY_LOG`). `main/index.ts` runs a scheduler (initial check ~5s after launch, then every 3h) that pushes status to the renderer.
+- **Renderer:** `updateStore` (Zustand) holds `UpdateStatus`, exposes `checkNow()`, and subscribes to `UPDATES_STATUS`. `TitleBar` badges the gear with a terracotta dot when `updateAvailable`. `SettingsModal` became a two-section modal (Themes / Updates); the Updates section shows current vs latest version, release notes, a manual check button, an arch-aware **Download** (plain `<a target="_blank">` → existing `setWindowOpenHandler` → `shell.openExternal`), and the `xattr -cr` install hint with a copy button.
+- **Tests:** `compareSemver` (7), `selectDmgAsset` (4), `checkForUpdate` (5), `updates` IPC handler + `pushUpdateStatus` (4), `updateStore` (3). Coverage gate holds (`src/main/ipc/updates.ts` and `src/renderer/src/store/updateStore.ts` are in the include set and covered; `src/main/updates/**` sits outside it like the other `lib/*` parsers).
+
+**Files affected:**
+- `src/shared/types.ts` — `UpdateStatus`
+- `src/shared/ipc.ts` — `UPDATES_CHECK` + `UPDATES_STATUS` channels
+- `src/main/updates/{compareSemver,selectDmgAsset,checkForUpdate}.ts` — created
+- `src/main/ipc/updates.ts` — created; `src/main/ipc/index.ts` — register
+- `src/main/index.ts` — update scheduler
+- `src/renderer/src/store/updateStore.ts` — created
+- `src/renderer/src/components/layout/TitleBar.tsx` — gear badge
+- `src/renderer/src/components/settings/SettingsModal.tsx` — Updates section
+- `src/__tests__/main/updates/*`, `src/__tests__/main/ipc/updates.test.ts`, `src/__tests__/renderer/store/updateStore.test.ts` — created
+- `README.md`, `CHANGELOG.md` — docs
+
+---
+
 ### [2026-06-14] Feature: Smarter SQL autocomplete
 
 **Type:** Change
