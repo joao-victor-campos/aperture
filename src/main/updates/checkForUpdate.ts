@@ -2,14 +2,14 @@ import { compareSemver } from './compareSemver'
 import { selectDmgAsset, type GithubAsset } from './selectDmgAsset'
 import type { UpdateStatus } from '../../shared/types'
 
-export const GITHUB_REPO = 'joao-victor-campos/aperture'
+const GITHUB_REPO = 'joao-victor-campos/aperture'
 const RELEASES_LATEST_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`
 
 interface GithubRelease {
-  tag_name: string
-  html_url: string
+  tag_name: string | null
+  html_url: string | null
   body: string | null
-  published_at: string
+  published_at: string | null
   assets: GithubAsset[]
 }
 
@@ -25,12 +25,18 @@ export async function checkForUpdate(currentVersion: string, arch: string): Prom
   const checkedAt = new Date().toISOString()
   try {
     const res = await fetch(RELEASES_LATEST_URL, {
-      headers: { Accept: 'application/vnd.github+json' },
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': `Aperture/${currentVersion}`,
+      },
     })
     if (!res.ok) {
       return errorStatus(currentVersion, checkedAt, `GitHub responded ${res.status}`)
     }
     const release = (await res.json()) as GithubRelease
+    if (!release || !release.tag_name) {
+      return errorStatus(currentVersion, checkedAt, 'GitHub response missing tag_name')
+    }
     const latestVersion = release.tag_name
     const updateAvailable = compareSemver(latestVersion, currentVersion) === 1
     return {

@@ -38,6 +38,8 @@ describe('checkForUpdate', () => {
     expect(status.releaseUrl).toContain('/releases/tag/v2.4.0')
     expect(status.releaseNotes).toBe('Release notes here')
     expect(status.error).toBeNull()
+    expect(status.currentVersion).toBe('2.3.0')
+    expect(fetch).toHaveBeenCalledWith('https://api.github.com/repos/joao-victor-campos/aperture/releases/latest', { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Aperture/2.3.0' } })
   })
 
   it('reports no update when already on the latest', async () => {
@@ -88,5 +90,24 @@ describe('checkForUpdate', () => {
 
     expect(status.updateAvailable).toBe(false)
     expect(status.error).toBe('offline')
+  })
+
+  it('maps a null release body to null releaseNotes', async () => {
+    ;(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: async () => release({ body: null }),
+    })
+    const status = await checkForUpdate('2.3.0', 'arm64')
+    expect(status.releaseNotes).toBeNull()
+  })
+
+  it('returns an error status when the payload is missing tag_name', async () => {
+    ;(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: async () => ({ html_url: 'x', assets: [] }),
+    })
+    const status = await checkForUpdate('2.3.0', 'arm64')
+    expect(status.updateAvailable).toBe(false)
+    expect(status.error).toContain('tag_name')
   })
 })
