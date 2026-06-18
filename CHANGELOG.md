@@ -5,7 +5,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
-## [Unreleased]
+## [2.4.0] - 2026-06-18
 
 ### Added
 - In-app update notifier: Aperture checks GitHub Releases on launch and every 3
