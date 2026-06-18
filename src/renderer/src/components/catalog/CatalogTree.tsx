@@ -117,9 +117,12 @@ export default function CatalogTree({ onAddConnection }: CatalogTreeProps) {
         const key = `${activeConnectionId}:${dataset.id}`
         const isExpanded = query ? true : expandedDatasets.has(dataset.id)
         const allTables = tablesByDataset[key] ?? []
-        const tables = query
+        const filteredTables = query
           ? allTables.filter((t) => t.name.toLowerCase().includes(query))
           : allTables
+        // Render tables alphabetically (sort a copy — never mutate store state).
+        // For Neo4j the downstream `.filter(type === …)` groups preserve this order.
+        const tables = [...filteredTables].sort(byName)
         const isTableLoading = !!isLoading[key]
 
         return (
