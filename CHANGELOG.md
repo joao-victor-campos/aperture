@@ -13,6 +13,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
   **Settings → Updates** section with release notes, a manual "Check for
   updates" button, and an arch-aware one-click DMG download. No code-signing or
   extra hosting required.
+- Catalog tree now lists datasets and tables alphabetically (case-insensitive, natural numeric ordering) for all engines. Neo4j Labels and Relationship Types are each sorted within their group.
 
 ---
 ## [2.3.0] - 2026-06-14
