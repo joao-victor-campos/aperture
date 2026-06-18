@@ -1,15 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Plus, Trash2, Palette } from 'lucide-react'
+import { X, Plus, Trash2, Palette, Download, RefreshCw, Check } from 'lucide-react'
 import { useThemeStore } from '../../store/themeStore'
+import { useUpdateStore } from '../../store/updateStore'
 
 interface SettingsModalProps {
   open: boolean
   onClose: () => void
 }
 
+type Section = 'themes' | 'updates'
+
 export default function SettingsModal({ open, onClose }: SettingsModalProps) {
   const { themes, activeThemeId, importFromFile, remove, setActive } = useThemeStore()
+  const updateAvailable = useUpdateStore((s) => s.status?.updateAvailable ?? false)
+  const [section, setSection] = useState<Section>('themes')
   const [importError, setImportError] = useState<string | null>(null)
   const [isImporting, setIsImporting] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
@@ -35,6 +40,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
     if (!open) {
       setImportError(null)
       setConfirmDeleteId(null)
+      setSection('themes')
       if (confirmTimeoutRef.current) {
         clearTimeout(confirmTimeoutRef.current)
         confirmTimeoutRef.current = null
@@ -66,6 +72,13 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
     await remove(id)
   }
 
+  const navItemClass = (active: boolean) =>
+    `w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-ui ${
+      active
+        ? 'bg-app-elevated text-app-accent-text font-semibold'
+        : 'text-app-text-2 hover:text-app-text hover:bg-app-elevated'
+    }`
+
   return createPortal(
     <div
       className="fixed inset-0 bg-black/40 z-[9999] flex items-center justify-center"
@@ -75,100 +88,241 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="settings-modal-title"
+        aria-labelledby={`settings-modal-title-${section}`}
         className="bg-app-surface border border-app-border rounded-xl shadow-app-card w-[640px] max-h-[80vh] flex overflow-hidden"
       >
         {/* Left nav */}
         <div className="w-[140px] bg-app-sidebar border-r border-app-border p-3 shrink-0">
           <div className="app-section-label mb-3">Settings</div>
-          <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-ui bg-app-elevated text-app-accent-text font-semibold">
+          <button onClick={() => setSection('themes')} className={navItemClass(section === 'themes')}>
             <Palette size={13} />
             Themes
+          </button>
+          <button onClick={() => setSection('updates')} className={`mt-1 ${navItemClass(section === 'updates')}`}>
+            <Download size={13} />
+            Updates
+            {updateAvailable && <span className="ml-auto w-2 h-2 rounded-full bg-app-accent" />}
           </button>
         </div>
 
         {/* Content */}
         <div className="flex-1 flex flex-col min-w-0">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-app-border">
-            <div id="settings-modal-title" className="text-ui-md font-semibold text-app-text">Theme Library</div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleImport}
-                disabled={isImporting}
-                className="flex items-center gap-1.5 px-2.5 py-1 bg-app-accent hover:bg-app-accent-hover disabled:opacity-50 text-white rounded-md text-ui font-medium transition-colors"
-              >
-                <Plus size={12} />
-                {isImporting ? 'Importing…' : 'Import…'}
-              </button>
-              <button
-                onClick={onClose}
-                aria-label="Close settings"
-                className="p-1.5 rounded-md text-app-text-3 hover:text-app-text hover:bg-app-elevated transition-colors"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          </div>
+          {section === 'themes' && (
+            <>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-app-border">
+                <div id="settings-modal-title-themes" className="text-ui-md font-semibold text-app-text">Theme Library</div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleImport}
+                    disabled={isImporting}
+                    className="flex items-center gap-1.5 px-2.5 py-1 bg-app-accent hover:bg-app-accent-hover disabled:opacity-50 text-white rounded-md text-ui font-medium transition-colors"
+                  >
+                    <Plus size={12} />
+                    {isImporting ? 'Importing…' : 'Import…'}
+                  </button>
+                  <button
+                    onClick={onClose}
+                    aria-label="Close settings"
+                    className="p-1.5 rounded-md text-app-text-3 hover:text-app-text hover:bg-app-elevated transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
 
-          {importError && (
-            <div className="mx-4 mt-3 px-3 py-2 bg-app-err-subtle text-app-err rounded-md text-ui">
-              {importError}
-            </div>
+              {importError && (
+                <div className="mx-4 mt-3 px-3 py-2 bg-app-err-subtle text-app-err rounded-md text-ui">
+                  {importError}
+                </div>
+              )}
+
+              <div className="p-4 overflow-y-auto grid grid-cols-3 gap-3">
+                {/* Built-in dark — always first, not deletable */}
+                <ThemeCard
+                  builtin
+                  active={activeThemeId === null}
+                  swatchColors={['#15110D', '#D97757', '#5BC98A', '#7AB3F0']}
+                  name="Aperture Dark"
+                  author="built-in"
+                  onClick={() => setActive(null)}
+                />
+                <ThemeCard
+                  builtin
+                  active={activeThemeId === 'aperture-light'}
+                  swatchColors={['#FAF7F1', '#C8633B', '#2E8B6A', '#2E6FB8']}
+                  name="Aperture Light"
+                  author="built-in"
+                  onClick={() => setActive('aperture-light')}
+                />
+
+                {themes.map((theme) => (
+                  <ThemeCard
+                    key={theme.id}
+                    active={activeThemeId === theme.id}
+                    swatchColors={[
+                      `#${theme.base.base00}`,
+                      `#${theme.base.base09}`,
+                      `#${theme.base.base0b}`,
+                      `#${theme.base.base0d}`,
+                    ]}
+                    name={theme.name}
+                    author={theme.author ?? 'imported'}
+                    onClick={() => setActive(theme.id)}
+                    onDelete={() => requestDelete(theme.id)}
+                    confirmingDelete={confirmDeleteId === theme.id}
+                    onConfirmDelete={() => confirmDelete(theme.id)}
+                    onCancelDelete={() => setConfirmDeleteId(null)}
+                  />
+                ))}
+
+                {/* Dashed-border import placeholder */}
+                <button
+                  onClick={handleImport}
+                  disabled={isImporting}
+                  className="border border-dashed border-app-border rounded-lg p-3 flex flex-col items-center justify-center gap-1.5 text-app-text-3 hover:text-app-text hover:border-app-border-2 transition-colors disabled:opacity-50"
+                >
+                  <Plus size={18} />
+                  <span className="text-ui">Import theme</span>
+                </button>
+              </div>
+            </>
           )}
 
-          <div className="p-4 overflow-y-auto grid grid-cols-3 gap-3">
-            {/* Built-in dark — always first, not deletable */}
-            <ThemeCard
-              builtin
-              active={activeThemeId === null}
-              swatchColors={['#15110D', '#D97757', '#5BC98A', '#7AB3F0']}
-              name="Aperture Dark"
-              author="built-in"
-              onClick={() => setActive(null)}
-            />
-            <ThemeCard
-              builtin
-              active={activeThemeId === 'aperture-light'}
-              swatchColors={['#FAF7F1', '#C8633B', '#2E8B6A', '#2E6FB8']}
-              name="Aperture Light"
-              author="built-in"
-              onClick={() => setActive('aperture-light')}
-            />
-
-            {themes.map((theme) => (
-              <ThemeCard
-                key={theme.id}
-                active={activeThemeId === theme.id}
-                swatchColors={[
-                  `#${theme.base.base00}`,
-                  `#${theme.base.base09}`,
-                  `#${theme.base.base0b}`,
-                  `#${theme.base.base0d}`,
-                ]}
-                name={theme.name}
-                author={theme.author ?? 'imported'}
-                onClick={() => setActive(theme.id)}
-                onDelete={() => requestDelete(theme.id)}
-                confirmingDelete={confirmDeleteId === theme.id}
-                onConfirmDelete={() => confirmDelete(theme.id)}
-                onCancelDelete={() => setConfirmDeleteId(null)}
-              />
-            ))}
-
-            {/* Dashed-border import placeholder */}
-            <button
-              onClick={handleImport}
-              disabled={isImporting}
-              className="border border-dashed border-app-border rounded-lg p-3 flex flex-col items-center justify-center gap-1.5 text-app-text-3 hover:text-app-text hover:border-app-border-2 transition-colors disabled:opacity-50"
-            >
-              <Plus size={18} />
-              <span className="text-ui">Import theme</span>
-            </button>
-          </div>
+          {section === 'updates' && <UpdatesSection onClose={onClose} />}
         </div>
       </div>
     </div>,
     document.body
+  )
+}
+
+function UpdatesSection({ onClose }: { onClose: () => void }) {
+  const status = useUpdateStore((s) => s.status)
+  const checking = useUpdateStore((s) => s.checking)
+  const checkNow = useUpdateStore((s) => s.checkNow)
+  const [copied, setCopied] = useState(false)
+
+  // Kick off a check the first time the panel is shown with no data yet.
+  useEffect(() => {
+    if (!status && !checking) void checkNow()
+  }, [status, checking, checkNow])
+
+  const copyXattr = async () => {
+    await navigator.clipboard.writeText('xattr -cr /Applications/Aperture.app')
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-app-border">
+        <div id="settings-modal-title-updates" className="text-ui-md font-semibold text-app-text">Updates</div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close settings"
+          className="p-1.5 rounded-md text-app-text-3 hover:text-app-text hover:bg-app-elevated transition-colors"
+        >
+          <X size={14} />
+        </button>
+      </div>
+
+      <div className="p-4 overflow-y-auto flex flex-col gap-4">
+        {/* Current version + manual check */}
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="app-section-label">Current version</div>
+            <div className="text-ui-md font-semibold text-app-text font-tabular">
+              {status?.currentVersion ?? '—'}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => void checkNow()}
+            disabled={checking}
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-app-elevated hover:bg-app-border/40 disabled:opacity-50 text-app-text rounded-md text-ui font-medium transition-colors"
+          >
+            <RefreshCw size={12} className={checking ? 'animate-spin' : ''} />
+            {checking ? 'Checking…' : 'Check for updates'}
+          </button>
+        </div>
+
+        {/* Error */}
+        {status?.error && (
+          <div className="px-3 py-2 bg-app-err-subtle text-app-err rounded-md text-ui">
+            Couldn't check for updates — {status.error}
+          </div>
+        )}
+
+        {/* Up to date */}
+        {status && !status.error && !status.updateAvailable && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-app-ok-subtle text-app-ok rounded-md text-ui">
+            <Check size={14} />
+            You're on the latest version.
+          </div>
+        )}
+
+        {/* Update available */}
+        {status?.updateAvailable && (
+          <div className="flex flex-col gap-3 border border-app-accent rounded-lg p-3 bg-app-accent-subtle/40">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="app-section-label">New version available</div>
+                <div className="text-ui-md font-semibold text-app-text font-tabular">{status.latestVersion}</div>
+                {status.publishedAt && (
+                  <div className="text-ui-xs text-app-text-3">
+                    Released {new Date(status.publishedAt).toLocaleDateString()}
+                  </div>
+                )}
+              </div>
+              <a
+                href={status.dmgUrl ?? status.releaseUrl ?? '#'}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-app-accent hover:bg-app-accent-hover text-white rounded-md text-ui font-medium transition-colors shrink-0"
+              >
+                <Download size={12} />
+                Download
+              </a>
+            </div>
+
+            {status.releaseNotes && (
+              <pre className="text-ui-xs text-app-text-2 whitespace-pre-wrap max-h-40 overflow-y-auto bg-app-surface rounded-md p-2 border border-app-border">
+                {status.releaseNotes}
+              </pre>
+            )}
+
+            {status.releaseUrl && (
+              <a
+                href={status.releaseUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-ui-xs text-app-accent-text hover:underline"
+              >
+                View release notes on GitHub →
+              </a>
+            )}
+
+            {/* Un-notarized install hint */}
+            <div className="text-ui-xs text-app-text-3 border-t border-app-border pt-2">
+              After installing, if macOS says the app is "damaged", run this once in Terminal:
+              <div className="mt-1 flex items-center gap-2">
+                <code className="flex-1 px-2 py-1 bg-app-surface border border-app-border rounded font-tabular text-app-text-2 truncate">
+                  xattr -cr /Applications/Aperture.app
+                </code>
+                <button
+                  type="button"
+                  onClick={copyXattr}
+                  className="px-2 py-1 rounded bg-app-elevated hover:bg-app-border/40 text-app-text-2 text-ui-xs shrink-0"
+                >
+                  {copied ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
   )
 }
 

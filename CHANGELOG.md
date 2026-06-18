@@ -8,6 +8,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- In-app update notifier: Aperture checks GitHub Releases on launch and every 3
+  hours, badges the Settings gear when a newer version exists, and adds a
+  **Settings → Updates** section with release notes, a manual "Check for
+  updates" button, and an arch-aware one-click DMG download. No code-signing or
+  extra hosting required.
 - Catalog tree now lists datasets and tables alphabetically (case-insensitive, natural numeric ordering) for all engines. Neo4j Labels and Relationship Types are each sorted within their group.
 
 ---

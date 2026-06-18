@@ -1,4 +1,4 @@
-import type { Connection, ConnectionCreate, Dataset, Table, TableField, TableSearchHit, QueryResult, SavedQuery, Folder, HistoryEntry, Theme, ThemeImportPayload } from './types'
+import type { Connection, ConnectionCreate, Dataset, Table, TableField, TableSearchHit, QueryResult, SavedQuery, Folder, HistoryEntry, Theme, ThemeImportPayload, UpdateStatus } from './types'
 
 export const CHANNELS = {
   // Connections
@@ -40,6 +40,10 @@ export const CHANNELS = {
   THEMES_ADD: 'themes:add',
   THEMES_REMOVE: 'themes:remove',
   THEMES_SET_ACTIVE: 'themes:set-active',
+  // Updates
+  UPDATES_CHECK: 'updates:check',
+  // Push event: main → renderer (not request/response — use window.api.on to listen)
+  UPDATES_STATUS: 'updates:status',
 } as const
 
 export type Channel = (typeof CHANNELS)[keyof typeof CHANNELS]
@@ -101,6 +105,7 @@ export interface IpcMap {
   [CHANNELS.THEMES_ADD]: { req: ThemeImportPayload; res: Theme }
   [CHANNELS.THEMES_REMOVE]: { req: string; res: void }
   [CHANNELS.THEMES_SET_ACTIVE]: { req: string | null; res: void }
+  [CHANNELS.UPDATES_CHECK]: { req: undefined; res: UpdateStatus }
 }
 
 // Channel is a superset of IpcMap keys (QUERY_LOG is push-only, not request/response).

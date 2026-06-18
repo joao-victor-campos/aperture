@@ -247,3 +247,23 @@ export interface ThemeImportPayload {
   author?: string
   base: Record<string, string>
 }
+
+/**
+ * Result of an update check against GitHub's /releases/latest.
+ * `currentVersion` is always set; the rest are null on a failed/empty check.
+ */
+export interface UpdateStatus {
+  currentVersion: string
+  latestVersion: string | null
+  updateAvailable: boolean
+  /** Arch-matched DMG asset URL, or null if no matching asset was found. */
+  dmgUrl: string | null
+  /** The release's GitHub HTML page. */
+  releaseUrl: string | null
+  releaseNotes: string | null
+  publishedAt: string | null
+  /** ISO timestamp of when this check ran. */
+  checkedAt: string
+  /** Non-null when the check failed (network/HTTP/parse). */
+  error: string | null
+}

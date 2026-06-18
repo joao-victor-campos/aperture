@@ -216,6 +216,27 @@ instead suggests adding a `LIMIT`.
 
 ---
 
+## Updating Aperture
+
+Aperture checks GitHub for new releases automatically (shortly after launch and
+every 3 hours). When a newer version is available:
+
+- A dot appears on the Settings (gear) icon.
+- **Settings → Updates** shows the new version, release notes, and a **Download**
+  button that fetches the right DMG for your Mac (Apple Silicon or Intel).
+- You can also check on demand with the **Check for updates** button.
+
+Because Aperture is distributed un-notarized, after installing a new version
+macOS may warn that the app is "damaged". Clear the quarantine flag once:
+
+```bash
+xattr -cr /Applications/Aperture.app
+```
+
+(The Updates panel shows this command with a copy button.)
+
+---
+
 ## Development
 
 ### Prerequisites

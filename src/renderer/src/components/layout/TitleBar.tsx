@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Settings, Plus, ChevronDown, Trash2, Pencil } from 'lucide-react'
 import { useConnectionStore } from '../../store/connectionStore'
 import type { ConnectionStatus } from '../../store/connectionStore'
+import { useUpdateStore } from '../../store/updateStore'
 import ApertureIcon from '../ApertureIcon'
 import CommandPalette, { type CommandPaletteHandle } from '../command/CommandPalette'
 import type { BigQueryConnection, Connection, Neo4jConnection, PostgresConnection, SnowflakeConnection } from '@shared/types'
@@ -36,6 +37,7 @@ export default function TitleBar({ onAddConnection, onEditConnection, onOpenSett
   // Position of the portal dropdown, computed when opened
   const [menuStyle, setMenuStyle] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
 
+  const updateAvailable = useUpdateStore((s) => s.status?.updateAvailable ?? false)
   const activeConn = connections.find((c) => c.id === activeConnectionId)
 
   // Compute dropdown position whenever it opens
@@ -167,11 +169,17 @@ export default function TitleBar({ onAddConnection, onEditConnection, onOpenSett
         {/* Settings */}
         <button
           onClick={onOpenSettings}
-          title="Settings"
+          title={updateAvailable ? 'Settings — update available' : 'Settings'}
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-          className="p-1.5 rounded-md text-app-text-2 hover:text-app-text hover:bg-app-elevated transition-colors"
+          className="relative p-1.5 rounded-md text-app-text-2 hover:text-app-text hover:bg-app-elevated transition-colors"
         >
           <Settings size={14} />
+          {updateAvailable && (
+            <span
+              className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-app-accent ring-2 ring-app-bg"
+              aria-label="Update available"
+            />
+          )}
         </button>
       </div>
 
