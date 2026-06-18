@@ -88,7 +88,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="settings-modal-title"
+        aria-labelledby={`settings-modal-title-${section}`}
         className="bg-app-surface border border-app-border rounded-xl shadow-app-card w-[640px] max-h-[80vh] flex overflow-hidden"
       >
         {/* Left nav */}
@@ -110,7 +110,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
           {section === 'themes' && (
             <>
               <div className="flex items-center justify-between px-4 py-3 border-b border-app-border">
-                <div id="settings-modal-title" className="text-ui-md font-semibold text-app-text">Theme Library</div>
+                <div id="settings-modal-title-themes" className="text-ui-md font-semibold text-app-text">Theme Library</div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleImport}
@@ -216,8 +216,9 @@ function UpdatesSection({ onClose }: { onClose: () => void }) {
   return (
     <>
       <div className="flex items-center justify-between px-4 py-3 border-b border-app-border">
-        <div id="settings-modal-title" className="text-ui-md font-semibold text-app-text">Updates</div>
+        <div id="settings-modal-title-updates" className="text-ui-md font-semibold text-app-text">Updates</div>
         <button
+          type="button"
           onClick={onClose}
           aria-label="Close settings"
           className="p-1.5 rounded-md text-app-text-3 hover:text-app-text hover:bg-app-elevated transition-colors"
@@ -236,6 +237,7 @@ function UpdatesSection({ onClose }: { onClose: () => void }) {
             </div>
           </div>
           <button
+            type="button"
             onClick={() => void checkNow()}
             disabled={checking}
             className="flex items-center gap-1.5 px-2.5 py-1 bg-app-elevated hover:bg-app-border/40 disabled:opacity-50 text-app-text rounded-md text-ui font-medium transition-colors"
@@ -309,6 +311,7 @@ function UpdatesSection({ onClose }: { onClose: () => void }) {
                   xattr -cr /Applications/Aperture.app
                 </code>
                 <button
+                  type="button"
                   onClick={copyXattr}
                   className="px-2 py-1 rounded bg-app-elevated hover:bg-app-border/40 text-app-text-2 text-ui-xs shrink-0"
                 >
