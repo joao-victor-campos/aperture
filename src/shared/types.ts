@@ -267,3 +267,80 @@ export interface UpdateStatus {
   /** Non-null when the check failed (network/HTTP/parse). */
   error: string | null
 }
+
+// ── AI chat companion ───────────────────────────────────────────────────────
+
+export type ChatRole = 'user' | 'assistant'
+
+export interface ChatTextBlock {
+  type: 'text'
+  text: string
+}
+
+export interface ChatToolUseBlock {
+  type: 'tool_use'
+  id: string
+  name: string
+  input: Record<string, unknown>
+}
+
+export interface ChatToolResultBlock {
+  type: 'tool_result'
+  tool_use_id: string
+  content: string
+  isError?: boolean
+}
+
+export type ChatContentBlock = ChatTextBlock | ChatToolUseBlock | ChatToolResultBlock
+
+export interface ChatMessage {
+  role: ChatRole
+  content: ChatContentBlock[]
+}
+
+export interface ChatThread {
+  id: string
+  title: string
+  /** The connection this thread explores. Tools run against it. */
+  connectionId: string
+  messages: ChatMessage[]
+  createdAt: string
+  updatedAt: string
+}
+
+/** Tool schema in Anthropic's shape (passed straight through to the SDK). */
+export interface AiToolDef {
+  name: string
+  description: string
+  input_schema: Record<string, unknown>
+}
+
+export interface AiCompleteRequest {
+  /** Correlates AI_CHAT_STREAM push events back to this turn. */
+  requestId: string
+  system: string
+  messages: ChatMessage[]
+  tools: AiToolDef[]
+}
+
+export interface AiCompleteResponse {
+  /** The assistant turn (text + any tool_use blocks). */
+  message: ChatMessage
+  stopReason: string | null
+  /** Set when the call failed (missing key, network, etc.). message is empty then. */
+  error?: string
+}
+
+/** Non-secret view of the AI config returned to the renderer. */
+export interface AiConfigStatus {
+  configured: boolean
+  /** Last 4 chars of the key, e.g. "…a1b2"; null when unconfigured. */
+  maskedHint: string | null
+  model: string
+}
+
+/** Payload to update AI config. Omit apiKey to change only the model. */
+export interface AiConfigSet {
+  apiKey?: string
+  model?: string
+}
