@@ -3,7 +3,7 @@ import type { ChatContentBlock } from '../../shared/types'
 import { registerProvider, type LlmProvider } from './llmProvider'
 
 /** Fast model used for inline ghost-text completion. */
-const INLINE_MODEL = 'claude-haiku-4-5'
+const INLINE_MODEL = 'claude-haiku-4-5-20251001'
 
 /** Map our final-message content blocks (already Anthropic-shaped) to our type. */
 function toContentBlocks(content: unknown[]): ChatContentBlock[] {

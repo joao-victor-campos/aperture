@@ -395,7 +395,7 @@ function AiSection({ onClose }: { onClose: () => void }) {
           >
             <option value="claude-opus-4-8">Claude Opus 4.8 (most capable)</option>
             <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (balanced)</option>
-            <option value="claude-haiku-4-5">Claude Haiku 4.5 (fastest)</option>
+            <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (fastest)</option>
           </select>
         </div>
 
