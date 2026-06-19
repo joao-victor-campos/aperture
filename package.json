@@ -19,6 +19,7 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
     "@codemirror/autocomplete": "^6.20.1",
     "@codemirror/lang-sql": "^6.8.0",
     "@codemirror/language": "^6.12.2",
