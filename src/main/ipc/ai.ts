@@ -76,7 +76,6 @@ export function registerAiHandlers(): void {
         const { text } = await provider.completeInline({ system, prompt: user }, cfg.apiKey)
         return { text: sanitizeCompletion(text, req.prefix) }
       } catch (err) {
-        console.error('[inline] provider error', err)
         return { text: '', error: err instanceof Error ? err.message : String(err) }
       }
     }
