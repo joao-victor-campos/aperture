@@ -148,6 +148,39 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-06-19] Feature: AI chat companion
+
+**Type:** Change
+**Context:** Aperture had no way to interact with the catalog or run queries conversationally. Users needed an assistant that could answer questions about their data, generate SQL, and run exploratory queries without leaving the app.
+**Problem / Change:** No AI integration existed. All query writing and catalog exploration required manual navigation.
+**Solution / Outcome:**
+- **Provider abstraction.** `src/main/ai/llmProvider.ts` defines an `LlmProvider` interface + registry; `src/main/ai/anthropicProvider.ts` is the sole implementation (Anthropic SDK, streaming). Designed so additional providers (OpenAI, Gemini) can be registered without changing call sites.
+- **Main process owns LLM calls and the API key.** `AI_CHAT_COMPLETE` is a req/res IPC channel that sends a message list and returns the assistant turn. `AI_CHAT_STREAM` is a push channel (mirrors `QUERY_LOG`) that delivers streaming token chunks to the renderer. `AI_CONFIG_GET` returns a masked status object (never the raw key); `AI_CONFIG_SET` writes `apiKey` + `model` to the JSON store.
+- **Chat threads.** `CHAT_THREADS_LIST`, `CHAT_THREADS_SAVE`, and `CHAT_THREADS_DELETE` IPC channels manage thread persistence. Threads are stored in `src/main/db/store.ts` under `chatThreads` (array) alongside `aiConfig` (apiKey/model). Each thread is bound to the connection ID it explored.
+- **Renderer agent loop in `chatStore.ts`.** The Zustand store orchestrates the tool-use cycle: `tool_use` blocks in the assistant response are dispatched — data tools (`search_tables`, `list_datasets`, `get_table_schema`, `run_query`) call existing catalog/query IPC channels; `open_query_tab` is renderer-native (opens a new editor tab with the drafted SQL); `run_query` is gated by a confirmation card showing the SQL and estimated bytes (user clicks **Approve** or **Reject** before the query runs). Tool results are collected and sent back as `tool_result` messages; the loop continues until the model emits a plain text turn.
+- **Result capping.** `src/main/ai/capResult.ts` trims query results to the first 50 rows plus a total-count annotation before feeding them back to the model.
+- **System prompt and tool definitions.** `src/main/ai/systemPrompt.ts` describes the assistant's role (catalog explorer, SQL drafter, confirmation-gated executor); `src/main/ai/tools.ts` defines the four tool schemas passed to the Anthropic `tools` parameter.
+- **UI.** Right-docked `ChatPanel` with a thread rail (layout option C from the spec): thread list on the left, active conversation on the right. Each message renders Markdown; tool calls and confirmation cards render as structured components. The ✨ (Sparkles) button in `TitleBar.tsx` toggles the panel. `SettingsModal.tsx` gains an **AI** section (API key input + model picker + save button).
+- **Tests.** Coverage-gated files `src/main/ipc/ai.ts` and `src/main/ipc/chatThreads.ts` and `src/renderer/src/store/chatStore.ts` are covered. Pure helpers `capResult`, `systemPrompt`, `tools`, and `anthropicProvider` are unit-tested in `src/__tests__/main/ai/`.
+- **AI inline autocomplete** (completions in the SQL editor triggered as you type) is a separate future spec and is **not** part of this work.
+
+**Files affected:**
+- `src/shared/types.ts` — `AiConfig`, `ChatThread`, `ChatMessage`, `ToolConfirmation`, `AiConfigStatus`
+- `src/shared/ipc.ts` — `AI_CHAT_COMPLETE`, `AI_CHAT_STREAM`, `AI_CONFIG_GET`, `AI_CONFIG_SET`, `CHAT_THREADS_LIST`, `CHAT_THREADS_SAVE`, `CHAT_THREADS_DELETE`
+- `src/main/db/store.ts` — `chatThreads`, `aiConfig` fields on `StoreData`
+- `src/main/ai/llmProvider.ts`, `anthropicProvider.ts`, `capResult.ts`, `systemPrompt.ts`, `tools.ts` — created
+- `src/main/ipc/ai.ts`, `src/main/ipc/chatThreads.ts` — created; `src/main/ipc/index.ts` — register
+- `src/renderer/src/store/chatStore.ts` — created
+- `src/renderer/src/components/chat/ChatPanel.tsx`, `ChatThread.tsx`, `ChatMessage.tsx`, `ToolConfirmationCard.tsx`, `ThreadRail.tsx` — created
+- `src/renderer/src/components/settings/SettingsModal.tsx` — AI section added
+- `src/renderer/src/components/layout/TitleBar.tsx` — Sparkles toggle button
+- `src/renderer/src/App.tsx` — chat panel state, `chatStore` boot
+- `package.json` — `@anthropic-ai/sdk`
+- `src/__tests__/main/ai/{capResult,systemPrompt,tools,anthropicProvider}.test.ts` — created
+- `src/__tests__/main/ipc/{ai,chatThreads}.test.ts` — created
+- `src/__tests__/renderer/store/chatStore.test.ts` — created
+- `README.md`, `CHANGELOG.md` — docs
+
 ### [2026-06-18] Feature: In-app update notifier (GitHub notify-and-redirect)
 
 **Type:** Change

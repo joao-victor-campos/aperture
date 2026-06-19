@@ -237,6 +237,30 @@ xattr -cr /Applications/Aperture.app
 
 ---
 
+## AI Assistant
+
+Aperture includes an agentic AI chat companion powered by Anthropic. The assistant operates on your **active connection**: it can search the catalog, inspect table schemas, draft SQL into new editor tabs, and execute queries — all conversationally.
+
+### What it does
+
+- **Explores the catalog** — searches for tables, lists datasets, and reads schemas from the active connection without leaving the chat.
+- **Drafts SQL** — opens new editor tabs pre-filled with generated queries so you can review and edit before running.
+- **Runs queries with confirmation** — when the assistant wants to execute a query it shows you the SQL and estimated bytes processed. You **Approve** or **Reject** each run explicitly; nothing executes without your consent. The first 50 rows of each result are fed back to the model to inform its next step.
+- **Multiple saved threads** — chat history is persisted per-connection across restarts, with a thread rail for switching conversations (similar to ChatGPT's sidebar). Each thread is bound to the connection it explored.
+
+### Setup
+
+1. Open **Settings** (gear icon in the title bar, or `⌘K → Settings`).
+2. Go to the **AI** tab.
+3. Paste your **Anthropic API key** and choose a model (e.g. `claude-opus-4-5`).
+4. Click **Save**. The key is stored locally in the app's config file — it is never sent anywhere other than the Anthropic API.
+
+Toggle the chat panel open or closed with the **✨** (Sparkles) button in the title bar.
+
+> **Note:** AI inline autocomplete (completions in the SQL editor) is a separate, future feature. The current assistant is a standalone chat panel only.
+
+---
+
 ## Development
 
 ### Prerequisites
