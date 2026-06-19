@@ -2,15 +2,18 @@ import { ipcMain } from 'electron'
 import { CHANNELS } from '../../shared/ipc'
 import { store } from '../db/store'
 import { getProvider } from '../ai/llmProvider'
-import type { AiCompleteRequest, AiCompleteResponse, AiConfigStatus, AiConfigSet } from '../../shared/types'
+import type { AiCompleteRequest, AiCompleteResponse, AiConfigStatus, AiConfigSet, InlineCompleteRequest, InlineCompleteResponse } from '../../shared/types'
 // Side-effect import: registers the 'anthropic' provider.
 import '../ai/anthropicProvider'
+import { buildInlinePrompt } from '../ai/buildInlinePrompt'
+import { sanitizeCompletion } from '../ai/sanitizeCompletion'
 
-function statusOf(cfg: { apiKey: string | null; model: string }): AiConfigStatus {
+function statusOf(cfg: { apiKey: string | null; model: string; inlineCompletionEnabled?: boolean }): AiConfigStatus {
   return {
     configured: !!cfg.apiKey,
     maskedHint: cfg.apiKey ? `…${cfg.apiKey.slice(-4)}` : null,
     model: cfg.model,
+    inlineCompletionEnabled: !!cfg.inlineCompletionEnabled,
   }
 }
 
@@ -24,6 +27,10 @@ export function registerAiHandlers(): void {
     const next = {
       apiKey: req.apiKey !== undefined ? req.apiKey : cfg.apiKey,
       model: req.model !== undefined ? req.model : cfg.model,
+      inlineCompletionEnabled:
+        req.inlineCompletionEnabled !== undefined
+          ? req.inlineCompletionEnabled
+          : (cfg.inlineCompletionEnabled ?? false),
     }
     store.set('aiConfig', next)
     return statusOf(next)
@@ -54,6 +61,22 @@ export function registerAiHandlers(): void {
           stopReason: null,
           error: err instanceof Error ? err.message : String(err),
         }
+      }
+    }
+  )
+
+  ipcMain.handle(
+    CHANNELS.AI_COMPLETE_INLINE,
+    async (_event, req: InlineCompleteRequest): Promise<InlineCompleteResponse> => {
+      const cfg = store.get('aiConfig')
+      if (!cfg.apiKey) return { text: '' }
+      try {
+        const provider = getProvider('anthropic')
+        const { system, user } = buildInlinePrompt(req)
+        const { text } = await provider.completeInline({ system, prompt: user }, cfg.apiKey)
+        return { text: sanitizeCompletion(text, req.prefix) }
+      } catch (err) {
+        return { text: '', error: err instanceof Error ? err.message : String(err) }
       }
     }
   )

@@ -12,6 +12,12 @@ export interface LlmCompleteResult {
   stopReason: string | null
 }
 
+export interface InlineCompleteParams {
+  system: string
+  /** The full user prompt (fill-in-the-middle framing). */
+  prompt: string
+}
+
 /** A pluggable LLM backend. Anthropic is the only impl for v1. */
 export interface LlmProvider {
   /**
@@ -23,6 +29,12 @@ export interface LlmProvider {
     apiKey: string,
     onDelta: (text: string) => void
   ): Promise<LlmCompleteResult>
+
+  /**
+   * Single-shot, low-latency completion for inline ghost text. Non-streaming.
+   * The provider chooses its own fast model internally.
+   */
+  completeInline(params: InlineCompleteParams, apiKey: string): Promise<{ text: string }>
 }
 
 const registry: Record<string, LlmProvider> = {}

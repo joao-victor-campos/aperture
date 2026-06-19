@@ -257,7 +257,14 @@ Aperture includes an agentic AI chat companion powered by Anthropic. The assista
 
 Toggle the chat panel open or closed with the **✨** (Sparkles) button in the title bar.
 
-> **Note:** AI inline autocomplete (completions in the SQL editor) is a separate, future feature. The current assistant is a standalone chat panel only.
+### AI inline completions
+
+As you type SQL or Cypher, Aperture can suggest completions inline — greyed-out ghost text ahead of your cursor, similar to GitHub Copilot. Press **Tab** to accept a suggestion or **Esc** to dismiss it.
+
+- **Schema- and dialect-aware** — suggestions are informed by the columns of tables referenced in your query; Neo4j connections use Cypher syntax.
+- **Fast model** — completions use Anthropic Haiku (a lightweight model) so they arrive quickly without interrupting your flow; the chat assistant uses your separately-chosen model.
+- **Opt-in and experimental** — disabled by default. Enable it in **Settings → AI → Inline AI completions (experimental)**. A quick **✨ AI** toggle in the editor toolbar lets you turn it on or off without leaving the editor.
+- **Requires an API key** — the same Anthropic API key used for the chat assistant powers inline completions.
 
 ---
 

@@ -4,6 +4,7 @@ import { X, Plus, Trash2, Palette, Download, RefreshCw, Check, Sparkles } from '
 import { CHANNELS } from '@shared/ipc'
 import { useThemeStore } from '../../store/themeStore'
 import { useUpdateStore } from '../../store/updateStore'
+import { useAiSettingsStore } from '../../store/aiSettingsStore'
 
 interface SettingsModalProps {
   open: boolean
@@ -338,6 +339,11 @@ function AiSection({ onClose }: { onClose: () => void }) {
   const [model, setModel] = useState('claude-sonnet-4-6')
   const [saved, setSaved] = useState(false)
 
+  const inlineEnabled = useAiSettingsStore((s) => s.enabled)
+  const inlineKeyConfigured = useAiSettingsStore((s) => s.keyConfigured)
+  const setInlineEnabled = useAiSettingsStore((s) => s.setEnabled)
+  const loadAiSettings = useAiSettingsStore((s) => s.load)
+
   useEffect(() => {
     void (async () => {
       const s = await window.api.invoke(CHANNELS.AI_CONFIG_GET, undefined)
@@ -354,6 +360,7 @@ function AiSection({ onClose }: { onClose: () => void }) {
     setKeyInput('')
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+    await loadAiSettings()
   }
 
   return (
@@ -388,8 +395,33 @@ function AiSection({ onClose }: { onClose: () => void }) {
           >
             <option value="claude-opus-4-8">Claude Opus 4.8 (most capable)</option>
             <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (balanced)</option>
-            <option value="claude-haiku-4-5">Claude Haiku 4.5 (fastest)</option>
+            <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (fastest)</option>
           </select>
+        </div>
+
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col">
+            <label className="app-section-label">Inline AI completions (experimental)</label>
+            <p className="text-ui-xs text-app-text-3">
+              Ghost-text suggestions as you type. Uses your key on every pause — small per-keystroke cost.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={inlineEnabled}
+            disabled={!inlineKeyConfigured}
+            onClick={() => void setInlineEnabled(!inlineEnabled)}
+            className={`mt-0.5 shrink-0 w-9 h-5 rounded-full transition-colors disabled:opacity-40 ${
+              inlineEnabled ? 'bg-app-accent' : 'bg-app-border'
+            }`}
+          >
+            <span
+              className={`block w-4 h-4 bg-white rounded-full transition-transform ${
+                inlineEnabled ? 'translate-x-4' : 'translate-x-0.5'
+              }`}
+            />
+          </button>
         </div>
 
         <div className="flex items-center gap-2">

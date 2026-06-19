@@ -148,6 +148,45 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-06-19] Feature: AI inline autocomplete
+
+**Type:** Change
+**Context:** The AI chat companion was already shipping, but the SQL/Cypher editor had no inline completion beyond the existing schema-aware keyword/column completions. Users asked for a Copilot-style experience — ghost text ahead of the cursor, accepted with Tab — without leaving the editor.
+**Problem / Change:** No inline LLM completion existed. The `LlmProvider` interface had no `completeInline` method, there was no fast-model path, and no CodeMirror extension wired completion results to ghost text.
+**Solution / Outcome:**
+- **`completeInline` on `LlmProvider`.** `src/main/ai/llmProvider.ts` gains a `completeInline(prompt: string): Promise<string>` method on the interface. `src/main/ai/anthropicProvider.ts` implements it using Anthropic Haiku 4.5 (`claude-haiku-4-5`): non-streaming, `max_tokens: 256`, `temperature: 0.1`, stop sequences `['\n\n', ';']`. Provider-extensible — any future provider (OpenAI, Gemini) just implements the same method.
+- **`AI_COMPLETE_INLINE` IPC channel.** New req/res channel in `src/shared/ipc.ts`. The handler in `src/main/ipc/ai.ts` reads `apiKey` + `inlineCompletionEnabled` from `aiConfig`, builds the prompt via `buildInlinePrompt`, sanitizes the output via `sanitizeCompletion`, and returns `{ text: string; error?: string }`. Never throws: missing key → `{ text: '' }`; provider error → `{ text: '', error }`.
+- **Pure helpers (main process).** `src/main/ai/buildInlinePrompt.ts` — constructs the fill-in-the-middle prompt from the SQL text before and after the cursor, the active engine dialect, and an injected schema snippet (column list for referenced tables). `src/main/ai/sanitizeCompletion.ts` — strips code fences, trims trailing semicolons/whitespace, and guards against completions that duplicate text already ahead of the cursor.
+- **Pure helper (renderer).** `src/renderer/src/lib/inlineSchemaContext.ts` — reuses `extractTableRefs` to find tables referenced in the query, looks up their columns from `schemaCache`, and serialises a compact `table(col, col, …)` snippet (≤ 10 columns per table, ≤ 3 tables) sent with each IPC request.
+- **`inlineCompletion` CodeMirror extension.** `src/renderer/src/lib/inlineCompletion.ts` — a ViewPlugin that fires on every document change after a ~400 ms debounce. Cancels stale in-flight requests via a generation counter. Caches the last N completions in an LRU keyed by prefix so identical prefixes don't round-trip. On response, decorates the text ahead of the cursor with a `ghost-text` CSS class (greyed-out). **Tab** key binding accepts (inserts) the suggestion; **Esc** dismisses it. IPC caller is injected at construction time so the extension is fully unit-testable.
+- **Opt-in config.** `aiConfig.inlineCompletionEnabled: boolean` added to `StoreData` in `src/main/db/store.ts` and to the `AiConfig` shared type. `src/renderer/src/store/aiSettingsStore.ts` (new Zustand store) exposes `enabled` + `keyConfigured`, reads/writes via `AI_CONFIG_GET` / `AI_CONFIG_SET`, and gates the extension: it activates only when both flags are true.
+- **UI.** `src/renderer/src/components/settings/SettingsModal.tsx` gains an "Inline AI completions (experimental)" toggle in the **AI** section. `src/renderer/src/components/editor/QueryEditor.tsx` gains a `✨ AI` quick-toggle button in the editor toolbar (visible only when a key is configured). `src/renderer/src/App.tsx` boots `aiSettingsStore` on mount.
+- **Tests.** Coverage-gated: `src/main/ipc/ai.ts` (extended with `AI_COMPLETE_INLINE` cases) and `src/renderer/src/store/aiSettingsStore.ts` (new store tests). Pure-unit: `buildInlinePrompt`, `sanitizeCompletion`, `inlineSchemaContext`, `anthropicProvider.completeInline`.
+
+**Files affected:**
+- `src/shared/types.ts` — `AiConfig.inlineCompletionEnabled`
+- `src/shared/ipc.ts` — `AI_COMPLETE_INLINE` channel
+- `src/main/db/store.ts` — `inlineCompletionEnabled` on `StoreData.aiConfig`
+- `src/main/ai/llmProvider.ts` — `completeInline` on `LlmProvider` interface
+- `src/main/ai/anthropicProvider.ts` — `completeInline` implementation (Haiku 4.5)
+- `src/main/ai/buildInlinePrompt.ts` — created
+- `src/main/ai/sanitizeCompletion.ts` — created
+- `src/main/ipc/ai.ts` — `AI_COMPLETE_INLINE` handler added
+- `src/renderer/src/lib/inlineSchemaContext.ts` — created
+- `src/renderer/src/lib/inlineCompletion.ts` — created (CodeMirror ViewPlugin)
+- `src/renderer/src/store/aiSettingsStore.ts` — created
+- `src/renderer/src/components/editor/QueryEditor.tsx` — `✨ AI` toolbar toggle
+- `src/renderer/src/components/settings/SettingsModal.tsx` — inline completions toggle
+- `src/renderer/src/App.tsx` — boot `aiSettingsStore`
+- `src/__tests__/main/ai/buildInlinePrompt.test.ts` — created
+- `src/__tests__/main/ai/sanitizeCompletion.test.ts` — created
+- `src/__tests__/main/ai/anthropicProvider.test.ts` — extended (`completeInline` cases)
+- `src/__tests__/renderer/lib/inlineSchemaContext.test.ts` — created
+- `src/__tests__/main/ipc/ai.test.ts` — extended (`AI_COMPLETE_INLINE` cases)
+- `src/__tests__/renderer/store/aiSettingsStore.test.ts` — created
+
+---
+
 ### [2026-06-19] Feature: AI chat companion
 
 **Type:** Change

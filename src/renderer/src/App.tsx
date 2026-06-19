@@ -11,6 +11,7 @@ import { useHistoryStore } from './store/historyStore'
 import { useThemeStore } from './store/themeStore'
 import ChatPanel from './components/chat/ChatPanel'
 import { useChatStore } from './store/chatStore'
+import { useAiSettingsStore } from './store/aiSettingsStore'
 import type { Connection } from '@shared/types'
 import type { CommandPaletteHandle } from './components/command/CommandPalette'
 
@@ -29,6 +30,7 @@ export default function App() {
   const toggleChat = useChatStore((s) => s.togglePanel)
   const closeChat = useChatStore((s) => s.closePanel)
   const loadThreads = useChatStore((s) => s.loadThreads)
+  const loadAiSettings = useAiSettingsStore((s) => s.load)
 
   useEffect(() => {
     // Eager-load every persistent store the ⌘K palette searches over,
@@ -38,7 +40,8 @@ export default function App() {
     loadHistory()
     loadThemes()
     loadThreads()
-  }, [load, loadSavedQueries, loadHistory, loadThemes, loadThreads])
+    loadAiSettings()
+  }, [load, loadSavedQueries, loadHistory, loadThemes, loadThreads, loadAiSettings])
 
   // Global ⌘K (or Ctrl+K on Linux) — focuses the palette input
   // Global ⌘/ — toggles shortcut cheatsheet
