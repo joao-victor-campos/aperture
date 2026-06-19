@@ -10,8 +10,8 @@ export function buildSystemPrompt(connectionName: string, engine: ConnectionEngi
   const lang = isGraph ? 'Cypher' : `${engine}-dialect SQL`
 
   const catalogHint = isGraph
-    ? '- The catalog is a graph: list_datasets shows databases, search_tables finds node labels and relationship types, and get_table_schema returns sampled properties for a label. Use them to discover structure before writing Cypher.'
-    : '- Use list_datasets, search_tables, and get_table_schema to discover structure before writing queries. Do not guess column names.'
+    ? '- The catalog is a graph: list_datasets shows databases, list_tables enumerates the node labels and relationship types in a database, search_tables finds them by name, and get_table_schema returns sampled properties for a label. Enumerate with list_tables before guessing.'
+    : '- Discover structure before writing queries: list_datasets → list_tables (to enumerate the tables in a dataset) → get_table_schema. Only use search_tables when you already know part of a table name. Never assume a dataset is empty without calling list_tables. Do not guess column names.'
 
   return [
     "You are Aperture's data assistant, embedded in a database IDE.",

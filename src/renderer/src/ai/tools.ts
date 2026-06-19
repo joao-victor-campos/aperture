@@ -17,6 +17,15 @@ export const TOOL_DEFS: AiToolDef[] = [
     },
   },
   {
+    name: 'list_tables',
+    description: 'List all tables in a specific dataset/schema. Use this to enumerate what exists in a dataset before searching by name or guessing.',
+    input_schema: {
+      type: 'object',
+      properties: { datasetId: { type: 'string', description: 'The dataset/schema id to list tables for.' } },
+      required: ['datasetId'],
+    },
+  },
+  {
     name: 'get_table_schema',
     description: 'Get the columns and types of a specific table.',
     input_schema: {
@@ -81,6 +90,13 @@ export async function runDataTool(
       const r = await window.api.invoke(CHANNELS.CATALOG_SEARCH_TABLES, {
         connectionId: ctx.connectionId,
         query: String(input.query ?? ''),
+      })
+      return JSON.stringify(r)
+    }
+    case 'list_tables': {
+      const r = await window.api.invoke(CHANNELS.CATALOG_TABLES, {
+        connectionId: ctx.connectionId,
+        datasetId: String(input.datasetId ?? ''),
       })
       return JSON.stringify(r)
     }

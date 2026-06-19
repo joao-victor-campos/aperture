@@ -7,9 +7,9 @@ beforeEach(() => {
 })
 
 describe('TOOL_DEFS', () => {
-  it('exposes the six tools by name', () => {
+  it('exposes the seven tools by name', () => {
     expect(TOOL_DEFS.map((t) => t.name).sort()).toEqual(
-      ['dry_run_query', 'get_table_schema', 'list_datasets', 'open_query_tab', 'run_query', 'search_tables'].sort()
+      ['dry_run_query', 'get_table_schema', 'list_datasets', 'list_tables', 'open_query_tab', 'run_query', 'search_tables'].sort()
     )
   })
 
@@ -32,6 +32,13 @@ describe('runDataTool', () => {
     expect(window.api.invoke).toHaveBeenCalledWith(CHANNELS.CATALOG_TABLE_SCHEMA, {
       connectionId: 'c1', projectId: 'p', datasetId: 'd', tableId: 't',
     })
+  })
+
+  it('list_tables forwards the dataset id to CATALOG_TABLES', async () => {
+    vi.mocked(window.api.invoke).mockResolvedValue([{ id: 'cards', name: 'cards', type: 'TABLE', datasetId: 'crawler', projectId: 'p' }])
+    const out = await runDataTool('list_tables', { datasetId: 'crawler' }, { connectionId: 'c1' })
+    expect(window.api.invoke).toHaveBeenCalledWith(CHANNELS.CATALOG_TABLES, { connectionId: 'c1', datasetId: 'crawler' })
+    expect(out).toContain('"name":"cards"')
   })
 
   it('list_datasets forwards the connection id', async () => {
