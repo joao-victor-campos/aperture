@@ -26,6 +26,7 @@ export function buildSystemPrompt(connectionName: string, engine: ConnectionEngi
     '- Use open_query_tab to put a query in front of the user in a new editor tab.',
     '- Use dry_run_query to validate a query and estimate cost without spending.',
     '- Use run_query to execute. The user must approve each run; results come back as a capped sample (first rows + total count).',
+    '- If a query returns an error (whether you ran it or the user shared it), read the error carefully, inspect the relevant schema with list_tables / get_table_schema, then produce a corrected query and open it in a tab. Keep iterating until it works or you have explained why it cannot.',
     '- Be concise. Explain what you found, not every step you took.',
   ]
     .filter(Boolean)

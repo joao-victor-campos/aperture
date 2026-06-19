@@ -22,6 +22,8 @@ export interface PendingConfirm {
 interface ChatState {
   threads: ChatThread[]
   activeThreadId: string | null
+  /** Whether the chat panel is open (owned here so any surface can open it). */
+  isPanelOpen: boolean
   /** Accumulated streamed text for the in-flight assistant turn. */
   streamingText: string
   isStreaming: boolean
@@ -36,6 +38,11 @@ interface ChatState {
   sendMessage: (text: string) => Promise<void>
   approveRun: () => void
   rejectRun: () => void
+  openPanel: () => void
+  closePanel: () => void
+  togglePanel: () => void
+  /** Open the panel and ask the assistant to diagnose + fix a failed query. */
+  requestFix: (sql: string, error: string) => void
 }
 
 function now(): string {
@@ -63,6 +70,7 @@ let confirmResolver: ((approved: boolean) => void) | null = null
 export const useChatStore = create<ChatState>((set, get) => ({
   threads: [],
   activeThreadId: null,
+  isPanelOpen: false,
   streamingText: '',
   isStreaming: false,
   pendingConfirm: null,
@@ -197,6 +205,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
     confirmResolver = null
     set({ pendingConfirm: null })
     r?.(false)
+  },
+
+  openPanel: () => set({ isPanelOpen: true }),
+  closePanel: () => set({ isPanelOpen: false }),
+  togglePanel: () => set((s) => ({ isPanelOpen: !s.isPanelOpen })),
+
+  requestFix: (sql, error) => {
+    set({ isPanelOpen: true })
+    const prompt = [
+      'A query I ran failed. Diagnose the cause and give me a corrected version.',
+      'Inspect the relevant table schemas if needed, then open the fixed query in a new tab.',
+      '',
+      'Query:',
+      '```sql',
+      sql,
+      '```',
+      '',
+      'Error:',
+      error,
+    ].join('\n')
+    void get().sendMessage(prompt)
   },
 }))
 

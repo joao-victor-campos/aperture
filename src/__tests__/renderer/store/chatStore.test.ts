@@ -18,6 +18,7 @@ function resetStore() {
   useChatStore.setState({
     threads: [],
     activeThreadId: null,
+    isPanelOpen: false,
     streamingText: '',
     isStreaming: false,
     pendingConfirm: null,
@@ -287,5 +288,39 @@ describe('chatStore.sendMessage — connection awareness', () => {
     await useChatStore.getState().sendMessage('hi')
     expect(useChatStore.getState().error).toMatch(/connect to a database/i)
     expect(window.api.invoke).not.toHaveBeenCalledWith(CHANNELS.AI_CHAT_COMPLETE, expect.anything())
+  })
+})
+
+describe('chatStore panel + requestFix', () => {
+  it('openPanel / closePanel / togglePanel control isPanelOpen', () => {
+    expect(useChatStore.getState().isPanelOpen).toBe(false)
+    useChatStore.getState().openPanel()
+    expect(useChatStore.getState().isPanelOpen).toBe(true)
+    useChatStore.getState().closePanel()
+    expect(useChatStore.getState().isPanelOpen).toBe(false)
+    useChatStore.getState().togglePanel()
+    expect(useChatStore.getState().isPanelOpen).toBe(true)
+  })
+
+  it('requestFix opens the panel and sends a message containing the SQL and error', async () => {
+    setupConnection()
+    vi.mocked(window.api.invoke).mockImplementation(async (channel: string) => {
+      if (channel === CHANNELS.AI_CHAT_COMPLETE) {
+        return { message: { role: 'assistant', content: [{ type: 'text', text: 'fixed' }] }, stopReason: 'end_turn' }
+      }
+      return undefined
+    })
+
+    useChatStore.getState().requestFix('SELECT * FROM nope', 'Table nope not found')
+
+    // Panel opens and the user message (appended synchronously) carries both.
+    expect(useChatStore.getState().isPanelOpen).toBe(true)
+    const firstMsg = useChatStore.getState().threads[0].messages[0]
+    const text = (firstMsg.content[0] as { text: string }).text
+    expect(text).toContain('SELECT * FROM nope')
+    expect(text).toContain('Table nope not found')
+
+    // Let the fire-and-forget agent loop settle (invoke is mocked).
+    await new Promise((r) => setTimeout(r, 0))
   })
 })

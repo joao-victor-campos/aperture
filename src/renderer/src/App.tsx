@@ -25,7 +25,9 @@ export default function App() {
   const paletteRef = useRef<CommandPaletteHandle>(null)
   const [cheatsheetOpen, setCheatsheetOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [chatOpen, setChatOpen] = useState(false)
+  const chatOpen = useChatStore((s) => s.isPanelOpen)
+  const toggleChat = useChatStore((s) => s.togglePanel)
+  const closeChat = useChatStore((s) => s.closePanel)
   const loadThreads = useChatStore((s) => s.loadThreads)
 
   useEffect(() => {
@@ -63,7 +65,7 @@ export default function App() {
         onEditConnection={(conn) => setModal({ mode: 'edit', connection: conn })}
         onOpenSettings={() => setSettingsOpen(true)}
         onShowShortcuts={() => setCheatsheetOpen(true)}
-        onToggleChat={() => setChatOpen((v) => !v)}
+        onToggleChat={toggleChat}
         chatOpen={chatOpen}
         paletteRef={paletteRef}
       />
@@ -76,7 +78,7 @@ export default function App() {
             <Editor />
           )}
         </main>
-        {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
+        {chatOpen && <ChatPanel onClose={closeChat} />}
       </div>
       {modal && (
         <ConnectionModal
