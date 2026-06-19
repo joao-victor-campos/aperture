@@ -1,4 +1,4 @@
-import type { Connection, ConnectionCreate, Dataset, Table, TableField, TableSearchHit, QueryResult, SavedQuery, Folder, HistoryEntry, Theme, ThemeImportPayload, UpdateStatus } from './types'
+import type { Connection, ConnectionCreate, Dataset, Table, TableField, TableSearchHit, QueryResult, SavedQuery, Folder, HistoryEntry, Theme, ThemeImportPayload, UpdateStatus, ChatThread, AiCompleteRequest, AiCompleteResponse, AiConfigStatus, AiConfigSet } from './types'
 
 export const CHANNELS = {
   // Connections
@@ -44,6 +44,16 @@ export const CHANNELS = {
   UPDATES_CHECK: 'updates:check',
   // Push event: main → renderer (not request/response — use window.api.on to listen)
   UPDATES_STATUS: 'updates:status',
+  // AI chat
+  AI_CHAT_COMPLETE: 'ai:chat-complete',
+  AI_CONFIG_GET: 'ai:config-get',
+  AI_CONFIG_SET: 'ai:config-set',
+  // Push event: main → renderer (token streaming; use window.api.on)
+  AI_CHAT_STREAM: 'ai:chat-stream',
+  // Chat threads
+  CHAT_THREADS_LIST: 'chat-threads:list',
+  CHAT_THREADS_SAVE: 'chat-threads:save',
+  CHAT_THREADS_DELETE: 'chat-threads:delete',
 } as const
 
 export type Channel = (typeof CHANNELS)[keyof typeof CHANNELS]
@@ -106,6 +116,12 @@ export interface IpcMap {
   [CHANNELS.THEMES_REMOVE]: { req: string; res: void }
   [CHANNELS.THEMES_SET_ACTIVE]: { req: string | null; res: void }
   [CHANNELS.UPDATES_CHECK]: { req: undefined; res: UpdateStatus }
+  [CHANNELS.AI_CHAT_COMPLETE]: { req: AiCompleteRequest; res: AiCompleteResponse }
+  [CHANNELS.AI_CONFIG_GET]: { req: undefined; res: AiConfigStatus }
+  [CHANNELS.AI_CONFIG_SET]: { req: AiConfigSet; res: AiConfigStatus }
+  [CHANNELS.CHAT_THREADS_LIST]: { req: undefined; res: ChatThread[] }
+  [CHANNELS.CHAT_THREADS_SAVE]: { req: ChatThread; res: ChatThread }
+  [CHANNELS.CHAT_THREADS_DELETE]: { req: string; res: void }
 }
 
 // Channel is a superset of IpcMap keys (QUERY_LOG is push-only, not request/response).

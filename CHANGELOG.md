@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
+## [Unreleased]
+
+### Added
+- AI chat companion: agentic assistant (Anthropic) that explores the active connection's catalog, drafts SQL into tabs, and runs queries with per-run confirmation. Multiple saved threads. Configure your API key + model in Settings → AI.
+
+---
 ## [2.4.0] - 2026-06-18
 
 ### Added

@@ -1,6 +1,6 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronLeft, ChevronRight, Loader2, Download, Pin, SlidersHorizontal, X, ChevronUp, ChevronDown as ChevronDownIcon } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, Download, Pin, SlidersHorizontal, X, ChevronUp, ChevronDown as ChevronDownIcon, Sparkles } from 'lucide-react'
 import { CHANNELS } from '@shared/ipc'
 import type { QueryResult } from '@shared/types'
 import { filterSortRows } from '../../lib/filterSortRows'
@@ -18,6 +18,8 @@ interface ResultsTableProps {
   onFetchPage?: () => Promise<void>
   onPin?: () => void
   pinned?: boolean
+  /** When set, the error state shows a "Fix with AI" button that hands the SQL + error to the chat. */
+  onFixWithAI?: () => void
 }
 
 const PAGE_SIZES = [50, 100, 250, 500]
@@ -29,7 +31,7 @@ const ROW_HEIGHT = 29 // px — fixed; cells are single-line (truncate)
 const EMPTY_ROWS: Record<string, unknown>[] = []
 
 function ResultsTable({
-  result, error, isRunning, cancelled, logs = [], onFetchPage, onPin, pinned,
+  result, error, isRunning, cancelled, logs = [], onFetchPage, onPin, pinned, onFixWithAI,
 }: ResultsTableProps) {
   const logEndRef = useRef<HTMLDivElement>(null)
   const [page, setPage] = useState(0)
@@ -223,6 +225,15 @@ function ResultsTable({
           <div className="bg-app-err-subtle border border-app-err/30 rounded-lg p-3">
             <p className="text-xs font-mono text-app-err whitespace-pre-wrap selectable">{error}</p>
           </div>
+          {onFixWithAI && (
+            <button
+              type="button"
+              onClick={onFixWithAI}
+              className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-ui font-medium bg-app-accent hover:bg-app-accent-hover text-white transition-colors"
+            >
+              <Sparkles size={13} /> Fix with AI
+            </button>
+          )}
         </div>
       </div>
     )

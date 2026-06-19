@@ -1,6 +1,7 @@
 import { memo, useCallback, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useQueryStore } from '../../store/queryStore'
+import { useChatStore } from '../../store/chatStore'
 import ResultsTable from './ResultsTable'
 import ExplainPanel from './ExplainPanel'
 import GraphView from './GraphView'
@@ -34,10 +35,16 @@ function ResultsRegion({ tabId }: { tabId: string }) {
   const openResultTab = useQueryStore((s) => s.openResultTab)
   const toggleGraphView = useQueryStore((s) => s.toggleGraphView)
   const clearExplain = useQueryStore((s) => s.clearExplain)
+  const requestFix = useChatStore((s) => s.requestFix)
 
   // Stable callbacks so ResultsTable's React.memo actually skips re-renders.
   const handleFetchPage = useCallback(() => fetchPage(tabId), [fetchPage, tabId])
   const handlePin = useCallback(() => openResultTab(tabId), [openResultTab, tabId])
+  const handleFixWithAI = useCallback(() => {
+    const t = useQueryStore.getState().tabs.find((x) => x.id === tabId)
+    if (!t?.error) return
+    requestFix(t.sql, t.error)
+  }, [requestFix, tabId])
 
   const graphShape = useMemo(() => {
     const rows = tab.result?.rows
@@ -79,6 +86,7 @@ function ResultsRegion({ tabId }: { tabId: string }) {
         logs={tab.logs}
         onFetchPage={handleFetchPage}
         onPin={handlePin}
+        onFixWithAI={handleFixWithAI}
       />
     </>
   )

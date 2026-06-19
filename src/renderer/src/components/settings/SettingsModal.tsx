@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Plus, Trash2, Palette, Download, RefreshCw, Check } from 'lucide-react'
+import { X, Plus, Trash2, Palette, Download, RefreshCw, Check, Sparkles } from 'lucide-react'
+import { CHANNELS } from '@shared/ipc'
 import { useThemeStore } from '../../store/themeStore'
 import { useUpdateStore } from '../../store/updateStore'
 
@@ -9,7 +10,7 @@ interface SettingsModalProps {
   onClose: () => void
 }
 
-type Section = 'themes' | 'updates'
+type Section = 'themes' | 'updates' | 'ai'
 
 export default function SettingsModal({ open, onClose }: SettingsModalProps) {
   const { themes, activeThemeId, importFromFile, remove, setActive } = useThemeStore()
@@ -103,6 +104,10 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
             Updates
             {updateAvailable && <span className="ml-auto w-2 h-2 rounded-full bg-app-accent" />}
           </button>
+          <button onClick={() => setSection('ai')} className={`mt-1 ${navItemClass(section === 'ai')}`}>
+            <Sparkles size={13} />
+            AI
+          </button>
         </div>
 
         {/* Content */}
@@ -189,6 +194,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
           )}
 
           {section === 'updates' && <UpdatesSection onClose={onClose} />}
+          {section === 'ai' && <AiSection onClose={onClose} />}
         </div>
       </div>
     </div>,
@@ -321,6 +327,77 @@ function UpdatesSection({ onClose }: { onClose: () => void }) {
             </div>
           </div>
         )}
+      </div>
+    </>
+  )
+}
+
+function AiSection({ onClose }: { onClose: () => void }) {
+  const [status, setStatus] = useState<{ configured: boolean; maskedHint: string | null; model: string } | null>(null)
+  const [keyInput, setKeyInput] = useState('')
+  const [model, setModel] = useState('claude-sonnet-4-6')
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    void (async () => {
+      const s = await window.api.invoke(CHANNELS.AI_CONFIG_GET, undefined)
+      setStatus(s)
+      setModel(s.model)
+    })()
+  }, [])
+
+  const save = async () => {
+    const payload: { apiKey?: string; model?: string } = { model }
+    if (keyInput.trim()) payload.apiKey = keyInput.trim()
+    const s = await window.api.invoke(CHANNELS.AI_CONFIG_SET, payload)
+    setStatus(s)
+    setKeyInput('')
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  return (
+    <>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-app-border">
+        <div id="settings-modal-title-ai" className="text-ui-md font-semibold text-app-text">AI Assistant</div>
+        <button type="button" onClick={onClose} aria-label="Close settings"
+          className="p-1.5 rounded-md text-app-text-3 hover:text-app-text hover:bg-app-elevated transition-colors">
+          <X size={14} />
+        </button>
+      </div>
+
+      <div className="p-4 overflow-y-auto flex flex-col gap-4">
+        <div className="flex flex-col gap-1.5">
+          <label className="app-section-label">Anthropic API key</label>
+          <input
+            type="password"
+            value={keyInput}
+            onChange={(e) => setKeyInput(e.target.value)}
+            placeholder={status?.configured ? `Configured (${status.maskedHint})` : 'sk-ant-…'}
+            className="bg-app-surface border border-app-border rounded-md px-2 py-1.5 text-ui text-app-text focus:outline-none focus:ring-2 focus:ring-app-accent/30 font-tabular"
+          />
+          <p className="text-ui-xs text-app-text-3">Stored locally on this machine. Leave blank to keep the current key.</p>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="app-section-label">Model</label>
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            className="bg-app-surface border border-app-border rounded-md px-2 py-1.5 text-ui text-app-text focus:outline-none focus:ring-2 focus:ring-app-accent/30"
+          >
+            <option value="claude-opus-4-8">Claude Opus 4.8 (most capable)</option>
+            <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (balanced)</option>
+            <option value="claude-haiku-4-5">Claude Haiku 4.5 (fastest)</option>
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={save}
+            className="px-3 py-1.5 rounded-md text-ui font-medium bg-app-accent hover:bg-app-accent-hover text-white">
+            {saved ? 'Saved' : 'Save'}
+          </button>
+        </div>
       </div>
     </>
   )
