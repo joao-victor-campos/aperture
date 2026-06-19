@@ -228,3 +228,64 @@ describe('chatStore.sendMessage', () => {
     expect(useChatStore.getState().isStreaming).toBe(false)
   })
 })
+
+describe('chatStore.sendMessage — connection awareness', () => {
+  it('creates a thread on first send when none is active', async () => {
+    setupConnection()
+    expect(useChatStore.getState().activeThreadId).toBeNull()
+    vi.mocked(window.api.invoke).mockImplementation(async (channel: string) => {
+      if (channel === CHANNELS.AI_CHAT_COMPLETE) {
+        return { message: { role: 'assistant', content: [{ type: 'text', text: 'hi' }] }, stopReason: 'end_turn' }
+      }
+      return undefined
+    })
+
+    await useChatStore.getState().sendMessage('hello')
+
+    expect(useChatStore.getState().threads).toHaveLength(1)
+    expect(useChatStore.getState().threads[0].messages[0]).toMatchObject({ role: 'user' })
+  })
+
+  it('targets the CURRENT active connection, re-binding the thread', async () => {
+    // Thread was created against c1, but the user has since switched to c2.
+    useConnectionStore.setState({
+      connections: [
+        { id: 'c1', name: 'old', engine: 'postgres', host: 'h', port: 5432, database: 'd', user: 'u', password: 'p', createdAt: 'x' },
+        { id: 'c2', name: 'graph', engine: 'neo4j', uri: 'neo4j://h', username: 'u', password: 'p', createdAt: 'x' },
+      ],
+      activeConnectionId: 'c2',
+      isLoading: false,
+      statuses: {},
+    } as never)
+    useChatStore.getState().newThread('c1') // bound to c1 at creation
+
+    const seen: Array<{ channel: string; arg: unknown }> = []
+    let aiCalls = 0
+    vi.mocked(window.api.invoke).mockImplementation(async (channel: string, arg: unknown) => {
+      seen.push({ channel, arg })
+      if (channel === CHANNELS.AI_CHAT_COMPLETE) {
+        aiCalls += 1
+        if (aiCalls === 1) {
+          return { message: { role: 'assistant', content: [{ type: 'tool_use', id: 'tu1', name: 'list_datasets', input: {} }] }, stopReason: 'tool_use' }
+        }
+        return { message: { role: 'assistant', content: [{ type: 'text', text: 'done' }] }, stopReason: 'end_turn' }
+      }
+      if (channel === CHANNELS.CATALOG_DATASETS) return []
+      return undefined
+    })
+
+    await useChatStore.getState().sendMessage('what labels exist?')
+
+    // Thread re-bound to the current connection.
+    expect(useChatStore.getState().threads[0].connectionId).toBe('c2')
+    // The data tool was dispatched against c2, not c1.
+    expect(seen.some((s) => s.channel === CHANNELS.CATALOG_DATASETS && s.arg === 'c2')).toBe(true)
+  })
+
+  it('sets an error and does not call the model when no connection is active', async () => {
+    useConnectionStore.setState({ connections: [], activeConnectionId: null, isLoading: false, statuses: {} } as never)
+    await useChatStore.getState().sendMessage('hi')
+    expect(useChatStore.getState().error).toMatch(/connect to a database/i)
+    expect(window.api.invoke).not.toHaveBeenCalledWith(CHANNELS.AI_CHAT_COMPLETE, expect.anything())
+  })
+})

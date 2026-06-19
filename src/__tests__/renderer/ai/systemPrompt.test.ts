@@ -12,4 +12,16 @@ describe('buildSystemPrompt', () => {
     const p = buildSystemPrompt('c', 'postgres')
     expect(p.toLowerCase()).toContain('run_query')
   })
+
+  it('instructs Cypher (not SQL) for a neo4j connection', () => {
+    const p = buildSystemPrompt('graph-db', 'neo4j')
+    expect(p).toContain('Cypher')
+    expect(p).toContain('Neo4j')
+    expect(p).toContain('graph-db')
+  })
+
+  it('uses SQL phrasing for relational engines', () => {
+    const p = buildSystemPrompt('c', 'snowflake')
+    expect(p).toContain('snowflake-dialect SQL')
+  })
 })

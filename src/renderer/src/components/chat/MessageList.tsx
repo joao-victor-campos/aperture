@@ -23,6 +23,12 @@ export default function MessageList({ messages }: Props) {
 
   return (
     <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
+      {messages.length === 0 && !isStreaming && !pendingConfirm && !error && (
+        <div className="flex-1 flex items-center justify-center text-ui-xs text-app-text-3 text-center px-4">
+          Ask anything about your data — I can explore the catalog, draft queries, and run them with your approval.
+        </div>
+      )}
+
       {messages.map((m, i) => <MessageBubble key={i} message={m} />)}
 
       {isStreaming && streamingText && (

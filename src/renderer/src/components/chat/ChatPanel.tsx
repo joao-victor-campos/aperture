@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { Sparkles, X } from 'lucide-react'
 import { useChatStore } from '../../store/chatStore'
 import { useConnectionStore } from '../../store/connectionStore'
@@ -14,15 +13,12 @@ export default function ChatPanel({ onClose }: Props) {
   const threads = useChatStore((s) => s.threads)
   const activeThreadId = useChatStore((s) => s.activeThreadId)
   const isStreaming = useChatStore((s) => s.isStreaming)
-  const newThread = useChatStore((s) => s.newThread)
   const sendMessage = useChatStore((s) => s.sendMessage)
   const activeConnectionId = useConnectionStore((s) => s.activeConnectionId)
 
+  // The active thread is created lazily on first send (see chatStore.sendMessage),
+  // so we don't auto-create empty threads here.
   const activeThread = threads.find((t) => t.id === activeThreadId)
-
-  useEffect(() => {
-    if (!activeThreadId && activeConnectionId) newThread(activeConnectionId)
-  }, [activeThreadId, activeConnectionId, newThread])
 
   return (
     <div className="w-[420px] border-l border-app-border flex flex-col bg-app-surface shrink-0">
@@ -42,14 +38,14 @@ export default function ChatPanel({ onClose }: Props) {
 
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 flex flex-col min-w-0">
-          {activeThread ? (
+          {activeConnectionId ? (
             <>
-              <MessageList messages={activeThread.messages} />
+              <MessageList messages={activeThread?.messages ?? []} />
               <ChatComposer disabled={isStreaming} onSend={sendMessage} />
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center text-ui text-app-text-3 px-4 text-center">
-              {activeConnectionId ? 'Starting a new chat…' : 'Connect to a database to start chatting.'}
+              Connect to a database to start chatting.
             </div>
           )}
         </div>

@@ -106,22 +106,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   sendMessage: async (text) => {
-    const threadId = get().activeThreadId
-    if (!threadId) return
-    const thread = get().threads.find((t) => t.id === threadId)
-    if (!thread) return
-
-    const conn = useConnectionStore.getState().connections.find((c) => c.id === thread.connectionId)
-    if (!conn) {
-      set({ error: 'This thread\'s connection no longer exists.' })
+    // Always operate on the CURRENT active connection so the agent stays in sync
+    // with whatever the user is connected to right now (not the connection that
+    // happened to be active when the thread was created).
+    const connState = useConnectionStore.getState()
+    const connectionId = connState.activeConnectionId
+    const conn = connState.connections.find((c) => c.id === connectionId)
+    if (!connectionId || !conn) {
+      set({ error: 'Connect to a database before chatting.' })
       return
+    }
+
+    // Lazily create a thread on first send; this avoids auto-creating empty
+    // threads on panel open (which duplicated under StrictMode).
+    let threadId = get().activeThreadId
+    if (!threadId || !get().threads.find((t) => t.id === threadId)) {
+      threadId = get().newThread(connectionId)
     }
 
     const userMsg: ChatMessage = { role: 'user', content: [{ type: 'text', text }] }
     set((s) => ({
       error: null,
-      threads: patchThread(s.threads, threadId, (t) => ({
+      threads: patchThread(s.threads, threadId!, (t) => ({
         ...t,
+        // Re-bind to the current connection so tools target it.
+        connectionId,
         title: t.messages.length === 0 ? text.slice(0, 40) : t.title,
         messages: [...t.messages, userMsg],
         updatedAt: now(),
@@ -162,7 +171,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       const resultBlocks: ChatContentBlock[] = []
       for (const tu of toolUses) {
-        const content = await dispatchTool(tu, thread.connectionId, set)
+        const content = await dispatchTool(tu, connectionId, set)
         resultBlocks.push({ type: 'tool_result', tool_use_id: tu.id, content })
       }
 
