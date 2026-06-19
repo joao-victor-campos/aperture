@@ -6,6 +6,8 @@ import { registerHistoryHandlers } from './history'
 import { registerExportHandlers } from './export'
 import { registerThemeHandlers } from './themes'
 import { registerUpdateHandlers } from './updates'
+import { registerAiHandlers } from './ai'
+import { registerChatThreadHandlers } from './chatThreads'
 
 export function registerIpcHandlers(): void {
   registerConnectionHandlers()
@@ -16,4 +18,6 @@ export function registerIpcHandlers(): void {
   registerExportHandlers()
   registerThemeHandlers()
   registerUpdateHandlers()
+  registerAiHandlers()
+  registerChatThreadHandlers()
 }
