@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { join } from 'path'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
-import type { Connection, SavedQuery, Folder, HistoryEntry, Theme } from '../../shared/types'
+import type { Connection, SavedQuery, Folder, HistoryEntry, Theme, ChatThread } from '../../shared/types'
 
 interface StoreData {
   connections: Connection[]
@@ -10,6 +10,8 @@ interface StoreData {
   historyEntries: HistoryEntry[]
   themes: Theme[]
   activeThemeId: string | null
+  chatThreads: ChatThread[]
+  aiConfig: { apiKey: string | null; model: string }
 }
 
 const DEFAULTS: StoreData = {
@@ -19,6 +21,8 @@ const DEFAULTS: StoreData = {
   historyEntries: [],
   themes: [],
   activeThemeId: null,
+  chatThreads: [],
+  aiConfig: { apiKey: null, model: 'claude-sonnet-4-6' },
 }
 
 let data: StoreData | null = null
