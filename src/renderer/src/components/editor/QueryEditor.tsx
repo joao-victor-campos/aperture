@@ -1,14 +1,17 @@
-import { memo, useCallback, useMemo } from 'react'
+import { memo, useCallback, useMemo, useRef } from 'react'
 import { format as formatSQL } from 'sql-formatter'
 import CodeMirror from '@uiw/react-codemirror'
 import { autocompletion } from '@codemirror/autocomplete'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { EditorView, keymap } from '@codemirror/view'
 import { Prec } from '@codemirror/state'
-import { Bookmark, BookmarkCheck, Columns2, ListTree, WandSparkles } from 'lucide-react'
+import { Bookmark, BookmarkCheck, Columns2, ListTree, Sparkles, WandSparkles } from 'lucide-react'
 import type { ConnectionEngine } from '@shared/types'
+import { CHANNELS } from '@shared/ipc'
 import { cypher, type CypherSchema } from '../../lib/cypherLanguage'
 import { sqlSupport } from '../../lib/sqlCompletion'
+import { inlineCompletion } from '../../lib/inlineCompletion'
+import { useAiSettingsStore } from '../../store/aiSettingsStore'
 
 interface QueryEditorProps {
   value: string
@@ -55,6 +58,32 @@ function QueryEditor({
     return sqlSupport(engine, sqlSchema)
   }, [sqlSchema, cypherSchema, engine])
 
+  const inlineEnabled = useAiSettingsStore((s) => s.enabled && s.keyConfigured)
+  const keyConfigured = useAiSettingsStore((s) => s.keyConfigured)
+  const setInlineEnabled = useAiSettingsStore((s) => s.setEnabled)
+
+  // Live refs so the (stable) inline extension reads current values without rebuilding.
+  const enabledRef = useRef(inlineEnabled)
+  enabledRef.current = inlineEnabled
+  const engineRef = useRef(engine)
+  engineRef.current = engine
+  const schemaRef = useRef(sqlSchema)
+  schemaRef.current = sqlSchema
+
+  const inlineExt = useMemo(
+    () =>
+      inlineCompletion({
+        isEnabled: () => enabledRef.current,
+        getEngine: () => engineRef.current,
+        getSchema: () => schemaRef.current ?? {},
+        request: async (r) => {
+          const res = await window.api.invoke(CHANNELS.AI_COMPLETE_INLINE, r)
+          return res.text
+        },
+      }),
+    []
+  )
+
   const handleFormat = useCallback(() => {
     if (!value.trim()) return
     if (engine === 'neo4j') return // Cypher has no sql-formatter dialect
@@ -99,9 +128,10 @@ function QueryEditor({
       languageExtension,
       keymapExtension,
       customTheme,
+      inlineExt,
       autocompletion({ activateOnTyping: true, defaultKeymap: true, icons: true }),
     ],
-    [languageExtension, keymapExtension],
+    [languageExtension, keymapExtension, inlineExt],
   )
 
   return (
@@ -110,6 +140,27 @@ function QueryEditor({
         <span className="app-section-label">SQL</span>
 
         <div className="flex items-center gap-2">
+          {/* Inline AI completions toggle */}
+          <button
+            onClick={() => void setInlineEnabled(!inlineEnabled)}
+            disabled={!keyConfigured}
+            title={
+              !keyConfigured
+                ? 'Add an API key in Settings → AI to enable inline completions'
+                : inlineEnabled
+                  ? 'Inline AI completions: on'
+                  : 'Inline AI completions: off'
+            }
+            className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+              inlineEnabled
+                ? 'text-app-accent-text hover:bg-app-elevated'
+                : 'text-app-text-2 hover:text-app-text hover:bg-app-elevated'
+            }`}
+          >
+            <Sparkles size={13} />
+            <span className="text-[11px]">AI</span>
+          </button>
+
           {/* Format button */}
           <button
             onClick={handleFormat}
