@@ -8,6 +8,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- AI inline autocomplete: opt-in Copilot-style ghost-text suggestions in the SQL/Cypher editor, powered by a fast model (Anthropic Haiku), schema- and dialect-aware. Tab to accept; toggle in Settings → AI or the editor toolbar.
 - AI chat companion: agentic assistant (Anthropic) that explores the active connection's catalog, drafts SQL into tabs, and runs queries with per-run confirmation. Multiple saved threads. Configure your API key + model in Settings → AI.
 
 ---
