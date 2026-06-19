@@ -1,6 +1,17 @@
 import { create } from 'zustand'
 import { CHANNELS } from '@shared/ipc'
-import type { ChatThread, ChatMessage } from '@shared/types'
+import type {
+  ChatThread,
+  ChatMessage,
+  ChatContentBlock,
+  ChatToolUseBlock,
+  AiCompleteResponse,
+} from '@shared/types'
+import { useConnectionStore } from './connectionStore'
+import { useQueryStore } from './queryStore'
+import { TOOL_DEFS, runDataTool } from '../ai/tools'
+import { capResult } from '../ai/capResult'
+import { buildSystemPrompt } from '../ai/systemPrompt'
 
 export interface PendingConfirm {
   toolUseId: string
@@ -97,17 +108,138 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }))
   },
 
-  // sendMessage + approveRun/rejectRun implemented in the next task.
-  sendMessage: async (_text: string) => {
-    /* implemented in Task 14 */
+  sendMessage: async (text) => {
+    const threadId = get().activeThreadId
+    if (!threadId) return
+    const thread = get().threads.find((t) => t.id === threadId)
+    if (!thread) return
+
+    const conn = useConnectionStore.getState().connections.find((c) => c.id === thread.connectionId)
+    if (!conn) {
+      set({ error: 'This thread\'s connection no longer exists.' })
+      return
+    }
+
+    const userMsg: ChatMessage = { role: 'user', content: [{ type: 'text', text }] }
+    set((s) => ({
+      error: null,
+      threads: patchThread(s.threads, threadId, (t) => ({
+        ...t,
+        title: t.messages.length === 0 ? text.slice(0, 40) : t.title,
+        messages: [...t.messages, userMsg],
+        updatedAt: now(),
+      })),
+    }))
+
+    const system = buildSystemPrompt(conn.name, conn.engine)
+
+    for (let turn = 0; turn < 16; turn++) {
+      const requestId = crypto.randomUUID()
+      set({ isStreaming: true, streamingText: '' })
+
+      const messages = get().threads.find((t) => t.id === threadId)!.messages
+      const res: AiCompleteResponse = await window.api.invoke(CHANNELS.AI_CHAT_COMPLETE, {
+        requestId, system, messages, tools: TOOL_DEFS,
+      })
+
+      set({ isStreaming: false, streamingText: '' })
+
+      if (res.error) {
+        set({ error: res.error })
+        return
+      }
+
+      set((s) => ({
+        threads: patchThread(s.threads, threadId, (t) => ({
+          ...t, messages: [...t.messages, res.message], updatedAt: now(),
+        })),
+      }))
+
+      const toolUses = res.message.content.filter(
+        (b): b is ChatToolUseBlock => b.type === 'tool_use'
+      )
+      if (toolUses.length === 0) {
+        await persist(get().threads.find((t) => t.id === threadId)!)
+        return
+      }
+
+      const resultBlocks: ChatContentBlock[] = []
+      for (const tu of toolUses) {
+        const content = await dispatchTool(tu, thread.connectionId, set)
+        resultBlocks.push({ type: 'tool_result', tool_use_id: tu.id, content })
+      }
+
+      set((s) => ({
+        threads: patchThread(s.threads, threadId, (t) => ({
+          ...t, messages: [...t.messages, { role: 'user', content: resultBlocks }], updatedAt: now(),
+        })),
+      }))
+    }
+
+    await persist(get().threads.find((t) => t.id === threadId)!)
   },
+
   approveRun: () => {
-    /* implemented in Task 14 */
+    const r = confirmResolver
+    confirmResolver = null
+    set({ pendingConfirm: null })
+    r?.(true)
   },
+
   rejectRun: () => {
-    /* implemented in Task 14 */
+    const r = confirmResolver
+    confirmResolver = null
+    set({ pendingConfirm: null })
+    r?.(false)
   },
 }))
+
+type SetFn = (partial: Partial<ChatState> | ((s: ChatState) => Partial<ChatState>)) => void
+
+/**
+ * Execute one tool_use and return its tool_result content string.
+ * - data tools  → runDataTool (IPC)
+ * - open_query_tab → opens an editor tab (renderer-native)
+ * - run_query   → dry-run for estimate, await user approval, then execute
+ */
+async function dispatchTool(
+  tu: ChatToolUseBlock,
+  connectionId: string,
+  set: SetFn
+): Promise<string> {
+  try {
+    if (tu.name === 'open_query_tab') {
+      const sql = String((tu.input as { sql?: unknown }).sql ?? '')
+      useQueryStore.getState().openTab({ sql, connectionId })
+      return 'Opened a new editor tab with the SQL.'
+    }
+
+    if (tu.name === 'run_query') {
+      const sql = String((tu.input as { sql?: unknown }).sql ?? '')
+      let bytesProcessed = 0
+      try {
+        const dry = await window.api.invoke(CHANNELS.QUERY_DRY_RUN, { connectionId, sql })
+        bytesProcessed = dry.bytesProcessed ?? 0
+      } catch { /* estimate is optional */ }
+
+      const approved = await new Promise<boolean>((resolve) => {
+        confirmResolver = resolve
+        set({ pendingConfirm: { toolUseId: tu.id, sql, bytesProcessed } })
+      })
+
+      if (!approved) return 'The user declined to run this query.'
+
+      const result = await window.api.invoke(CHANNELS.QUERY_EXECUTE, {
+        connectionId, sql, tabId: `chat-${tu.id}`,
+      })
+      return capResult(result)
+    }
+
+    return await runDataTool(tu.name, tu.input, { connectionId })
+  } catch (err) {
+    return `Tool error: ${err instanceof Error ? err.message : String(err)}`
+  }
+}
 
 // ── AI_CHAT_STREAM push listener ────────────────────────────────────────────
 /** Exported for direct unit testing (clearMocks wipes the import-time on() call). */
