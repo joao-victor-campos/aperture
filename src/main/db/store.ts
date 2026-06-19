@@ -11,7 +11,7 @@ interface StoreData {
   themes: Theme[]
   activeThemeId: string | null
   chatThreads: ChatThread[]
-  aiConfig: { apiKey: string | null; model: string }
+  aiConfig: { apiKey: string | null; model: string; inlineCompletionEnabled: boolean }
 }
 
 const DEFAULTS: StoreData = {
@@ -22,7 +22,7 @@ const DEFAULTS: StoreData = {
   themes: [],
   activeThemeId: null,
   chatThreads: [],
-  aiConfig: { apiKey: null, model: 'claude-sonnet-4-6' },
+  aiConfig: { apiKey: null, model: 'claude-sonnet-4-6', inlineCompletionEnabled: false },
 }
 
 let data: StoreData | null = null

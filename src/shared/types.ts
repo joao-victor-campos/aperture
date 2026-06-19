@@ -337,12 +337,14 @@ export interface AiConfigStatus {
   /** Last 4 chars of the key, e.g. "…a1b2"; null when unconfigured. */
   maskedHint: string | null
   model: string
+  inlineCompletionEnabled: boolean
 }
 
 /** Payload to update AI config. Omit apiKey to change only the model. */
 export interface AiConfigSet {
   apiKey?: string
   model?: string
+  inlineCompletionEnabled?: boolean
 }
 
 // ── AI inline autocomplete ──────────────────────────────────────────────────

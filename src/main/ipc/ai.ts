@@ -6,11 +6,12 @@ import type { AiCompleteRequest, AiCompleteResponse, AiConfigStatus, AiConfigSet
 // Side-effect import: registers the 'anthropic' provider.
 import '../ai/anthropicProvider'
 
-function statusOf(cfg: { apiKey: string | null; model: string }): AiConfigStatus {
+function statusOf(cfg: { apiKey: string | null; model: string; inlineCompletionEnabled?: boolean }): AiConfigStatus {
   return {
     configured: !!cfg.apiKey,
     maskedHint: cfg.apiKey ? `…${cfg.apiKey.slice(-4)}` : null,
     model: cfg.model,
+    inlineCompletionEnabled: !!cfg.inlineCompletionEnabled,
   }
 }
 
@@ -24,6 +25,10 @@ export function registerAiHandlers(): void {
     const next = {
       apiKey: req.apiKey !== undefined ? req.apiKey : cfg.apiKey,
       model: req.model !== undefined ? req.model : cfg.model,
+      inlineCompletionEnabled:
+        req.inlineCompletionEnabled !== undefined
+          ? req.inlineCompletionEnabled
+          : (cfg.inlineCompletionEnabled ?? false),
     }
     store.set('aiConfig', next)
     return statusOf(next)
