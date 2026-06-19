@@ -2,6 +2,9 @@ import Anthropic from '@anthropic-ai/sdk'
 import type { ChatContentBlock } from '../../shared/types'
 import { registerProvider, type LlmProvider } from './llmProvider'
 
+/** Fast model used for inline ghost-text completion. */
+const INLINE_MODEL = 'claude-haiku-4-5'
+
 /** Map our final-message content blocks (already Anthropic-shaped) to our type. */
 function toContentBlocks(content: unknown[]): ChatContentBlock[] {
   const out: ChatContentBlock[] = []
@@ -38,6 +41,25 @@ export const anthropicProvider: LlmProvider = {
       message: { role: 'assistant', content: toContentBlocks(final.content) },
       stopReason: (final.stop_reason as string | null) ?? null,
     }
+  },
+
+  async completeInline(params, apiKey) {
+    const client = new Anthropic({ apiKey })
+    const res = await client.messages.create({
+      model: INLINE_MODEL,
+      max_tokens: 256,
+      temperature: 0.1,
+      system: params.system,
+      messages: [{ role: 'user', content: params.prompt }],
+      stop_sequences: [';', '\n\n'],
+    })
+    const text = (res.content as unknown[])
+      .map((b) => {
+        const block = b as { type: string; text?: string }
+        return block.type === 'text' ? (block.text ?? '') : ''
+      })
+      .join('')
+    return { text }
   },
 }
 

@@ -7,10 +7,11 @@ const streamFn = vi.fn(() => ({
   on: (evt: string, cb: (d: string) => void) => { if (evt === 'text') onText.mockImplementation(cb) },
   finalMessage,
 }))
+const createFn = vi.fn()
 
 vi.mock('@anthropic-ai/sdk', () => ({
   default: class {
-    messages = { stream: streamFn }
+    messages = { stream: streamFn, create: createFn }
     constructor(_opts: unknown) {}
   },
 }))
@@ -20,6 +21,7 @@ import { anthropicProvider } from '../../../main/ai/anthropicProvider'
 beforeEach(() => {
   streamFn.mockClear()
   finalMessage.mockReset()
+  createFn.mockReset()
 })
 
 describe('anthropicProvider.complete', () => {
@@ -53,5 +55,23 @@ describe('anthropicProvider.complete', () => {
       { type: 'text', text: 'hello' },
       { type: 'tool_use', id: 'tu_1', name: 'search_tables', input: { query: 'orders' } },
     ])
+  })
+})
+
+describe('anthropicProvider.completeInline', () => {
+  it('calls Haiku with stop sequences and returns the concatenated text', async () => {
+    createFn.mockResolvedValue({ content: [{ type: 'text', text: 'WHERE id = 1' }] })
+
+    const res = await anthropicProvider.completeInline(
+      { system: 'autocomplete', prompt: 'SELECT * FROM t <CURSOR>' },
+      'sk-test'
+    )
+
+    expect(createFn).toHaveBeenCalledOnce()
+    const arg = createFn.mock.calls[0][0] as Record<string, unknown>
+    expect(arg.model).toBe('claude-haiku-4-5')
+    expect(arg.max_tokens).toBe(256)
+    expect(arg.stop_sequences).toEqual([';', '\n\n'])
+    expect(res.text).toBe('WHERE id = 1')
   })
 })
