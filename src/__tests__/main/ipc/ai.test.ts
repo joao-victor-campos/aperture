@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { CHANNELS } from '../../../shared/ipc'
-import type { AiCompleteRequest } from '../../../shared/types'
+import type { AiCompleteRequest, InlineCompleteRequest } from '../../../shared/types'
 
 type Handler = (event: unknown, req?: unknown) => unknown
 const handlers = new Map<string, Handler>()
@@ -18,8 +18,9 @@ vi.mock('../../../main/db/store', () => ({
 }))
 
 const complete = vi.fn()
+const completeInline = vi.fn()
 vi.mock('../../../main/ai/llmProvider', () => ({
-  getProvider: () => ({ complete }),
+  getProvider: () => ({ complete, completeInline }),
 }))
 vi.mock('../../../main/ai/anthropicProvider', () => ({ anthropicProvider: {} }))
 
@@ -38,6 +39,7 @@ beforeEach(() => {
   handlers.clear()
   storeData.aiConfig = { apiKey: null, model: 'claude-sonnet-4-6' }
   complete.mockReset()
+  completeInline.mockReset()
   registerAiHandlers()
 })
 
@@ -103,5 +105,31 @@ describe('AI_CHAT_COMPLETE', () => {
     complete.mockRejectedValue(new Error('network down'))
     const res = await handlers.get(CHANNELS.AI_CHAT_COMPLETE)!({ sender: { send: vi.fn() } }, req())
     expect((res as { error?: string }).error).toBe('network down')
+  })
+})
+
+describe('AI_COMPLETE_INLINE', () => {
+  function inlineReq(): InlineCompleteRequest {
+    return { requestId: 'r1', prefix: 'SELECT * FROM t ', suffix: '', engine: 'bigquery', schema: '' }
+  }
+
+  it('returns empty text when no API key is set', async () => {
+    const res = await handlers.get(CHANNELS.AI_COMPLETE_INLINE)!({}, inlineReq())
+    expect(res).toEqual({ text: '' })
+    expect(completeInline).not.toHaveBeenCalled()
+  })
+
+  it('returns the sanitized completion on success', async () => {
+    storeData.aiConfig = { apiKey: 'sk-1234', model: 'claude-sonnet-4-6' }
+    completeInline.mockResolvedValue({ text: '```sql\nWHERE id = 1\n```' })
+    const res = await handlers.get(CHANNELS.AI_COMPLETE_INLINE)!({}, inlineReq())
+    expect(res).toEqual({ text: 'WHERE id = 1' })
+  })
+
+  it('returns an error field when the provider throws', async () => {
+    storeData.aiConfig = { apiKey: 'sk-1234', model: 'claude-sonnet-4-6' }
+    completeInline.mockRejectedValue(new Error('boom'))
+    const res = await handlers.get(CHANNELS.AI_COMPLETE_INLINE)!({}, inlineReq())
+    expect(res).toEqual({ text: '', error: 'boom' })
   })
 })
