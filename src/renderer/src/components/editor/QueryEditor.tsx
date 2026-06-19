@@ -78,7 +78,7 @@ function QueryEditor({
         getSchema: () => schemaRef.current ?? {},
         request: async (r) => {
           const res = await window.api.invoke(CHANNELS.AI_COMPLETE_INLINE, r)
-          // Surface silent failures (e.g. bad model id / network) in DevTools.
+          // Surface silent failures (bad model id / network) in DevTools.
           if (res.error) console.warn('[inline-completion]', res.error)
           return res.text
         },
