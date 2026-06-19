@@ -1,4 +1,4 @@
-import type { Connection, ConnectionCreate, Dataset, Table, TableField, TableSearchHit, QueryResult, SavedQuery, Folder, HistoryEntry, Theme, ThemeImportPayload, UpdateStatus, ChatThread, AiCompleteRequest, AiCompleteResponse, AiConfigStatus, AiConfigSet } from './types'
+import type { Connection, ConnectionCreate, Dataset, Table, TableField, TableSearchHit, QueryResult, SavedQuery, Folder, HistoryEntry, Theme, ThemeImportPayload, UpdateStatus, ChatThread, AiCompleteRequest, AiCompleteResponse, AiConfigStatus, AiConfigSet, InlineCompleteRequest, InlineCompleteResponse } from './types'
 
 export const CHANNELS = {
   // Connections
@@ -50,6 +50,7 @@ export const CHANNELS = {
   AI_CONFIG_SET: 'ai:config-set',
   // Push event: main → renderer (token streaming; use window.api.on)
   AI_CHAT_STREAM: 'ai:chat-stream',
+  AI_COMPLETE_INLINE: 'ai:complete-inline',
   // Chat threads
   CHAT_THREADS_LIST: 'chat-threads:list',
   CHAT_THREADS_SAVE: 'chat-threads:save',
@@ -119,6 +120,7 @@ export interface IpcMap {
   [CHANNELS.AI_CHAT_COMPLETE]: { req: AiCompleteRequest; res: AiCompleteResponse }
   [CHANNELS.AI_CONFIG_GET]: { req: undefined; res: AiConfigStatus }
   [CHANNELS.AI_CONFIG_SET]: { req: AiConfigSet; res: AiConfigStatus }
+  [CHANNELS.AI_COMPLETE_INLINE]: { req: InlineCompleteRequest; res: InlineCompleteResponse }
   [CHANNELS.CHAT_THREADS_LIST]: { req: undefined; res: ChatThread[] }
   [CHANNELS.CHAT_THREADS_SAVE]: { req: ChatThread; res: ChatThread }
   [CHANNELS.CHAT_THREADS_DELETE]: { req: string; res: void }

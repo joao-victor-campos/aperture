@@ -344,3 +344,24 @@ export interface AiConfigSet {
   apiKey?: string
   model?: string
 }
+
+// ── AI inline autocomplete ──────────────────────────────────────────────────
+
+export interface InlineCompleteRequest {
+  /** Echoed back for client-side staleness correlation. */
+  requestId: string
+  /** Text before the cursor. */
+  prefix: string
+  /** Text after the cursor. */
+  suffix: string
+  engine: ConnectionEngine
+  /** Compact schema context (referenced tables' columns); may be empty. */
+  schema: string
+}
+
+export interface InlineCompleteResponse {
+  /** The text to insert at the cursor. Empty string = no suggestion. */
+  text: string
+  /** Set when the call failed; text is '' then. */
+  error?: string
+}
