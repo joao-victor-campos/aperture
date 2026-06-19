@@ -51,7 +51,10 @@ export const anthropicProvider: LlmProvider = {
       temperature: 0.1,
       system: params.system,
       messages: [{ role: 'user', content: params.prompt }],
-      stop_sequences: [';', '\n\n'],
+      // Anthropic rejects whitespace-only stop sequences, so we can't stop on a
+      // blank line. ';' ends a statement; multi-line length is bounded by
+      // max_tokens + the line cap in sanitizeCompletion.
+      stop_sequences: [';'],
     })
     const text = (res.content as unknown[])
       .map((b) => {

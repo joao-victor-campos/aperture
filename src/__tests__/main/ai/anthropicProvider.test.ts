@@ -71,7 +71,7 @@ describe('anthropicProvider.completeInline', () => {
     const arg = createFn.mock.calls[0][0] as Record<string, unknown>
     expect(arg.model).toBe('claude-haiku-4-5-20251001')
     expect(arg.max_tokens).toBe(256)
-    expect(arg.stop_sequences).toEqual([';', '\n\n'])
+    expect(arg.stop_sequences).toEqual([';'])
     expect(res.text).toBe('WHERE id = 1')
   })
 })
