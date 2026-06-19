@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import { Settings, Plus, ChevronDown, Trash2, Pencil } from 'lucide-react'
+import { Settings, Plus, ChevronDown, Trash2, Pencil, Sparkles } from 'lucide-react'
 import { useConnectionStore } from '../../store/connectionStore'
 import type { ConnectionStatus } from '../../store/connectionStore'
 import { useUpdateStore } from '../../store/updateStore'
@@ -13,6 +13,8 @@ interface TitleBarProps {
   onEditConnection: (conn: Connection) => void
   onOpenSettings: () => void
   onShowShortcuts?: () => void
+  onToggleChat?: () => void
+  chatOpen?: boolean
   /** Receives the palette's imperative `focus()` so a global ⌘K can target it. */
   paletteRef?: RefObject<CommandPaletteHandle>
 }
@@ -25,7 +27,7 @@ function connectionLabel(c: Connection): string {
   return (c as PostgresConnection).database ?? (c as PostgresConnection).host
 }
 
-export default function TitleBar({ onAddConnection, onEditConnection, onOpenSettings, onShowShortcuts, paletteRef }: TitleBarProps) {
+export default function TitleBar({ onAddConnection, onEditConnection, onOpenSettings, onShowShortcuts, onToggleChat, chatOpen, paletteRef }: TitleBarProps) {
   const { connections, activeConnectionId, setActive, remove, statuses } = useConnectionStore()
   const [open, setOpen] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -165,6 +167,20 @@ export default function TitleBar({ onAddConnection, onEditConnection, onOpenSett
 
         {/* Right spacer — inherits drag from parent */}
         <div className="flex-1" />
+
+        {/* AI chat toggle */}
+        <button
+          type="button"
+          onClick={onToggleChat}
+          aria-label="Toggle AI assistant"
+          aria-pressed={chatOpen}
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          className={`p-1.5 rounded-md transition-colors ${
+            chatOpen ? 'text-app-accent-text bg-app-accent-subtle' : 'text-app-text-3 hover:text-app-text hover:bg-app-elevated'
+          }`}
+        >
+          <Sparkles size={15} />
+        </button>
 
         {/* Settings */}
         <button

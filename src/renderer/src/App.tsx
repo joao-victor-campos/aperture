@@ -9,6 +9,8 @@ import { useConnectionStore } from './store/connectionStore'
 import { useSavedQueryStore } from './store/savedQueryStore'
 import { useHistoryStore } from './store/historyStore'
 import { useThemeStore } from './store/themeStore'
+import ChatPanel from './components/chat/ChatPanel'
+import { useChatStore } from './store/chatStore'
 import type { Connection } from '@shared/types'
 import type { CommandPaletteHandle } from './components/command/CommandPalette'
 
@@ -23,6 +25,8 @@ export default function App() {
   const paletteRef = useRef<CommandPaletteHandle>(null)
   const [cheatsheetOpen, setCheatsheetOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
+  const loadThreads = useChatStore((s) => s.loadThreads)
 
   useEffect(() => {
     // Eager-load every persistent store the ⌘K palette searches over,
@@ -31,7 +35,8 @@ export default function App() {
     loadSavedQueries()
     loadHistory()
     loadThemes()
-  }, [load, loadSavedQueries, loadHistory, loadThemes])
+    loadThreads()
+  }, [load, loadSavedQueries, loadHistory, loadThemes, loadThreads])
 
   // Global ⌘K (or Ctrl+K on Linux) — focuses the palette input
   // Global ⌘/ — toggles shortcut cheatsheet
@@ -58,6 +63,8 @@ export default function App() {
         onEditConnection={(conn) => setModal({ mode: 'edit', connection: conn })}
         onOpenSettings={() => setSettingsOpen(true)}
         onShowShortcuts={() => setCheatsheetOpen(true)}
+        onToggleChat={() => setChatOpen((v) => !v)}
+        chatOpen={chatOpen}
         paletteRef={paletteRef}
       />
       <div className="flex flex-1 overflow-hidden">
@@ -69,6 +76,7 @@ export default function App() {
             <Editor />
           )}
         </main>
+        {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
       </div>
       {modal && (
         <ConnectionModal
