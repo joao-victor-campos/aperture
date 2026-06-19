@@ -55,13 +55,10 @@ function patchThread(
   return threads.map((t) => (t.id === id ? fn(t) : t))
 }
 
-// Resolver for the in-flight run_query confirmation (approve/reject). Used by the
-// agent loop in the next task.
-export let confirmResolver: ((approved: boolean) => void) | null = null
-
-export function setConfirmResolver(fn: ((approved: boolean) => void) | null): void {
-  confirmResolver = fn
-}
+// Resolver for the in-flight run_query confirmation (approve/reject).
+// Assigned by dispatchTool when it raises a confirmation; read/cleared by
+// approveRun/rejectRun.
+let confirmResolver: ((approved: boolean) => void) | null = null
 
 export const useChatStore = create<ChatState>((set, get) => ({
   threads: [],
