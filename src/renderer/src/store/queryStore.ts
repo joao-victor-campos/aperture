@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { CHANNELS } from '@shared/ipc'
-import type { ConnectionEngine, QueryPane, QueryTab, QueryResult } from '@shared/types'
+import type { ConnectionEngine, QueryPane, QueryTab, QueryResult, ChartConfig } from '@shared/types'
 
 interface QueryState {
   tabs: QueryTab[]
@@ -26,6 +26,8 @@ interface QueryState {
   reorderTabs: (fromId: string, toId: string) => void
   /** Flip between results-table and graph view for a tab (Neo4j graph-shaped results). */
   toggleGraphView: (id: string) => void
+  setResultView: (id: string, view: 'table' | 'chart') => void
+  setChartConfig: (id: string, config: ChartConfig) => void
   // Split-pane actions
   toggleSplit: (tabId: string) => void
   updateRightPaneSql: (tabId: string, sql: string) => void
@@ -209,6 +211,14 @@ export const useQueryStore = create<QueryState>((set, get) => ({
         t.id === id ? { ...t, viewAsGraph: !t.viewAsGraph } : t,
       ),
     }))
+  },
+
+  setResultView: (id, view) => {
+    set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, resultView: view } : t)) }))
+  },
+
+  setChartConfig: (id, config) => {
+    set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, chartConfig: config } : t)) }))
   },
 
   // ── Split pane ─────────────────────────────────────────────────────────────

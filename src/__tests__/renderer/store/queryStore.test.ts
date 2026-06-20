@@ -617,4 +617,25 @@ describe('queryStore', () => {
       expect(useQueryStore.getState().tabs).toEqual(before)
     })
   })
+
+  describe('chart view', () => {
+    it('setResultView sets the view on the targeted tab only', () => {
+      const id = useQueryStore.getState().openTab({ sql: 'SELECT 1', connectionId: 'c' })
+      const other = useQueryStore.getState().openTab({ sql: 'SELECT 2', connectionId: 'c' })
+
+      useQueryStore.getState().setResultView(id, 'chart')
+
+      expect(useQueryStore.getState().tabs.find((t) => t.id === id)?.resultView).toBe('chart')
+      expect(useQueryStore.getState().tabs.find((t) => t.id === other)?.resultView).toBeUndefined()
+    })
+
+    it('setChartConfig stores the config on the targeted tab', () => {
+      const id = useQueryStore.getState().openTab({ sql: 'SELECT 1', connectionId: 'c' })
+      const cfg = { type: 'bar' as const, xCol: 'month', yCol: 'revenue', aggregate: 'sum' as const }
+
+      useQueryStore.getState().setChartConfig(id, cfg)
+
+      expect(useQueryStore.getState().tabs.find((t) => t.id === id)?.chartConfig).toEqual(cfg)
+    })
+  })
 })
