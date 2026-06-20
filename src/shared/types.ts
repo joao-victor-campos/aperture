@@ -180,18 +180,10 @@ export interface ChartConfig {
   aggregate: ChartAggregate
 }
 
-/** State for one side of a split-pane view (right pane). */
-export interface QueryPane {
-  sql: string
-  result?: QueryResult
-  error?: string
-  isRunning: boolean
-  cancelled?: boolean
-  logs: string[]
-}
-
 export interface QueryTab {
   id: string
+  /** Which editor group this tab belongs to. Defaults to 'left'. */
+  groupId?: 'left' | 'right'
   /** 'query' (default), 'table' (catalog inspection tab), or 'result' (pinned snapshot) */
   type?: 'query' | 'table' | 'result'
   title: string
@@ -205,8 +197,6 @@ export interface QueryTab {
   cancelled?: boolean
   logs: string[]
   savedQueryId?: string
-  /** Present when split-pane mode is active for this tab */
-  rightPane?: QueryPane
   /** Explain plan / dry-run result (shown in ExplainPanel) */
   explainResult?: { bytesProcessed: number; plan?: string; planFormat?: 'text' | 'json' }
   isExplaining?: boolean

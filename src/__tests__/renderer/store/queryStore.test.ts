@@ -349,168 +349,93 @@ describe('queryStore', () => {
     })
   })
 
-  describe('split pane', () => {
-    describe('toggleSplit', () => {
-      it('creates a rightPane with empty state when none exists', () => {
-        // Arrange
-        const id = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 1' })
-
-        // Act
-        useQueryStore.getState().toggleSplit(id)
-
-        // Assert
-        const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
-        expect(tab.rightPane).toBeDefined()
-        expect(tab.rightPane?.sql).toBe('')
-        expect(tab.rightPane?.isRunning).toBe(false)
-        expect(tab.rightPane?.logs).toEqual([])
-      })
-
-      it('removes rightPane when called again (toggle off)', () => {
-        // Arrange
-        const id = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 1' })
-        useQueryStore.getState().toggleSplit(id)
-        expect(useQueryStore.getState().tabs.find((t) => t.id === id)!.rightPane).toBeDefined()
-
-        // Act
-        useQueryStore.getState().toggleSplit(id)
-
-        // Assert
-        expect(useQueryStore.getState().tabs.find((t) => t.id === id)!.rightPane).toBeUndefined()
-      })
-
-      it('does not affect other tabs', () => {
-        // Arrange
-        const id1 = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 1' })
-        const id2 = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 2' })
-
-        // Act
-        useQueryStore.getState().toggleSplit(id1)
-
-        // Assert
-        const tab2 = useQueryStore.getState().tabs.find((t) => t.id === id2)!
-        expect(tab2.rightPane).toBeUndefined()
-      })
+  describe('editor groups', () => {
+    it('new tabs land in the focused group (left by default)', () => {
+      const id = useQueryStore.getState().openTab({ connectionId: 'c1' })
+      const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+      expect(tab.groupId).toBe('left')
+      expect(useQueryStore.getState().focusedGroup).toBe('left')
+      expect(useQueryStore.getState().activeTabId).toBe(id)
     })
 
-    describe('updateRightPaneSql', () => {
-      it('updates rightPane.sql without affecting the left pane sql', () => {
-        // Arrange
-        const id = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 1' })
-        useQueryStore.getState().toggleSplit(id)
+    it('splitGroup opens a fresh tab in the right group inheriting the focused connection', () => {
+      const left = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 1' })
+      useQueryStore.getState().splitGroup()
 
-        // Act
-        useQueryStore.getState().updateRightPaneSql(id, 'SELECT 2')
-
-        // Assert
-        const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
-        expect(tab.rightPane?.sql).toBe('SELECT 2')
-        expect(tab.sql).toBe('SELECT 1')
-      })
-
-      it('is a no-op when rightPane does not exist', () => {
-        // Arrange
-        const id = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 1' })
-
-        // Act (no split opened)
-        useQueryStore.getState().updateRightPaneSql(id, 'SELECT 2')
-
-        // Assert — left sql is unchanged, no rightPane created
-        const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
-        expect(tab.sql).toBe('SELECT 1')
-        expect(tab.rightPane).toBeUndefined()
-      })
+      const s = useQueryStore.getState()
+      const right = s.tabs.find((t) => t.groupId === 'right')!
+      expect(right).toBeDefined()
+      expect(right.connectionId).toBe('c1')
+      expect(s.focusedGroup).toBe('right')
+      expect(s.activeTabId).toBe(right.id)
+      expect(s.tabs.find((t) => t.id === left)!.groupId).toBe('left')
     })
 
-    describe('runRightPane', () => {
-      it('invokes QUERY_EXECUTE with tabId="${id}-right" and stores result in rightPane', async () => {
-        // Arrange
-        const id = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 1' })
-        useQueryStore.getState().toggleSplit(id)
-        useQueryStore.getState().updateRightPaneSql(id, 'SELECT 2')
-        invoke().mockResolvedValueOnce(mockResult)
+    it('moveTabToGroup moves a tab to the other group keeping its connection', () => {
+      const a = useQueryStore.getState().openTab({ connectionId: 'c1' })
+      const b = useQueryStore.getState().openTab({ connectionId: 'c2' })
 
-        // Act
-        await useQueryStore.getState().runRightPane(id)
+      useQueryStore.getState().moveTabToGroup(b, 'right')
 
-        // Assert
-        const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
-        expect(tab.rightPane?.result).toEqual(mockResult)
-        expect(tab.rightPane?.isRunning).toBe(false)
-        expect(invoke()).toHaveBeenCalledWith(CHANNELS.QUERY_EXECUTE, {
-          connectionId: 'c1',
-          sql: 'SELECT 2',
-          tabId: `${id}-right`,
-        })
-      })
-
-      it('stores error in rightPane.error on failure (when not cancelled)', async () => {
-        // Arrange
-        const id = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 1' })
-        useQueryStore.getState().toggleSplit(id)
-        useQueryStore.getState().updateRightPaneSql(id, 'SELECT bad')
-        invoke().mockRejectedValueOnce(new Error('Syntax error'))
-
-        // Act
-        await useQueryStore.getState().runRightPane(id)
-
-        // Assert
-        const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
-        expect(tab.rightPane?.error).toBe('Syntax error')
-        expect(tab.rightPane?.isRunning).toBe(false)
-      })
-
-      it('suppresses error when rightPane.cancelled is true', async () => {
-        // Arrange
-        const id = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 1' })
-        useQueryStore.getState().toggleSplit(id)
-        useQueryStore.getState().updateRightPaneSql(id, 'SELECT 1')
-        invoke().mockImplementationOnce(async () => {
-          useQueryStore.setState((s) => ({
-            tabs: s.tabs.map((t) =>
-              t.id === id && t.rightPane
-                ? { ...t, rightPane: { ...t.rightPane, cancelled: true } }
-                : t
-            )
-          }))
-          throw new Error('Cancelled')
-        })
-
-        // Act
-        await useQueryStore.getState().runRightPane(id)
-
-        // Assert
-        const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
-        expect(tab.rightPane?.error).toBeUndefined()
-      })
-
-      it('is a no-op when rightPane is absent', async () => {
-        // Arrange
-        const id = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 1' })
-
-        // Act — no toggleSplit, so no rightPane
-        await useQueryStore.getState().runRightPane(id)
-
-        // Assert
-        expect(invoke()).not.toHaveBeenCalled()
-      })
+      const s = useQueryStore.getState()
+      expect(s.tabs.find((t) => t.id === b)!.groupId).toBe('right')
+      expect(s.tabs.find((t) => t.id === b)!.connectionId).toBe('c2')
+      expect(s.tabs.find((t) => t.id === a)!.groupId).toBe('left')
+      expect(s.focusedGroup).toBe('right')
+      expect(s.activeByGroup.right).toBe(b)
     })
 
-    describe('cancelRightPane', () => {
-      it('sets rightPane.cancelled to true and calls QUERY_CANCEL with the -right tabId', async () => {
-        // Arrange
-        const id = useQueryStore.getState().openTab({ connectionId: 'c1', sql: 'SELECT 1' })
-        useQueryStore.getState().toggleSplit(id)
-        invoke().mockResolvedValueOnce(undefined)
+    it('moveTabToGroup with a beforeId reorders within the same group', () => {
+      const a = useQueryStore.getState().openTab({ connectionId: 'c1' })
+      const b = useQueryStore.getState().openTab({ connectionId: 'c1' })
+      useQueryStore.getState().moveTabToGroup(b, 'left', a)
+      const leftIds = useQueryStore.getState().tabs.filter((t) => t.groupId === 'left').map((t) => t.id)
+      expect(leftIds).toEqual([b, a])
+    })
 
-        // Act
-        await useQueryStore.getState().cancelRightPane(id)
+    it('collapses the right group back to a single layout when its last tab leaves', () => {
+      const left = useQueryStore.getState().openTab({ connectionId: 'c1' })
+      useQueryStore.getState().splitGroup()
+      const right = useQueryStore.getState().activeByGroup.right!
 
-        // Assert
-        const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
-        expect(tab.rightPane?.cancelled).toBe(true)
-        expect(invoke()).toHaveBeenCalledWith(CHANNELS.QUERY_CANCEL, `${id}-right`)
-      })
+      useQueryStore.getState().closeTab(right)
+
+      const s = useQueryStore.getState()
+      expect(s.tabs.some((t) => t.groupId === 'right')).toBe(false)
+      expect(s.focusedGroup).toBe('left')
+      expect(s.activeTabId).toBe(left)
+    })
+
+    it('promotes the right group to left if all left tabs are moved away', () => {
+      const a = useQueryStore.getState().openTab({ connectionId: 'c1' })
+      useQueryStore.getState().splitGroup()
+      useQueryStore.getState().moveTabToGroup(a, 'right')
+
+      const s = useQueryStore.getState()
+      expect(s.tabs.every((t) => t.groupId === 'left')).toBe(true)
+      expect(s.focusedGroup).toBe('left')
+    })
+
+    it('focusGroup switches the focused group and updates activeTabId', () => {
+      const left = useQueryStore.getState().openTab({ connectionId: 'c1' })
+      useQueryStore.getState().splitGroup()
+      const right = useQueryStore.getState().activeByGroup.right!
+
+      useQueryStore.getState().focusGroup('left')
+      expect(useQueryStore.getState().activeTabId).toBe(left)
+
+      useQueryStore.getState().focusGroup('right')
+      expect(useQueryStore.getState().activeTabId).toBe(right)
+    })
+
+    it('setTabConnection changes only the targeted tab connection', () => {
+      const a = useQueryStore.getState().openTab({ connectionId: 'c1' })
+      const b = useQueryStore.getState().openTab({ connectionId: 'c1' })
+
+      useQueryStore.getState().setTabConnection(a, 'c9')
+
+      expect(useQueryStore.getState().tabs.find((t) => t.id === a)!.connectionId).toBe('c9')
+      expect(useQueryStore.getState().tabs.find((t) => t.id === b)!.connectionId).toBe('c1')
     })
   })
 
