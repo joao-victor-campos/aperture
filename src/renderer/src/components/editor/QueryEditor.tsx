@@ -28,6 +28,10 @@ interface QueryEditorProps {
   sqlSchema?: Record<string, string[]>
   cypherSchema?: CypherSchema
   engine?: ConnectionEngine
+  /** Connections for the per-tab connection picker. Omit to hide the picker. */
+  connections?: { id: string; name: string; engine: ConnectionEngine }[]
+  connectionId?: string
+  onConnectionChange?: (id: string) => void
 }
 
 // sql-formatter dialect names (for formatting)
@@ -52,6 +56,7 @@ const customTheme = EditorView.theme({
 
 function QueryEditor({
   value, onChange, onRun, onCancel, onExplain, onSave, onSplit, isSplit, isRunning, isExplaining, savedQueryId, sqlSchema, cypherSchema, engine,
+  connections, connectionId, onConnectionChange,
 }: QueryEditorProps) {
   const languageExtension = useMemo(() => {
     if (engine === 'neo4j') return cypher(cypherSchema)
@@ -139,7 +144,23 @@ function QueryEditor({
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-app-border bg-app-surface shrink-0">
-        <span className="app-section-label">SQL</span>
+        {connections && connections.length > 0 ? (
+          <select
+            value={connectionId ?? ''}
+            onChange={(e) => onConnectionChange?.(e.target.value)}
+            title="Connection for this tab"
+            className="bg-app-elevated text-app-text text-xs rounded px-1.5 py-0.5 border border-app-border focus:outline-none focus:border-app-accent cursor-pointer max-w-[180px]"
+          >
+            {connectionId === undefined || connections.every((c) => c.id !== connectionId) ? (
+              <option value="">No connection</option>
+            ) : null}
+            {connections.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        ) : (
+          <span className="app-section-label">SQL</span>
+        )}
 
         <div className="flex items-center gap-2">
           {/* Inline AI completions toggle */}
