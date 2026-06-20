@@ -167,6 +167,19 @@ export interface GraphData {
   links: GraphLink[]
 }
 
+// ── Result charts ────────────────────────────────────────────────────────────
+
+export type ChartAggregate = 'none' | 'sum' | 'avg' | 'count' | 'min' | 'max'
+
+export interface ChartConfig {
+  type: 'bar' | 'line' | 'scatter'
+  /** Result column used for the X axis (category). */
+  xCol: string
+  /** Result column used for the Y axis (value). */
+  yCol: string
+  aggregate: ChartAggregate
+}
+
 /** State for one side of a split-pane view (right pane). */
 export interface QueryPane {
   sql: string
@@ -199,6 +212,10 @@ export interface QueryTab {
   isExplaining?: boolean
   /** When true, the graph view replaces the results table for this tab. */
   viewAsGraph?: boolean
+  /** Which result surface this tab shows: the data table (default) or a chart. */
+  resultView?: 'table' | 'chart'
+  /** Persisted chart-builder selection for this tab. */
+  chartConfig?: ChartConfig
 }
 
 export interface SavedQuery {
