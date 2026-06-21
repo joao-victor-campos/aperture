@@ -12,6 +12,7 @@ export const CHANNELS = {
   CATALOG_TABLES: 'catalog:tables',
   CATALOG_TABLE_SCHEMA: 'catalog:table-schema',
   CATALOG_SEARCH_TABLES: 'catalog:search-tables',
+  CATALOG_DATASET_COLUMNS: 'catalog:dataset-columns',
   // Query
   QUERY_EXECUTE: 'query:execute',
   QUERY_GET_PAGE: 'query:get-page',
@@ -74,6 +75,10 @@ export interface IpcMap {
   [CHANNELS.CATALOG_SEARCH_TABLES]: {
     req: { connectionId: string; query: string; limit?: number }
     res: TableSearchHit[]
+  }
+  [CHANNELS.CATALOG_DATASET_COLUMNS]: {
+    req: { connectionId: string; datasetId: string }
+    res: Record<string, TableField[]>
   }
   [CHANNELS.QUERY_EXECUTE]: {
     req: { connectionId: string; sql: string; tabId: string }

@@ -21,14 +21,16 @@ const bigAdapter = {
   listDatasets: vi.fn(),
   listTables: vi.fn(),
   getTableSchema: vi.fn(),
-  searchTables: vi.fn()
+  searchTables: vi.fn(),
+  getDatasetColumns: vi.fn()
 }
 
 const pgAdapter = {
   listDatasets: vi.fn(),
   listTables: vi.fn(),
   getTableSchema: vi.fn(),
-  searchTables: vi.fn()
+  searchTables: vi.fn(),
+  getDatasetColumns: vi.fn()
 }
 
 vi.mock('../../../main/db/adapterRegistry', () => ({
@@ -206,6 +208,26 @@ describe('Catalog IPC handlers', () => {
 
       await expect(handler({}, { connectionId: 'bad-id', query: 'foo' })).rejects.toThrow(
         'Connection not found'
+      )
+    })
+  })
+
+  describe(CHANNELS.CATALOG_DATASET_COLUMNS, () => {
+    it('dispatches to the adapter and returns the column map', async () => {
+      const cols = { users: [{ name: 'id', type: 'INT64', mode: 'NULLABLE' as const }] }
+      bigAdapter.getDatasetColumns.mockResolvedValueOnce(cols)
+
+      const handler = handlers.get(CHANNELS.CATALOG_DATASET_COLUMNS)!
+      const result = await handler({}, { connectionId: 'conn-1', datasetId: 'ds1' })
+
+      expect(result).toEqual(cols)
+      expect(bigAdapter.getDatasetColumns).toHaveBeenCalledWith(bigConn, 'ds1')
+    })
+
+    it('throws when the connection is missing', async () => {
+      const handler = handlers.get(CHANNELS.CATALOG_DATASET_COLUMNS)!
+      await expect(handler({}, { connectionId: 'nope', datasetId: 'ds1' })).rejects.toThrow(
+        /Connection not found/
       )
     })
   })

@@ -87,6 +87,7 @@ const {
   listDatasets,
   listTables,
   getTableSchema,
+  getDatasetColumns,
   searchTables,
   runQuery,
   cancelRunningQuery,
@@ -208,6 +209,35 @@ describe('Snowflake adapter', () => {
       expect(result).toHaveLength(2)
       expect(result[0]).toMatchObject({ name: 'id', type: 'NUMBER(38,0)', mode: 'REQUIRED' })
       expect(result[1]).toMatchObject({ name: 'email', mode: 'NULLABLE', description: 'User email' })
+    })
+  })
+
+  // ── getDatasetColumns ────────────────────────────────────────────────────
+  describe('getDatasetColumns', () => {
+    it('groups columns by table, scoping the query to the database + schema', async () => {
+      mockExecuteAll([
+        { TABLE_NAME: 'USERS', COLUMN_NAME: 'ID', DATA_TYPE: 'NUMBER', IS_NULLABLE: 'NO' },
+        { TABLE_NAME: 'USERS', COLUMN_NAME: 'EMAIL', DATA_TYPE: 'TEXT', IS_NULLABLE: 'YES' },
+        { TABLE_NAME: 'ORDERS', COLUMN_NAME: 'TOTAL', DATA_TYPE: 'NUMBER', IS_NULLABLE: 'YES' },
+      ])
+
+      const result = await getDatasetColumns(conn, 'MYDB.PUBLIC')
+
+      expect(result).toEqual({
+        USERS: [
+          { name: 'ID', type: 'NUMBER', mode: 'REQUIRED' },
+          { name: 'EMAIL', type: 'TEXT', mode: 'NULLABLE' },
+        ],
+        ORDERS: [{ name: 'TOTAL', type: 'NUMBER', mode: 'NULLABLE' }],
+      })
+      const sql = mockSfConn.execute.mock.calls[0][0].sqlText as string
+      expect(sql).toContain('MYDB.INFORMATION_SCHEMA.COLUMNS')
+      expect(sql).toContain("TABLE_SCHEMA = 'PUBLIC'")
+    })
+
+    it('returns an empty object when there are no columns', async () => {
+      mockExecuteAll([])
+      expect(await getDatasetColumns(conn, 'MYDB.EMPTY')).toEqual({})
     })
   })
 
