@@ -163,7 +163,13 @@ export const useQueryStore = create<QueryState>((set, get) => ({
   },
 
   focusGroup: (group) => {
-    set((s) => ({ focusedGroup: group, activeTabId: s.activeByGroup[group] }))
+    set((s) => {
+      // Never focus an empty group — that would leave activeTabId null with a
+      // non-empty layout. (Not reachable through the current UI, but keeps the
+      // "focused group is non-empty" invariant robust against future callers.)
+      if (!s.tabs.some((t) => (t.groupId ?? 'left') === group)) return s
+      return { focusedGroup: group, activeTabId: s.activeByGroup[group] }
+    })
   },
 
   moveTabToGroup: (tabId, target, beforeId) => {

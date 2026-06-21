@@ -437,6 +437,17 @@ describe('queryStore', () => {
       expect(useQueryStore.getState().tabs.find((t) => t.id === a)!.connectionId).toBe('c9')
       expect(useQueryStore.getState().tabs.find((t) => t.id === b)!.connectionId).toBe('c1')
     })
+
+    it('focusGroup is a no-op when the target group is empty', () => {
+      const left = useQueryStore.getState().openTab({ connectionId: 'c1' })
+
+      // Right group has no tabs — focusing it must not strand activeTabId at null.
+      useQueryStore.getState().focusGroup('right')
+
+      const s = useQueryStore.getState()
+      expect(s.focusedGroup).toBe('left')
+      expect(s.activeTabId).toBe(left)
+    })
   })
 
   describe('explainQuery', () => {
