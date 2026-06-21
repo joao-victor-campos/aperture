@@ -188,6 +188,22 @@ instead suggests adding a `LIMIT`.
 
 ---
 
+## Working with results
+
+- **Split view across connections** — split the editor into two side-by-side
+  groups, each with its own connection. Drag a tab from one group's strip to the
+  other to move it; every tab carries its own connection and has a connection
+  picker in its toolbar. The catalog sidebar follows whichever group is focused.
+- **Copy / export** — copy the current results view (respecting active filters
+  and sort) to the clipboard as TSV with the **Copy** button, or export the full
+  result to a CSV / TSV / JSON file with **Export**.
+- **Chart view** — toggle any result to a **Chart** (bar, line, or scatter):
+  pick the X and Y columns and an optional aggregation (sum / avg / count / min /
+  max) grouped by the X column. Charts are computed from the fetched rows — no
+  extra query is sent.
+
+---
+
 ## Installation
 
 ### Download from GitHub Releases (recommended)

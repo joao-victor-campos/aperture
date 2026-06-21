@@ -148,6 +148,35 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-06-20] Feature: Multi-connection split view, result charts, clipboard copy
+
+**Type:** Change
+**Context:** Three editor/results enhancements shipped together per spec `docs/superpowers/specs/2026-06-20-split-view-charts-export-design.md` and plan `docs/superpowers/plans/2026-06-20-split-view-charts-export.md`. The old split was intra-tab and shared one connection; users wanted to compare two *different* connections side-by-side, copy results to the clipboard, and chart results.
+**Problem / Change:** No multi-connection split, no clipboard copy (only file export), no visualization beyond the Neo4j graph view.
+**Solution / Outcome:**
+- **Editor groups (multi-connection split).** Replaced the `rightPane`/`QueryPane` intra-tab split with a two-group model in `queryStore`. State gains `focusedGroup: 'left' | 'right'`, `activeByGroup: Record<GroupId, string | null>`, and `activeTabId` as a mirror; each `QueryTab` gains `groupId`. New actions `focusGroup`, `moveTabToGroup(tabId, target, beforeId?)`, `splitGroup`, `setTabConnection`; removed `toggleSplit`/`updateRightPaneSql`/`runRightPane`/`cancelRightPane` and the `-right` `QUERY_LOG` suffix routing. A private `normalizeGroups` helper enforces invariants (promote right→left when left empties, valid per-group active tab via last-tab fallback, focused group non-empty). `Editor.tsx` rewritten to render one column per group (right column only when a tab has `groupId === 'right'`), each with its own tab strip; HTML5 drag-drop moves tabs between strips (`moveTabToGroup`), drop-on-tab inserts before it. Connection is **per-tab and changeable**: a connection picker in the `QueryEditor` toolbar (new optional props `connections`/`connectionId`/`onConnectionChange`, supplied by `EditorPane`, which also derives each tab's engine from its own connection). The catalog sidebar + TitleBar breadcrumb follow the focused group's active tab connection (an `Editor.tsx` effect calls `connectionStore.setActive`; the old active-connection→tab sync effect is removed). The TitleBar connection dropdown now repoints the focused tab via `setTabConnection`.
+- **Result charts.** New `ChartView` (Recharts) toggled from `ResultsRegion` (precedence: explain > graph > chart > table). Bar/line/scatter with X/Y/aggregate selectors; pure helper `aggregateForChart(rows, xCol, yCol, aggregate)` groups by X and reduces Y (`none/sum/avg/count/min/max`), computed client-side over fetched rows. Per-tab persistence via `resultView` + `chartConfig` on `QueryTab` and store actions `setResultView`/`setChartConfig`. `ChartConfig`/`ChartAggregate` added to `shared/types.ts`.
+- **Clipboard copy.** Pure helper `rowsToTsv(rows, columns)` (unwraps BigQuery `{ value }`, flattens tabs/newlines) + a **Copy** button in the `ResultsTable` status bar that copies the current filtered/sorted view as TSV.
+- **Tests.** `queryStore` tests reworked: split-pane block replaced with an `editor groups` block (8 tests) + `chart view` block (2 tests). Pure-unit tests for `rowsToTsv` (6) and `aggregateForChart` (6). `just ci` green (470 tests, coverage ≥70%, queryStore at ~85%).
+
+**Files affected:**
+- `src/shared/types.ts` — `ChartConfig`/`ChartAggregate`, `QueryTab.groupId`/`resultView`/`chartConfig`; removed `QueryPane`/`rightPane`
+- `src/renderer/src/store/queryStore.ts` — editor-groups rewrite + `normalizeGroups` + chart actions
+- `src/renderer/src/pages/Editor.tsx` — two-group layout + cross-group tab drag
+- `src/renderer/src/components/editor/EditorPane.tsx` — derives engine, per-tab connection picker
+- `src/renderer/src/components/editor/QueryEditor.tsx` — optional connection-picker props
+- `src/renderer/src/components/layout/TitleBar.tsx` — dropdown repoints focused tab
+- `src/renderer/src/components/results/ResultsRegion.tsx` — Table/Chart toggle
+- `src/renderer/src/components/results/ChartView.tsx` — created
+- `src/renderer/src/components/results/ResultsTable.tsx` — Copy (TSV) button
+- `src/renderer/src/lib/{rowsToTsv,aggregateForChart}.ts` — created
+- `src/__tests__/renderer/lib/{rowsToTsv,aggregateForChart}.test.ts` — created
+- `src/__tests__/renderer/store/queryStore.test.ts` — editor-groups + chart-view blocks
+- `package.json` — added `recharts`
+- `README.md`, `CHANGELOG.md` — docs
+
+---
+
 ### [2026-06-19] Feature: AI inline autocomplete
 
 **Type:** Change

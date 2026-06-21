@@ -4,6 +4,7 @@ import { Settings, Plus, ChevronDown, Trash2, Pencil, Sparkles } from 'lucide-re
 import { useConnectionStore } from '../../store/connectionStore'
 import type { ConnectionStatus } from '../../store/connectionStore'
 import { useUpdateStore } from '../../store/updateStore'
+import { useQueryStore } from '../../store/queryStore'
 import ApertureIcon from '../ApertureIcon'
 import CommandPalette, { type CommandPaletteHandle } from '../command/CommandPalette'
 import type { BigQueryConnection, Connection, Neo4jConnection, PostgresConnection, SnowflakeConnection } from '@shared/types'
@@ -219,6 +220,10 @@ export default function TitleBar({ onAddConnection, onEditConnection, onOpenSett
               style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
               onClick={() => {
                 if (confirmDeleteId !== c.id) {
+                  // Re-point the focused tab at this connection (sidebar follows it).
+                  const qs = useQueryStore.getState()
+                  const focusedTabId = qs.activeByGroup[qs.focusedGroup]
+                  if (focusedTabId) qs.setTabConnection(focusedTabId, c.id)
                   setActive(c.id)
                   setOpen(false)
                 }
