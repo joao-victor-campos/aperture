@@ -6,7 +6,7 @@ vi.mock('electron', () => ({}))
 import {
   elapsed, makeLogger, startHeartbeat, runningJobs, cancelRunningQuery,
   runWithLifecycle, runCapped, groupColumnsByTable,
-  HEARTBEAT_INTERVAL_MS,
+  HEARTBEAT_INTERVAL_MS, QUERY_TIMEOUT_MS,
 } from '../../../main/db/queryRuntime'
 import type { QueryResult, TableField } from '../../../shared/types'
 
@@ -15,6 +15,10 @@ const makeWC = () => ({ send: vi.fn(), isDestroyed: vi.fn(() => false) })
 beforeEach(() => {
   runningJobs.clear()
   vi.clearAllMocks()
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 describe('elapsed', () => {
@@ -52,7 +56,6 @@ describe('startHeartbeat', () => {
     stop()
     vi.advanceTimersByTime(HEARTBEAT_INTERVAL_MS * 2)
     expect(log).toHaveBeenCalledTimes(2)
-    vi.useRealTimers()
   })
 })
 
@@ -128,11 +131,10 @@ describe('runWithLifecycle', () => {
       },
     })
     const assertion = expect(p).rejects.toThrow('Query timed out after 180 seconds.')
-    await vi.advanceTimersByTimeAsync(180_000)
+    await vi.advanceTimersByTimeAsync(QUERY_TIMEOUT_MS)
     await assertion
     expect(cancel).toHaveBeenCalledTimes(1)
     expect(runningJobs.has('to')).toBe(false)
-    vi.useRealTimers()
   })
 })
 
@@ -148,5 +150,14 @@ describe('cancelRunningQuery', () => {
     expect(wc.send).toHaveBeenCalledWith(CHANNELS.QUERY_LOG, { tabId: 'live', message: 'Cancelled by user.' })
     expect(cancel).toHaveBeenCalledTimes(1)
     expect(runningJobs.has('live')).toBe(false)
+  })
+  it('skips send when webContents is destroyed, but still invokes cancel and deletes', async () => {
+    const wc = { send: vi.fn(), isDestroyed: vi.fn(() => true) }
+    const cancel = vi.fn(async () => {})
+    runningJobs.set('destroyed', { cancel, webContents: wc as never })
+    await cancelRunningQuery('destroyed')
+    expect(wc.send).not.toHaveBeenCalled()
+    expect(cancel).toHaveBeenCalledTimes(1)
+    expect(runningJobs.has('destroyed')).toBe(false)
   })
 })
