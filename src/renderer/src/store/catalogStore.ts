@@ -6,8 +6,10 @@ interface CatalogState {
   datasetsByConnection: Record<string, Dataset[]>
   tablesByDataset: Record<string, Table[]>
   schemaCache: Record<string, TableField[]>   // key: "${connectionId}:${datasetId}:${tableId}"
+  coarseSchemaKeys: Set<string>              // schemaCache keys populated coarsely by warmCatalog
   expandedDatasets: Set<string>
   isLoading: Record<string, boolean>
+  warmState: Record<string, 'idle' | 'warming' | 'warmed'>
   loadDatasets: (connectionId: string) => Promise<void>
   loadTables: (connectionId: string, datasetId: string) => Promise<void>
   loadSchema: (
@@ -17,14 +19,27 @@ interface CatalogState {
     tableId: string
   ) => Promise<TableField[]>
   toggleDataset: (datasetId: string) => void
+  warmCatalog: (connectionId: string, opts?: { force?: boolean }) => Promise<void>
+}
+
+const WARM_CONCURRENCY = 5
+
+async function runCapped<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  const queue = [...items]
+  const workers = Array.from({ length: Math.min(limit, queue.length) }, async () => {
+    while (queue.length) await fn(queue.shift()!)
+  })
+  await Promise.all(workers)
 }
 
 export const useCatalogStore = create<CatalogState>((set, get) => ({
   datasetsByConnection: {},
   tablesByDataset: {},
   schemaCache: {},
+  coarseSchemaKeys: new Set(),
   expandedDatasets: new Set(),
   isLoading: {},
+  warmState: {},
 
   loadDatasets: async (connectionId) => {
     set((s) => ({ isLoading: { ...s.isLoading, [connectionId]: true } }))
@@ -47,15 +62,20 @@ export const useCatalogStore = create<CatalogState>((set, get) => ({
 
   loadSchema: async (connectionId, projectId, datasetId, tableId) => {
     const cacheKey = `${connectionId}:${datasetId}:${tableId}`
-    const cached = get().schemaCache[cacheKey]
-    if (cached) return cached
+    const { schemaCache, coarseSchemaKeys } = get()
+    const cached = schemaCache[cacheKey]
+    if (cached && !coarseSchemaKeys.has(cacheKey)) return cached
     const fields = await window.api.invoke(CHANNELS.CATALOG_TABLE_SCHEMA, {
       connectionId,
       projectId,
       datasetId,
       tableId
     })
-    set((s) => ({ schemaCache: { ...s.schemaCache, [cacheKey]: fields } }))
+    set((s) => {
+      const nextCoarse = new Set(s.coarseSchemaKeys)
+      nextCoarse.delete(cacheKey)
+      return { schemaCache: { ...s.schemaCache, [cacheKey]: fields }, coarseSchemaKeys: nextCoarse }
+    })
     return fields
   },
 
@@ -67,5 +87,45 @@ export const useCatalogStore = create<CatalogState>((set, get) => ({
       next.add(datasetId)
     }
     set({ expandedDatasets: next })
-  }
+  },
+
+  warmCatalog: async (connectionId, opts) => {
+    const state = get()
+    if (!opts?.force && state.warmState[connectionId] === 'warmed') return
+    if (state.warmState[connectionId] === 'warming') return
+    set((s) => ({ warmState: { ...s.warmState, [connectionId]: 'warming' } }))
+
+    try {
+      const datasets = await window.api.invoke(CHANNELS.CATALOG_DATASETS, connectionId)
+      set((s) => ({ datasetsByConnection: { ...s.datasetsByConnection, [connectionId]: datasets } }))
+
+      await runCapped(datasets, WARM_CONCURRENCY, async (ds) => {
+        try {
+          const [tables, columns] = await Promise.all([
+            window.api.invoke(CHANNELS.CATALOG_TABLES, { connectionId, datasetId: ds.id }),
+            window.api.invoke(CHANNELS.CATALOG_DATASET_COLUMNS, { connectionId, datasetId: ds.id })
+          ])
+          // One merged commit per dataset to limit editor reconfigure churn.
+          set((s) => {
+            const schemaPatch: Record<string, TableField[]> = {}
+            const nextCoarse = new Set(s.coarseSchemaKeys)
+            for (const [tableId, fields] of Object.entries(columns)) {
+              const key = `${connectionId}:${ds.id}:${tableId}`
+              schemaPatch[key] = fields
+              nextCoarse.add(key)
+            }
+            return {
+              tablesByDataset: { ...s.tablesByDataset, [`${connectionId}:${ds.id}`]: tables },
+              schemaCache: { ...s.schemaCache, ...schemaPatch },
+              coarseSchemaKeys: nextCoarse,
+            }
+          })
+        } catch {
+          // Skip datasets we can't read (permission/regional errors)
+        }
+      })
+    } finally {
+      set((s) => ({ warmState: { ...s.warmState, [connectionId]: 'warmed' } }))
+    }
+  },
 }))

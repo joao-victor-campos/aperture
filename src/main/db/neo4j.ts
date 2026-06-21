@@ -248,6 +248,23 @@ export async function getTableSchema(
 }
 
 /**
+ * Bulk schema for a Neo4j database. Graph catalogs are small (labels +
+ * relationship types), so this lists them and sample-infers each one's
+ * properties. Per-table failures yield an empty column list rather than aborting.
+ */
+export async function getDatasetColumns(
+  connection: Neo4jConnection,
+  datasetId: string,
+): Promise<Record<string, TableField[]>> {
+  const tables = await listTables(connection, datasetId)
+  const out: Record<string, TableField[]> = {}
+  for (const t of tables) {
+    out[t.id] = await getTableSchema(connection, datasetId, t.id).catch(() => [])
+  }
+  return out
+}
+
+/**
  * Catalog-wide substring search powering ⌘K. Walks every database's labels and
  * relationship types, matching their names case-insensitively against the query.
  */

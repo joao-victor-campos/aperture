@@ -19,9 +19,10 @@ export default function CatalogTree({ onAddConnection }: CatalogTreeProps) {
     tablesByDataset,
     expandedDatasets,
     isLoading,
-    loadDatasets,
     loadTables,
     toggleDataset,
+    warmCatalog,
+    warmState,
   } = useCatalogStore()
   const { openTableTab, openTab, tabs, activeTabId } = useQueryStore()
   // The currently-active table tab (if any) — used to highlight its row in the catalog
@@ -29,8 +30,8 @@ export default function CatalogTree({ onAddConnection }: CatalogTreeProps) {
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    if (activeConnectionId) loadDatasets(activeConnectionId)
-  }, [activeConnectionId, loadDatasets])
+    if (activeConnectionId) void warmCatalog(activeConnectionId)
+  }, [activeConnectionId, warmCatalog])
 
   if (!activeConnectionId) {
     return (
@@ -73,7 +74,7 @@ export default function CatalogTree({ onAddConnection }: CatalogTreeProps) {
       <div className="flex items-center justify-between px-3 py-1.5">
         <span className="app-section-label">Datasets</span>
         <button
-          onClick={() => loadDatasets(activeConnectionId)}
+          onClick={() => warmCatalog(activeConnectionId, { force: true })}
           disabled={isLoadingDatasets}
           className="text-app-text-3 hover:text-app-text-2 transition-colors disabled:opacity-40"
         >
@@ -102,6 +103,10 @@ export default function CatalogTree({ onAddConnection }: CatalogTreeProps) {
           )}
         </div>
       </div>
+
+      {warmState[activeConnectionId] === 'warming' && (
+        <div className="px-3 pb-1 text-[10px] text-app-text-3 animate-pulse">Indexing catalog…</div>
+      )}
 
       {isLoadingDatasets && datasets.length === 0 && (
         <div className="px-3 py-2 text-xs text-app-text-3 animate-pulse">Loading datasets…</div>

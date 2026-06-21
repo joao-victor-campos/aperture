@@ -84,6 +84,7 @@ const mockWC = { send: vi.fn(), isDestroyed: vi.fn(() => false) }
 const {
   testConnection, listDatasets, listTables, getTableSchema, searchTables,
   runQuery, getQueryPage, cancelRunningQuery, dryRunQuery, invalidateClient,
+  getDatasetColumns,
 } = await import('../../../main/db/neo4j')
 
 beforeEach(() => {
@@ -303,6 +304,74 @@ describe('neo4j adapter — dryRunQuery', () => {
     mockSession.run.mockResolvedValueOnce(makeResult([], [], false))
     const out = await dryRunQuery(conn, 'MATCH (n) RETURN n')
     expect(out).toEqual({ bytesProcessed: 0, plan: undefined, planFormat: undefined })
+  })
+})
+
+describe('getDatasetColumns', () => {
+  it('returns [] for a table whose getTableSchema sampling throws, while other tables succeed', async () => {
+    // listTables for 'neo4j' with two labels: Person and Broken
+    // Person schema succeeds; Broken schema rejects — should get []
+    mockSession.run
+      .mockResolvedValueOnce(makeResult(['label'], [{ label: 'Person' }, { label: 'Broken' }]))        // db.labels()
+      .mockResolvedValueOnce(makeResult(['relationshipType'], []))                                      // db.relationshipTypes()
+      .mockResolvedValueOnce(makeResult(['count'], [{ count: new FakeInteger(2) }]))                   // count Person
+      .mockResolvedValueOnce(makeResult(['count'], [{ count: new FakeInteger(0) }]))                   // count Broken
+      // Person getTableSchema: not a rel type, then sample
+      .mockResolvedValueOnce(makeResult(['relationshipType'], []))
+      .mockResolvedValueOnce(
+        makeResult(['sample'], [
+          { sample: new FakeNode('n-1', ['Person'], { name: 'Alice' }) },
+        ]),
+      )
+      // Broken getTableSchema: not a rel type, then sample throws
+      .mockResolvedValueOnce(makeResult(['relationshipType'], []))
+      .mockRejectedValueOnce(new Error('sampling failed'))
+
+    const result = await getDatasetColumns(conn, 'neo4j')
+
+    expect(result.Person).toEqual([{ name: 'name', type: 'STRING', mode: 'NULLABLE' }])
+    expect(result.Broken).toEqual([])
+  })
+
+  it('returns sample-inferred properties for every label and relationship type', async () => {
+    // listTables sequence:
+    //   1. CALL db.labels()          → [Person]
+    //   2. CALL db.relationshipTypes() → [KNOWS]
+    //   3. count(n:Person)            → 5
+    //   4. count(r:KNOWS)             → 3
+    // getTableSchema('Person') sequence:
+    //   5. CALL db.relationshipTypes() → [KNOWS]  (Person is not a rel type)
+    //   6. MATCH (n:Person) RETURN n AS sample LIMIT 50 → node with name + age
+    // getTableSchema('KNOWS') sequence:
+    //   7. CALL db.relationshipTypes() → [KNOWS]  (KNOWS is a rel type)
+    //   8. MATCH ()-[r:KNOWS]->() RETURN r AS sample LIMIT 50 → rel with since
+    mockSession.run
+      .mockResolvedValueOnce(makeResult(['label'], [{ label: 'Person' }]))
+      .mockResolvedValueOnce(makeResult(['relationshipType'], [{ relationshipType: 'KNOWS' }]))
+      .mockResolvedValueOnce(makeResult(['count'], [{ count: new FakeInteger(5) }]))
+      .mockResolvedValueOnce(makeResult(['count'], [{ count: new FakeInteger(3) }]))
+      .mockResolvedValueOnce(makeResult(['relationshipType'], [{ relationshipType: 'KNOWS' }]))
+      .mockResolvedValueOnce(
+        makeResult(['sample'], [
+          { sample: new FakeNode('n-1', ['Person'], { name: 'Alice', age: new FakeInteger(30) }) },
+        ]),
+      )
+      .mockResolvedValueOnce(makeResult(['relationshipType'], [{ relationshipType: 'KNOWS' }]))
+      .mockResolvedValueOnce(
+        makeResult(['sample'], [
+          { sample: new FakeRelationship('r-1', 's', 'e', 'KNOWS', { since: new FakeInteger(2020) }) },
+        ]),
+      )
+
+    const result = await getDatasetColumns(conn, 'neo4j')
+
+    expect(Object.keys(result).sort()).toEqual(['KNOWS', 'Person'])
+    expect(result.Person).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: expect.any(String) })])
+    )
+    expect(result.KNOWS).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'since' })])
+    )
   })
 })
 

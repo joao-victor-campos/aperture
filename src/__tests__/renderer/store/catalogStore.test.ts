@@ -88,6 +88,67 @@ describe('catalogStore', () => {
         connectionId: 'conn-1', projectId: 'proj', datasetId: 'ds1', tableId: 'tbl1'
       })
     })
+
+    it('returns cached without re-invoking for a full (non-coarse) key', async () => {
+      // Arrange: first load populates the cache (not via warmCatalog, so not coarse)
+      invoke().mockResolvedValueOnce([field])
+      await useCatalogStore.getState().loadSchema('conn-1', 'proj', 'ds1', 'tbl1')
+      invoke().mockClear()
+
+      // Act: second call should short-circuit
+      const result = await useCatalogStore.getState().loadSchema('conn-1', 'proj', 'ds1', 'tbl1')
+
+      // Assert
+      expect(result).toEqual([field])
+      expect(invoke()).not.toHaveBeenCalled()
+    })
+
+    it('re-fetches a coarse warmed key and removes it from coarseSchemaKeys', async () => {
+      // Arrange: warm the catalog so ds1/t1 is populated coarsely
+      const ds1: Dataset = { id: 'ds1', projectId: 'proj', name: 'ds1' }
+      const t1: Table = { id: 't1', datasetId: 'ds1', projectId: 'proj', name: 't1', type: 'TABLE' }
+      const coarseFields: TableField[] = [{ name: 'id', type: 'INT64', mode: 'NULLABLE' }]
+      const fullFields: TableField[] = [
+        { name: 'id', type: 'INT64', mode: 'REQUIRED' },
+        { name: 'desc', type: 'STRING', mode: 'NULLABLE' },
+      ]
+
+      invoke().mockImplementation((channel: string, arg: unknown) => {
+        if (channel === CHANNELS.CATALOG_DATASETS) return Promise.resolve([ds1])
+        if (channel === CHANNELS.CATALOG_TABLES) return Promise.resolve([t1])
+        if (channel === CHANNELS.CATALOG_DATASET_COLUMNS) return Promise.resolve({ t1: coarseFields })
+        return Promise.resolve(undefined)
+      })
+      await useCatalogStore.getState().warmCatalog('conn-1')
+
+      // Verify coarse key is tracked
+      const cacheKey = 'conn-1:ds1:t1'
+      expect(useCatalogStore.getState().coarseSchemaKeys.has(cacheKey)).toBe(true)
+      expect(useCatalogStore.getState().schemaCache[cacheKey]).toEqual(coarseFields)
+
+      // Now wire up the full-fidelity response for TABLE_SCHEMA
+      invoke().mockImplementation((channel: string) => {
+        if (channel === CHANNELS.CATALOG_TABLE_SCHEMA) return Promise.resolve(fullFields)
+        return Promise.resolve(undefined)
+      })
+
+      // Act: loadSchema should re-fetch (not return cached coarse)
+      const result = await useCatalogStore.getState().loadSchema('conn-1', 'proj', 'ds1', 't1')
+
+      // Assert: full fields returned, key removed from coarseSchemaKeys
+      expect(result).toEqual(fullFields)
+      expect(invoke()).toHaveBeenCalledWith(CHANNELS.CATALOG_TABLE_SCHEMA, {
+        connectionId: 'conn-1', projectId: 'proj', datasetId: 'ds1', tableId: 't1'
+      })
+      expect(useCatalogStore.getState().schemaCache[cacheKey]).toEqual(fullFields)
+      expect(useCatalogStore.getState().coarseSchemaKeys.has(cacheKey)).toBe(false)
+
+      // Second call should now short-circuit (key no longer coarse)
+      invoke().mockClear()
+      const cached = await useCatalogStore.getState().loadSchema('conn-1', 'proj', 'ds1', 't1')
+      expect(cached).toEqual(fullFields)
+      expect(invoke()).not.toHaveBeenCalled()
+    })
   })
 
   describe('toggleDataset', () => {
@@ -120,6 +181,74 @@ describe('catalogStore', () => {
       const { expandedDatasets } = useCatalogStore.getState()
       expect(expandedDatasets.has('ds1')).toBe(false)
       expect(expandedDatasets.has('ds2')).toBe(true)
+    })
+  })
+
+  describe('warmCatalog', () => {
+    const ds1: Dataset = { id: 'ds1', projectId: 'proj', name: 'ds1' }
+    const ds2: Dataset = { id: 'ds2', projectId: 'proj', name: 'ds2' }
+    const t1: Table = { id: 't1', datasetId: 'ds1', projectId: 'proj', name: 't1', type: 'TABLE' }
+    const cols1: Record<string, TableField[]> = { t1: [{ name: 'id', type: 'INT64', mode: 'NULLABLE' }] }
+
+    // Route invoke by channel so concurrency/order doesn't matter
+    function routeInvoke(map: {
+      datasets: Dataset[]
+      tables: Record<string, Table[]>
+      columns: Record<string, Record<string, TableField[]>>
+    }) {
+      invoke().mockImplementation((channel: string, arg: unknown) => {
+        if (channel === CHANNELS.CATALOG_DATASETS) return Promise.resolve(map.datasets)
+        if (channel === CHANNELS.CATALOG_TABLES) {
+          const { datasetId } = arg as { datasetId: string }
+          return Promise.resolve(map.tables[datasetId] ?? [])
+        }
+        if (channel === CHANNELS.CATALOG_DATASET_COLUMNS) {
+          const { datasetId } = arg as { datasetId: string }
+          return Promise.resolve(map.columns[datasetId] ?? {})
+        }
+        return Promise.resolve(undefined)
+      })
+    }
+
+    it('populates tablesByDataset and schemaCache for every dataset', async () => {
+      routeInvoke({ datasets: [ds1], tables: { ds1: [t1] }, columns: { ds1: cols1 } })
+
+      await useCatalogStore.getState().warmCatalog('conn-1')
+
+      const s = useCatalogStore.getState()
+      expect(s.tablesByDataset['conn-1:ds1']).toEqual([t1])
+      expect(s.schemaCache['conn-1:ds1:t1']).toEqual(cols1.t1)
+      expect(s.warmState['conn-1']).toBe('warmed')
+    })
+
+    it('skips re-warming an already-warmed connection unless forced', async () => {
+      routeInvoke({ datasets: [ds1], tables: { ds1: [t1] }, columns: { ds1: cols1 } })
+      await useCatalogStore.getState().warmCatalog('conn-1')
+      invoke().mockClear()
+
+      await useCatalogStore.getState().warmCatalog('conn-1')
+      expect(invoke()).not.toHaveBeenCalled()
+
+      await useCatalogStore.getState().warmCatalog('conn-1', { force: true })
+      expect(invoke()).toHaveBeenCalledWith(CHANNELS.CATALOG_DATASETS, 'conn-1')
+    })
+
+    it('swallows per-dataset errors and still warms the rest', async () => {
+      invoke().mockImplementation((channel: string, arg: unknown) => {
+        if (channel === CHANNELS.CATALOG_DATASETS) return Promise.resolve([ds1, ds2])
+        if (channel === CHANNELS.CATALOG_TABLES) {
+          const { datasetId } = arg as { datasetId: string }
+          if (datasetId === 'ds1') return Promise.reject(new Error('permission denied'))
+          return Promise.resolve([{ ...t1, datasetId: 'ds2', id: 't2', name: 't2' }])
+        }
+        if (channel === CHANNELS.CATALOG_DATASET_COLUMNS) return Promise.resolve({})
+        return Promise.resolve(undefined)
+      })
+
+      await expect(useCatalogStore.getState().warmCatalog('conn-1')).resolves.toBeUndefined()
+      expect(useCatalogStore.getState().tablesByDataset['conn-1:ds2']).toBeDefined()
+      expect(useCatalogStore.getState().tablesByDataset['conn-1:ds1']).toBeUndefined()
+      expect(useCatalogStore.getState().warmState['conn-1']).toBe('warmed')
     })
   })
 })

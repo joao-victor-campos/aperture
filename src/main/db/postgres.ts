@@ -124,6 +124,33 @@ export async function getTableSchema(connection: PostgresConnection, datasetId: 
   }))
 }
 
+/**
+ * Bulk column fetch for an entire schema in one information_schema.columns query.
+ * Returns coarse column name + type per table for autocomplete.
+ */
+export async function getDatasetColumns(
+  connection: PostgresConnection,
+  datasetId: string
+): Promise<Record<string, TableField[]>> {
+  const pool = getPool(connection)
+  const res = await pool.query(
+    `SELECT table_name, column_name, data_type, is_nullable
+       FROM information_schema.columns
+      WHERE table_schema = $1
+      ORDER BY table_name, ordinal_position`,
+    [datasetId]
+  )
+  const out: Record<string, TableField[]> = {}
+  for (const c of res.rows) {
+    ;(out[c.table_name] ??= []).push({
+      name: c.column_name,
+      type: c.data_type,
+      mode: c.is_nullable === 'YES' ? 'NULLABLE' : 'REQUIRED'
+    })
+  }
+  return out
+}
+
 export async function runQuery(
   connection: PostgresConnection,
   sql: string,
