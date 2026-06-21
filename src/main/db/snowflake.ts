@@ -1,6 +1,5 @@
 import snowflake from 'snowflake-sdk'
 import type { WebContents } from 'electron'
-import { CHANNELS } from '../../shared/ipc'
 import type {
   SnowflakeConnection,
   Dataset,
@@ -9,9 +8,11 @@ import type {
   TableSearchHit,
   QueryResult
 } from '../../shared/types'
+import {
+  runWithLifecycle, elapsed,
+  cancelRunningQuery as _cancelRunningQuery,
+} from './queryRuntime'
 
-const QUERY_TIMEOUT_MS = 180_000
-const HEARTBEAT_INTERVAL_MS = 10_000
 const DEFAULT_PAGE_SIZE = 100
 
 // Suppress verbose SDK logging in production
@@ -20,14 +21,6 @@ snowflake.configure({ logLevel: 'ERROR' })
 // ── Connection cache ─────────────────────────────────────────────────────────
 // Persistent Connection objects reused across calls, keyed by connection.id
 const connectionCache = new Map<string, snowflake.Connection>()
-
-// ── Running jobs ─────────────────────────────────────────────────────────────
-// Statement objects for active queries, keyed by tabId — used for cancellation
-interface RunningJob {
-  statement: snowflake.RowStatement
-  webContents: WebContents
-}
-const runningJobs = new Map<string, RunningJob>()
 
 // ── Completed statements ──────────────────────────────────────────────────────
 // Retained after execution for server-side pagination via streamRows({ start, end })
@@ -157,12 +150,6 @@ function pick(row: Record<string, unknown>, key: string): unknown {
 
 function str(row: Record<string, unknown>, key: string): string {
   return String(pick(row, key) ?? '')
-}
-
-function elapsed(startMs: number): string {
-  const s = Math.round((Date.now() - startMs) / 1000)
-  const m = Math.floor(s / 60)
-  return m > 0 ? `${m}m ${s % 60}s` : `${s}s`
 }
 
 // ── Public adapter API ───────────────────────────────────────────────────────
@@ -367,38 +354,17 @@ export async function runQuery(
   const sfConn = await getConnection(connection)
   const start = Date.now()
 
-  const log = (message: string) => {
-    if (!webContents.isDestroyed()) {
-      webContents.send(CHANNELS.QUERY_LOG, { tabId, message })
-    }
-  }
+  return runWithLifecycle({
+    tabId,
+    webContents,
+    timeoutMessage: 'Query timed out after 180 seconds. The statement has been cancelled.',
+    execute: async ({ log, registerCancel }) => {
+      log('Submitting query to Snowflake…')
+      const { promise: stmtPromise, statement: earlyStmt } = executeStream(sfConn, sql)
+      // Register immediately for early cancellation (before complete fires).
+      registerCancel(() => new Promise<void>((res) => { earlyStmt.cancel(() => res()) }))
 
-  log('Submitting query to Snowflake…')
-
-  let done = false
-  let heartbeatTimer: ReturnType<typeof setInterval> | null = null
-  let timeoutTimer: ReturnType<typeof setTimeout> | null = null
-
-  const cleanup = () => {
-    if (done) return
-    done = true
-    if (heartbeatTimer) clearInterval(heartbeatTimer)
-    if (timeoutTimer) clearTimeout(timeoutTimer)
-    runningJobs.delete(tabId)
-  }
-
-  heartbeatTimer = setInterval(() => {
-    log(`Still running… ${elapsed(start)} elapsed`)
-  }, HEARTBEAT_INTERVAL_MS)
-
-  // ── Execute with streaming ──────────────────────────────────────────────
-  const { promise: stmtPromise, statement: earlyStmt } = executeStream(sfConn, sql)
-
-  // Register the statement immediately for early cancellation (before complete fires)
-  runningJobs.set(tabId, { statement: earlyStmt, webContents })
-
-  const queryPromise = stmtPromise
-    .then(async (stmt) => {
+      const stmt = await stmtPromise
       const queryId = stmt.getQueryId()
       log(`Query complete · ${queryId} · Fetching first page…`)
 
@@ -406,9 +372,6 @@ export async function runQuery(
       const pageEnd = Math.min(DEFAULT_PAGE_SIZE, totalRows)
       const rows = pageEnd > 0 ? await streamPage(stmt, 0, pageEnd - 1) : []
 
-      cleanup()
-
-      // Derive column names from rows, or from statement column metadata if empty
       const columns =
         rows.length > 0
           ? Object.keys(rows[0])
@@ -416,11 +379,8 @@ export async function runQuery(
 
       const hasMore = totalRows > DEFAULT_PAGE_SIZE
       const totalLabel = ` (${totalRows.toLocaleString()} total)`
-      log(
-        `Fetched ${rows.length.toLocaleString()} rows${totalLabel} · ${elapsed(start)}`
-      )
+      log(`Fetched ${rows.length.toLocaleString()} rows${totalLabel} · ${elapsed(start)}`)
 
-      // Retain statement for pagination
       completedStatements.set(tabId, stmt)
 
       return {
@@ -432,31 +392,8 @@ export async function runQuery(
         pageToken: hasMore ? String(DEFAULT_PAGE_SIZE) : null,
         hasMore
       } satisfies QueryResult
-    })
-    .catch((err: Error) => {
-      cleanup()
-      throw err
-    })
-
-  // Prevent unhandled rejection after Promise.race settles
-  queryPromise.catch(() => {})
-
-  // ── 180s timeout race ───────────────────────────────────────────────────
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutTimer = setTimeout(async () => {
-      log('Timeout reached (180s) · Cancelling…')
-      const running = runningJobs.get(tabId)
-      if (running) {
-        await new Promise<void>((res) => {
-          running.statement.cancel(() => res())
-        })
-      }
-      cleanup()
-      reject(new Error('Query timed out after 180 seconds. The statement has been cancelled.'))
-    }, QUERY_TIMEOUT_MS)
+    }
   })
-
-  return Promise.race([queryPromise, timeoutPromise])
 }
 
 /**
@@ -494,18 +431,7 @@ export async function getQueryPage(tabId: string, pageToken: string): Promise<Qu
 /**
  * Cancel the running statement for the given tab. No-op if no query is active.
  */
-export async function cancelRunningQuery(tabId: string): Promise<void> {
-  const running = runningJobs.get(tabId)
-  if (!running) return
-  const { statement, webContents } = running
-  if (!webContents.isDestroyed()) {
-    webContents.send(CHANNELS.QUERY_LOG, { tabId, message: 'Cancelled by user.' })
-  }
-  await new Promise<void>((resolve) => {
-    statement.cancel(() => resolve())
-  })
-  runningJobs.delete(tabId)
-}
+export const cancelRunningQuery = _cancelRunningQuery
 
 /**
  * Validate a query without executing it by running EXPLAIN.
