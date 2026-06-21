@@ -148,6 +148,29 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-06-21] Refactor: Shared adapter query-runtime (TD-1/TD-2)
+
+**Type:** Change
+**Context:** After a dense run of features, a tech-debt audit (`docs/superpowers/specs/2026-06-21-tech-debt-register-design.md`) found the query-execution scaffolding copy-pasted across all four DB adapters: `elapsed()` defined identically in three files, and the `runningJobs` map + heartbeat `setInterval` + 180s timeout race + idempotent cleanup + `cancelRunningQuery` reimplemented in every adapter. The heartbeat log string had already drifted (Postgres used `${seconds}s` while the others used `elapsed()`). Per spec `docs/superpowers/specs/2026-06-21-adapter-query-runtime-design.md` and plan `docs/superpowers/plans/2026-06-21-adapter-query-runtime.md` (the "Balanced" scope).
+**Problem / Change:** ~4× duplication of the query lifecycle, actively diverging; no main-process concurrency helper; identical `getDatasetColumns` accumulators in three adapters.
+**Solution / Outcome:**
+- **`src/main/db/queryRuntime.ts`** (new) — single source of truth for the lifecycle: `elapsed()`, `makeLogger(webContents, tabId)`, `startHeartbeat(log, start)`, a shared `runningJobs` registry of `{ cancel: () => Promise<void>; webContents }` keyed by `tabId`, one `cancelRunningQuery(tabId)`, and `runWithLifecycle({ tabId, webContents, timeoutMessage, execute })` — which owns the heartbeat, the 180s timeout race, idempotent cleanup, and registry insert/delete. `execute` receives `{ log, registerCancel }` and calls `registerCancel(thunk)` the moment it holds its engine handle (opaque cancel thunk, so the registry is engine-agnostic). Also `runCapped` (main-process concurrency cap, twin of the renderer's) and `groupColumnsByTable(rows, accessor)` (the shared `getDatasetColumns` accumulator). Constants `QUERY_TIMEOUT_MS`/`HEARTBEAT_INTERVAL_MS` moved here.
+- **BigQuery / Snowflake / Neo4j** — `runQuery` rewritten to `return runWithLifecycle(...)`; local `elapsed`/`runningJobs`/heartbeat/timeout/cleanup deleted; `cancelRunningQuery` re-exports the shared one. Cancel thunks: `job.cancel()` / `stmt.cancel(cb)` / `session.close()`. Engine-specific pagination/retention maps (`completedJobs`/`completedStatements`/`completedResults`) stay local. Intentional nuance: BigQuery's heartbeat now starts before `createQueryJob` resolves (was after).
+- **Postgres** — documented exception: keeps `SET statement_timeout` + its own heartbeat interval (no `runWithLifecycle`), but adopts shared `elapsed`/`makeLogger`/`startHeartbeat`/`QUERY_TIMEOUT_MS`/`runningJobs`/`cancelRunningQuery`. Its cancel thunk closes over `pid`+`pool` and calls `pg_cancel_backend`. The "Done" log changed from `${ms}ms` to `${elapsed(start)}` (the drift fix). Old `RunningQuery` map + `logToWebContents` removed.
+- **TD-2** — BigQuery `searchTables` batch-of-5 loop → `runCapped`; the three SQL adapters' `getDatasetColumns` accumulators → `groupColumnsByTable` (dialect reading stays in each adapter's accessor). SQL unchanged.
+- **Tests.** New `queryRuntime.test.ts` (15 tests: elapsed, makeLogger, startHeartbeat, runCapped, groupColumnsByTable, runWithLifecycle happy/error/timeout, cancelRunningQuery incl. destroyed-webContents branch). Added a Postgres cancel test (`pg_cancel_backend` via the shared registry) to close a pre-existing gap. All four adapter suites stayed green with no/minimal edits. `just ci` green: 502 tests, overall coverage 90.15%, all gates ≥70% (`queryRuntime.ts` 98.94%).
+
+**Files affected:**
+- `src/main/db/queryRuntime.ts` — created
+- `src/main/db/bigquery.ts` — `runWithLifecycle`; `searchTables` → `runCapped`; `getDatasetColumns` → `groupColumnsByTable`
+- `src/main/db/snowflake.ts` — `runWithLifecycle`; `getDatasetColumns` → `groupColumnsByTable`
+- `src/main/db/neo4j.ts` — `runWithLifecycle`
+- `src/main/db/postgres.ts` — shared primitives (keeps `statement_timeout`); `getDatasetColumns` → `groupColumnsByTable`; heartbeat-string drift fix
+- `src/__tests__/main/db/queryRuntime.test.ts` — created
+- `src/__tests__/main/db/postgres.test.ts` — added cancel test
+- `CHANGELOG.md` — Unreleased "Changed" entry
+- `docs/superpowers/specs/2026-06-21-tech-debt-register-design.md`, `docs/superpowers/specs/2026-06-21-adapter-query-runtime-design.md`, `docs/superpowers/plans/2026-06-21-adapter-query-runtime.md` — created
+
 ### [2026-06-20] Feature: Catalog warm-up
 
 **Type:** Change
