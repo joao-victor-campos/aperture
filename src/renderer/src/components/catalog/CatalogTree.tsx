@@ -19,7 +19,6 @@ export default function CatalogTree({ onAddConnection }: CatalogTreeProps) {
     tablesByDataset,
     expandedDatasets,
     isLoading,
-    loadDatasets,
     loadTables,
     toggleDataset,
     warmCatalog,

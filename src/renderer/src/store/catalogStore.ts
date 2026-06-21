@@ -6,6 +6,7 @@ interface CatalogState {
   datasetsByConnection: Record<string, Dataset[]>
   tablesByDataset: Record<string, Table[]>
   schemaCache: Record<string, TableField[]>   // key: "${connectionId}:${datasetId}:${tableId}"
+  coarseSchemaKeys: Set<string>              // schemaCache keys populated coarsely by warmCatalog
   expandedDatasets: Set<string>
   isLoading: Record<string, boolean>
   warmState: Record<string, 'idle' | 'warming' | 'warmed'>
@@ -35,6 +36,7 @@ export const useCatalogStore = create<CatalogState>((set, get) => ({
   datasetsByConnection: {},
   tablesByDataset: {},
   schemaCache: {},
+  coarseSchemaKeys: new Set(),
   expandedDatasets: new Set(),
   isLoading: {},
   warmState: {},
@@ -60,15 +62,20 @@ export const useCatalogStore = create<CatalogState>((set, get) => ({
 
   loadSchema: async (connectionId, projectId, datasetId, tableId) => {
     const cacheKey = `${connectionId}:${datasetId}:${tableId}`
-    const cached = get().schemaCache[cacheKey]
-    if (cached) return cached
+    const { schemaCache, coarseSchemaKeys } = get()
+    const cached = schemaCache[cacheKey]
+    if (cached && !coarseSchemaKeys.has(cacheKey)) return cached
     const fields = await window.api.invoke(CHANNELS.CATALOG_TABLE_SCHEMA, {
       connectionId,
       projectId,
       datasetId,
       tableId
     })
-    set((s) => ({ schemaCache: { ...s.schemaCache, [cacheKey]: fields } }))
+    set((s) => {
+      const nextCoarse = new Set(s.coarseSchemaKeys)
+      nextCoarse.delete(cacheKey)
+      return { schemaCache: { ...s.schemaCache, [cacheKey]: fields }, coarseSchemaKeys: nextCoarse }
+    })
     return fields
   },
 
@@ -101,12 +108,16 @@ export const useCatalogStore = create<CatalogState>((set, get) => ({
           // One merged commit per dataset to limit editor reconfigure churn.
           set((s) => {
             const schemaPatch: Record<string, TableField[]> = {}
-            for (const [tableId, fields] of Object.entries(columns as Record<string, TableField[]>)) {
-              schemaPatch[`${connectionId}:${ds.id}:${tableId}`] = fields
+            const nextCoarse = new Set(s.coarseSchemaKeys)
+            for (const [tableId, fields] of Object.entries(columns)) {
+              const key = `${connectionId}:${ds.id}:${tableId}`
+              schemaPatch[key] = fields
+              nextCoarse.add(key)
             }
             return {
               tablesByDataset: { ...s.tablesByDataset, [`${connectionId}:${ds.id}`]: tables },
-              schemaCache: { ...s.schemaCache, ...schemaPatch }
+              schemaCache: { ...s.schemaCache, ...schemaPatch },
+              coarseSchemaKeys: nextCoarse,
             }
           })
         } catch {

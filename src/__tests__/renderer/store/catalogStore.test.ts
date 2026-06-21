@@ -88,6 +88,67 @@ describe('catalogStore', () => {
         connectionId: 'conn-1', projectId: 'proj', datasetId: 'ds1', tableId: 'tbl1'
       })
     })
+
+    it('returns cached without re-invoking for a full (non-coarse) key', async () => {
+      // Arrange: first load populates the cache (not via warmCatalog, so not coarse)
+      invoke().mockResolvedValueOnce([field])
+      await useCatalogStore.getState().loadSchema('conn-1', 'proj', 'ds1', 'tbl1')
+      invoke().mockClear()
+
+      // Act: second call should short-circuit
+      const result = await useCatalogStore.getState().loadSchema('conn-1', 'proj', 'ds1', 'tbl1')
+
+      // Assert
+      expect(result).toEqual([field])
+      expect(invoke()).not.toHaveBeenCalled()
+    })
+
+    it('re-fetches a coarse warmed key and removes it from coarseSchemaKeys', async () => {
+      // Arrange: warm the catalog so ds1/t1 is populated coarsely
+      const ds1: Dataset = { id: 'ds1', projectId: 'proj', name: 'ds1' }
+      const t1: Table = { id: 't1', datasetId: 'ds1', projectId: 'proj', name: 't1', type: 'TABLE' }
+      const coarseFields: TableField[] = [{ name: 'id', type: 'INT64', mode: 'NULLABLE' }]
+      const fullFields: TableField[] = [
+        { name: 'id', type: 'INT64', mode: 'REQUIRED' },
+        { name: 'desc', type: 'STRING', mode: 'NULLABLE' },
+      ]
+
+      invoke().mockImplementation((channel: string, arg: unknown) => {
+        if (channel === CHANNELS.CATALOG_DATASETS) return Promise.resolve([ds1])
+        if (channel === CHANNELS.CATALOG_TABLES) return Promise.resolve([t1])
+        if (channel === CHANNELS.CATALOG_DATASET_COLUMNS) return Promise.resolve({ t1: coarseFields })
+        return Promise.resolve(undefined)
+      })
+      await useCatalogStore.getState().warmCatalog('conn-1')
+
+      // Verify coarse key is tracked
+      const cacheKey = 'conn-1:ds1:t1'
+      expect(useCatalogStore.getState().coarseSchemaKeys.has(cacheKey)).toBe(true)
+      expect(useCatalogStore.getState().schemaCache[cacheKey]).toEqual(coarseFields)
+
+      // Now wire up the full-fidelity response for TABLE_SCHEMA
+      invoke().mockImplementation((channel: string) => {
+        if (channel === CHANNELS.CATALOG_TABLE_SCHEMA) return Promise.resolve(fullFields)
+        return Promise.resolve(undefined)
+      })
+
+      // Act: loadSchema should re-fetch (not return cached coarse)
+      const result = await useCatalogStore.getState().loadSchema('conn-1', 'proj', 'ds1', 't1')
+
+      // Assert: full fields returned, key removed from coarseSchemaKeys
+      expect(result).toEqual(fullFields)
+      expect(invoke()).toHaveBeenCalledWith(CHANNELS.CATALOG_TABLE_SCHEMA, {
+        connectionId: 'conn-1', projectId: 'proj', datasetId: 'ds1', tableId: 't1'
+      })
+      expect(useCatalogStore.getState().schemaCache[cacheKey]).toEqual(fullFields)
+      expect(useCatalogStore.getState().coarseSchemaKeys.has(cacheKey)).toBe(false)
+
+      // Second call should now short-circuit (key no longer coarse)
+      invoke().mockClear()
+      const cached = await useCatalogStore.getState().loadSchema('conn-1', 'proj', 'ds1', 't1')
+      expect(cached).toEqual(fullFields)
+      expect(invoke()).not.toHaveBeenCalled()
+    })
   })
 
   describe('toggleDataset', () => {
@@ -186,6 +247,7 @@ describe('catalogStore', () => {
 
       await expect(useCatalogStore.getState().warmCatalog('conn-1')).resolves.toBeUndefined()
       expect(useCatalogStore.getState().tablesByDataset['conn-1:ds2']).toBeDefined()
+      expect(useCatalogStore.getState().tablesByDataset['conn-1:ds1']).toBeUndefined()
       expect(useCatalogStore.getState().warmState['conn-1']).toBe('warmed')
     })
   })

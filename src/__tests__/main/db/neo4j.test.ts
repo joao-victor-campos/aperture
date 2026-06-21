@@ -308,6 +308,31 @@ describe('neo4j adapter — dryRunQuery', () => {
 })
 
 describe('getDatasetColumns', () => {
+  it('returns [] for a table whose getTableSchema sampling throws, while other tables succeed', async () => {
+    // listTables for 'neo4j' with two labels: Person and Broken
+    // Person schema succeeds; Broken schema rejects — should get []
+    mockSession.run
+      .mockResolvedValueOnce(makeResult(['label'], [{ label: 'Person' }, { label: 'Broken' }]))        // db.labels()
+      .mockResolvedValueOnce(makeResult(['relationshipType'], []))                                      // db.relationshipTypes()
+      .mockResolvedValueOnce(makeResult(['count'], [{ count: new FakeInteger(2) }]))                   // count Person
+      .mockResolvedValueOnce(makeResult(['count'], [{ count: new FakeInteger(0) }]))                   // count Broken
+      // Person getTableSchema: not a rel type, then sample
+      .mockResolvedValueOnce(makeResult(['relationshipType'], []))
+      .mockResolvedValueOnce(
+        makeResult(['sample'], [
+          { sample: new FakeNode('n-1', ['Person'], { name: 'Alice' }) },
+        ]),
+      )
+      // Broken getTableSchema: not a rel type, then sample throws
+      .mockResolvedValueOnce(makeResult(['relationshipType'], []))
+      .mockRejectedValueOnce(new Error('sampling failed'))
+
+    const result = await getDatasetColumns(conn, 'neo4j')
+
+    expect(result.Person).toEqual([{ name: 'name', type: 'STRING', mode: 'NULLABLE' }])
+    expect(result.Broken).toEqual([])
+  })
+
   it('returns sample-inferred properties for every label and relationship type', async () => {
     // listTables sequence:
     //   1. CALL db.labels()          → [Person]
