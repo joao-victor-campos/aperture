@@ -148,6 +148,38 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-06-20] Feature: Catalog warm-up
+
+**Type:** Change
+**Context:** The sidebar "Search tables…" box previously only filtered datasets/tables already loaded into memory (i.e. datasets the user had manually expanded). Similarly, the SQL/Cypher editor autocomplete could only suggest columns for tables whose schemas had already been fetched by opening a table detail panel. Both gaps meant users saw incomplete results until they manually drilled through the catalog. Per the spec at `docs/superpowers/specs/2026-06-20-catalog-warmup-design.md` and plan at `docs/superpowers/plans/2026-06-20-catalog-warmup.md`.
+**Problem / Change:** Sidebar search missed tables in unexpanded datasets; editor autocomplete was missing tables and columns from datasets the user had not yet opened.
+**Solution / Outcome:**
+- **`getDatasetColumns` bulk fetch method.** All four engine adapters implement `getDatasetColumns(connection, datasetId): Promise<Record<string, TableField[]>>` — BigQuery fans out one `INFORMATION_SCHEMA.COLUMN_FIELD_PATHS` query per dataset (returning a flat column list keyed by table ID); Postgres runs a single `information_schema.columns` query filtered to the schema; Snowflake runs `INFORMATION_SCHEMA.COLUMNS` scoped to the `DATABASE.SCHEMA` composite ID; Neo4j reuses the existing `getTableSchema` sample-inference loop for each label/relationship type in the database. The `DbAdapter<TConnection>` interface in `adapterRegistry.ts` gains the new method; all four adapters are wired in.
+- **`CATALOG_DATASET_COLUMNS` IPC channel.** New req/res channel (`{ connectionId, datasetId } → Record<string, TableField[]>`) registered in `src/main/ipc/catalog.ts`. Dispatches through `getAdapterForConnection` like the existing catalog channels.
+- **`warmCatalog` Zustand action.** `catalogStore` gains `warmState: Record<string, 'idle' | 'warming' | 'warmed'>` and `warmCatalog(connectionId, opts?)`. On connect it loads datasets, then fans out `CATALOG_TABLES` + `CATALOG_DATASET_COLUMNS` concurrently for each dataset (concurrency cap 5 via `runCapped`), committing one merged state update per dataset to limit editor-extension reconfigure churn. `{ force: true }` bypasses the `'warmed'` guard for the refresh button. Datasets that error (permissions, regional restrictions) are silently skipped via a try/catch inside the per-dataset worker.
+- **CatalogTree wiring.** `CatalogTree.tsx` calls `warmCatalog(activeConnectionId)` on connection change and `warmCatalog(activeConnectionId, { force: true })` on the refresh button click (replacing the old `loadDatasets` call). An "Indexing catalog…" hint (animated pulse) renders while `warmState[activeConnectionId] === 'warming'`. Because `warmCatalog` pre-populates the same `tablesByDataset` + `schemaCache` keys that the sidebar filter and `useSchemaPrefetch` already read, both sidebar search and autocomplete now span the full catalog immediately without any new consumer code.
+- **Tests.** All four adapter `getDatasetColumns` implementations are unit-tested (happy path + empty dataset). The `CATALOG_DATASET_COLUMNS` IPC handler is covered in `catalog.test.ts` (happy path + missing connection). `catalogStore.test.ts` gains an `editor-groups` → `warmCatalog` describe block (skip-if-warmed, warming→warmed state transitions, per-dataset merge, force re-warm, error-swallowing). `just ci` green: 483 tests, coverage ≥ 70% across all gates.
+
+**Files affected:**
+- `src/shared/ipc.ts` — `CATALOG_DATASET_COLUMNS` channel + `IpcMap` entry
+- `src/main/db/adapterRegistry.ts` — `getDatasetColumns` on `DbAdapter` interface; four adapter imports wired in
+- `src/main/db/bigquery.ts` — `getDatasetColumns` implementation (INFORMATION_SCHEMA.COLUMN_FIELD_PATHS)
+- `src/main/db/postgres.ts` — `getDatasetColumns` implementation (information_schema.columns)
+- `src/main/db/snowflake.ts` — `getDatasetColumns` implementation (INFORMATION_SCHEMA.COLUMNS)
+- `src/main/db/neo4j.ts` — `getDatasetColumns` implementation (getTableSchema loop)
+- `src/main/ipc/catalog.ts` — `CATALOG_DATASET_COLUMNS` handler
+- `src/renderer/src/store/catalogStore.ts` — `warmState`, `warmCatalog`, `runCapped`
+- `src/renderer/src/components/catalog/CatalogTree.tsx` — warm on connect, force re-warm on refresh, "Indexing catalog…" hint
+- `src/__tests__/main/db/bigquery.test.ts` — `getDatasetColumns` tests
+- `src/__tests__/main/db/postgres.test.ts` — `getDatasetColumns` tests
+- `src/__tests__/main/db/snowflake.test.ts` — `getDatasetColumns` tests
+- `src/__tests__/main/db/neo4j.test.ts` — `getDatasetColumns` tests
+- `src/__tests__/main/db/adapterRegistry.test.ts` — `getDatasetColumns` mock included in all four adapter mocks
+- `src/__tests__/main/ipc/catalog.test.ts` — `CATALOG_DATASET_COLUMNS` handler tests
+- `src/__tests__/renderer/store/catalogStore.test.ts` — `warmCatalog` tests
+
+---
+
 ### [2026-06-20] Feature: Multi-connection split view, result charts, clipboard copy
 
 **Type:** Change
