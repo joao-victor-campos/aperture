@@ -139,6 +139,34 @@ export async function searchTables(
   return hits.slice(0, limit)
 }
 
+/**
+ * Bulk column fetch for an entire dataset in a single INFORMATION_SCHEMA.COLUMNS
+ * query. Returns coarse column name + type per table (enough for autocomplete);
+ * the full-fidelity nested schema still comes from getTableSchema.
+ */
+export async function getDatasetColumns(
+  connection: BigQueryConnection,
+  datasetId: string
+): Promise<Record<string, TableField[]>> {
+  const client = getClient(connection)
+  const query = `
+    SELECT table_name, column_name, data_type
+      FROM \`${connection.projectId}.${datasetId}.INFORMATION_SCHEMA.COLUMNS\`
+     ORDER BY table_name, ordinal_position
+  `
+  const [rows] = await client.query({ query })
+  const out: Record<string, TableField[]> = {}
+  for (const r of rows as Record<string, unknown>[]) {
+    const tableId = r.table_name as string
+    ;(out[tableId] ??= []).push({
+      name: r.column_name as string,
+      type: r.data_type as string,
+      mode: 'NULLABLE'
+    })
+  }
+  return out
+}
+
 export async function getTableSchema(
   connection: BigQueryConnection,
   datasetId: string,

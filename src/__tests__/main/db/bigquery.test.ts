@@ -66,6 +66,7 @@ const {
   runQuery,
   cancelRunningQuery,
   dryRunQuery,
+  getDatasetColumns,
   invalidateClient
 } = await import('../../../main/db/bigquery')
 
@@ -455,6 +456,38 @@ describe('BigQuery bridge', () => {
       expect(hits).toEqual([
         { datasetId: 'open', tableId: 'users', name: 'users', type: 'TABLE' },
       ])
+    })
+  })
+
+  // ── getDatasetColumns ──────────────────────────────────────────────────
+  describe('getDatasetColumns', () => {
+    it('groups columns by table in ordinal order', async () => {
+      mockClient.query.mockResolvedValueOnce([
+        [
+          { table_name: 'users', column_name: 'id', data_type: 'INT64' },
+          { table_name: 'users', column_name: 'email', data_type: 'STRING' },
+          { table_name: 'orders', column_name: 'id', data_type: 'INT64' },
+        ],
+      ])
+
+      const result = await getDatasetColumns(conn as never, 'analytics')
+
+      expect(result).toEqual({
+        users: [
+          { name: 'id', type: 'INT64', mode: 'NULLABLE' },
+          { name: 'email', type: 'STRING', mode: 'NULLABLE' },
+        ],
+        orders: [{ name: 'id', type: 'INT64', mode: 'NULLABLE' }],
+      })
+      const sqlArg = (mockClient.query.mock.calls[0][0] as { query: string }).query
+      expect(sqlArg).toContain('INFORMATION_SCHEMA.COLUMNS')
+      expect(sqlArg).toContain('my-project.analytics')
+    })
+
+    it('returns an empty object when there are no columns', async () => {
+      mockClient.query.mockResolvedValueOnce([[]])
+      const result = await getDatasetColumns(conn as never, 'empty_ds')
+      expect(result).toEqual({})
     })
   })
 

@@ -188,6 +188,25 @@ instead suggests adding a `LIMIT`.
 
 ---
 
+## Catalog
+
+When you connect to a database, Aperture automatically pre-indexes the catalog
+in the background. This means:
+
+- **Sidebar search spans all datasets** — the "Search tables…" box in the
+  catalog sidebar finds tables in every dataset, not just the ones you have
+  already expanded. Results appear as soon as you start typing.
+- **Autocomplete is ready immediately** — the SQL/Cypher editor offers table
+  and column suggestions from every dataset, with no need to open a table first.
+
+The "Indexing catalog…" hint appears in the sidebar while the warm-up is
+running. To force a re-index (e.g. after adding new tables), click the
+**Refresh** (↺) icon in the "Datasets" header. Datasets that are inaccessible
+due to permissions or regional issues are silently skipped so the rest of the
+catalog still loads.
+
+---
+
 ## Working with results
 
 - **Split view across connections** — split the editor into two side-by-side

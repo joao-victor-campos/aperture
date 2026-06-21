@@ -19,6 +19,7 @@ import {
   listTables as listBigQueryTables,
   getTableSchema as getBigQueryTableSchema,
   searchTables as searchBigQueryTables,
+  getDatasetColumns as getBigQueryDatasetColumns,
   runQuery as runBigQueryQuery,
   getQueryPage as getBigQueryPage,
   cancelRunningQuery as cancelBigQuery,
@@ -32,6 +33,7 @@ import {
   listTables as listPostgresTables,
   getTableSchema as getPostgresTableSchema,
   searchTables as searchPostgresTables,
+  getDatasetColumns as getPostgresDatasetColumns,
   runQuery as runPostgresQuery,
   getQueryPage as getPostgresPage,
   cancelRunningQuery as cancelPostgres,
@@ -45,6 +47,7 @@ import {
   listTables as listSnowflakeTables,
   getTableSchema as getSnowflakeTableSchema,
   searchTables as searchSnowflakeTables,
+  getDatasetColumns as getSnowflakeDatasetColumns,
   runQuery as runSnowflakeQuery,
   getQueryPage as getSnowflakePage,
   cancelRunningQuery as cancelSnowflake,
@@ -58,6 +61,7 @@ import {
   listTables as listNeo4jTables,
   getTableSchema as getNeo4jTableSchema,
   searchTables as searchNeo4jTables,
+  getDatasetColumns as getNeo4jDatasetColumns,
   runQuery as runNeo4jQuery,
   getQueryPage as getNeo4jPage,
   cancelRunningQuery as cancelNeo4j,
@@ -70,6 +74,8 @@ export interface DbAdapter<TConnection extends Connection> {
   listDatasets(connection: TConnection): Promise<Dataset[]>
   listTables(connection: TConnection, datasetId: string): Promise<Table[]>
   getTableSchema(connection: TConnection, datasetId: string, tableId: string): Promise<TableField[]>
+  /** Bulk column fetch for a whole dataset — powers catalog warm-up. */
+  getDatasetColumns(connection: TConnection, datasetId: string): Promise<Record<string, TableField[]>>
   /** Catalog-wide substring search for ⌘K command palette. */
   searchTables(connection: TConnection, query: string, limit: number): Promise<TableSearchHit[]>
 
@@ -92,6 +98,7 @@ const bigQueryAdapter: DbAdapter<BigQueryConnection> = {
   listDatasets: listBigQueryDatasets,
   listTables: listBigQueryTables,
   getTableSchema: getBigQueryTableSchema,
+  getDatasetColumns: getBigQueryDatasetColumns,
   searchTables: searchBigQueryTables,
   runQuery: runBigQueryQuery,
   getQueryPage: getBigQueryPage,
@@ -105,6 +112,7 @@ const postgresAdapter: DbAdapter<PostgresConnection> = {
   listDatasets: listPostgresDatasets,
   listTables: listPostgresTables,
   getTableSchema: getPostgresTableSchema,
+  getDatasetColumns: getPostgresDatasetColumns,
   searchTables: searchPostgresTables,
   runQuery: runPostgresQuery,
   getQueryPage: getPostgresPage,
@@ -118,6 +126,7 @@ const snowflakeAdapter: DbAdapter<SnowflakeConnection> = {
   listDatasets: listSnowflakeDatasets,
   listTables: listSnowflakeTables,
   getTableSchema: getSnowflakeTableSchema,
+  getDatasetColumns: getSnowflakeDatasetColumns,
   searchTables: searchSnowflakeTables,
   runQuery: runSnowflakeQuery,
   getQueryPage: getSnowflakePage,
@@ -131,6 +140,7 @@ const neo4jAdapter: DbAdapter<Neo4jConnection> = {
   listDatasets: listNeo4jDatasets,
   listTables: listNeo4jTables,
   getTableSchema: getNeo4jTableSchema,
+  getDatasetColumns: getNeo4jDatasetColumns,
   searchTables: searchNeo4jTables,
   runQuery: runNeo4jQuery,
   getQueryPage: getNeo4jPage,

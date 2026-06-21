@@ -52,6 +52,7 @@ const {
   listDatasets,
   listTables,
   getTableSchema,
+  getDatasetColumns,
   searchTables,
   runQuery,
   dryRunQuery,
@@ -130,6 +131,35 @@ describe('Postgres adapter', () => {
       expect(result).toHaveLength(2)
       expect(result[0]).toMatchObject({ name: 'id', type: 'integer', mode: 'REQUIRED' })
       expect(result[1]).toMatchObject({ name: 'email', type: 'text', mode: 'NULLABLE' })
+    })
+  })
+
+  // ── getDatasetColumns ───────────────────────────────────────────────────
+  describe('getDatasetColumns', () => {
+    it('groups columns by table with nullability mapped to mode', async () => {
+      mockPool.query.mockResolvedValueOnce({
+        rows: [
+          { table_name: 'users', column_name: 'id', data_type: 'integer', is_nullable: 'NO' },
+          { table_name: 'users', column_name: 'email', data_type: 'text', is_nullable: 'YES' },
+          { table_name: 'orders', column_name: 'total', data_type: 'numeric', is_nullable: 'YES' },
+        ],
+      })
+
+      const result = await getDatasetColumns(conn, 'public')
+
+      expect(result).toEqual({
+        users: [
+          { name: 'id', type: 'integer', mode: 'REQUIRED' },
+          { name: 'email', type: 'text', mode: 'NULLABLE' },
+        ],
+        orders: [{ name: 'total', type: 'numeric', mode: 'NULLABLE' }],
+      })
+      expect(mockPool.query).toHaveBeenCalledWith(expect.stringContaining('information_schema.columns'), ['public'])
+    })
+
+    it('returns an empty object for a schema with no columns', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [] })
+      expect(await getDatasetColumns(conn, 'empty')).toEqual({})
     })
   })
 

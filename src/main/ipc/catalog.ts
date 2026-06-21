@@ -45,4 +45,13 @@ export function registerCatalogHandlers(): void {
       return getAdapterForConnection(conn).searchTables(conn, req.query.trim(), limit)
     }
   )
+
+  ipcMain.handle(
+    CHANNELS.CATALOG_DATASET_COLUMNS,
+    async (_event, req: { connectionId: string; datasetId: string }) => {
+      const conn = store.get('connections').find((c) => c.id === req.connectionId)
+      if (!conn) throw new Error(`Connection not found: ${req.connectionId}`)
+      return getAdapterForConnection(conn).getDatasetColumns(conn, req.datasetId)
+    }
+  )
 }

@@ -277,6 +277,33 @@ export async function getTableSchema(
 }
 
 /**
+ * Bulk column fetch for a whole schema via INFORMATION_SCHEMA.COLUMNS in one query.
+ * @param datasetId — "DATABASE.SCHEMA"
+ */
+export async function getDatasetColumns(
+  connection: SnowflakeConnection,
+  datasetId: string
+): Promise<Record<string, TableField[]>> {
+  const sfConn = await getConnection(connection)
+  const [dbName, schemaName] = datasetId.split('.')
+  const sql = `SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, IS_NULLABLE
+                 FROM ${dbName}.INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = '${schemaName.replace(/'/g, "''")}'
+                ORDER BY TABLE_NAME, ORDINAL_POSITION`
+  const rows = await executeAll(sfConn, sql)
+  const out: Record<string, TableField[]> = {}
+  for (const r of rows) {
+    const tableName = str(r, 'TABLE_NAME')
+    ;(out[tableName] ??= []).push({
+      name: str(r, 'COLUMN_NAME'),
+      type: str(r, 'DATA_TYPE'),
+      mode: str(r, 'IS_NULLABLE').toUpperCase() === 'YES' ? 'NULLABLE' : 'REQUIRED'
+    })
+  }
+  return out
+}
+
+/**
  * Catalog-wide table search.
  *   - If connection.database is set, uses that DB's INFORMATION_SCHEMA (fast, scoped).
  *   - Otherwise falls back to `SHOW TABLES LIKE '%query%' IN ACCOUNT` (capped at 10k by Snowflake).
