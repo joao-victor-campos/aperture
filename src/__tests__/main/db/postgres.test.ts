@@ -57,7 +57,8 @@ const {
   runQuery,
   dryRunQuery,
   invalidateClient,
-  getQueryPage
+  getQueryPage,
+  cancelRunningQuery
 } = await import('../../../main/db/postgres')
 
 describe('Postgres adapter', () => {
@@ -315,6 +316,38 @@ describe('Postgres adapter', () => {
 
     it('is a no-op when no pool is cached', () => {
       expect(() => invalidateClient('unknown-id')).not.toThrow()
+    })
+  })
+
+  // ── cancelRunningQuery ──────────────────────────────────────────────────
+  describe('postgres adapter — cancelRunningQuery', () => {
+    it('logs and issues pg_cancel_backend for the running query', async () => {
+      let resolveSql!: (v: unknown) => void
+      const sqlPromise = new Promise((res) => {
+        resolveSql = res
+      })
+      mockClient.query
+        .mockResolvedValueOnce({ rows: [{ pg_backend_pid: 4242 }] }) // SELECT pg_backend_pid()
+        .mockResolvedValueOnce(undefined) // SET statement_timeout
+        .mockReturnValueOnce(sqlPromise) // user SQL, held open
+
+      mockPool.query.mockResolvedValue({ rows: [] }) // pg_cancel_backend
+
+      const runPromise = runQuery(conn, 'SELECT 1', 'tab-cancel', mockWC as never)
+      // let the pid lookup + SET + thunk registration settle
+      await new Promise((r) => setImmediate(r))
+
+      await cancelRunningQuery('tab-cancel')
+
+      expect(mockPool.query).toHaveBeenCalledWith('SELECT pg_cancel_backend($1)', [4242])
+      expect(mockWC.send).toHaveBeenCalledWith(CHANNELS.QUERY_LOG, {
+        tabId: 'tab-cancel',
+        message: 'Cancelled by user.'
+      })
+
+      // let runQuery finish cleanly so no promise dangles
+      resolveSql({ rows: [] })
+      await runPromise
     })
   })
 })
