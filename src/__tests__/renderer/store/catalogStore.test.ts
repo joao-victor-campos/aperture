@@ -122,4 +122,71 @@ describe('catalogStore', () => {
       expect(expandedDatasets.has('ds2')).toBe(true)
     })
   })
+
+  describe('warmCatalog', () => {
+    const ds1: Dataset = { id: 'ds1', projectId: 'proj', name: 'ds1' }
+    const ds2: Dataset = { id: 'ds2', projectId: 'proj', name: 'ds2' }
+    const t1: Table = { id: 't1', datasetId: 'ds1', projectId: 'proj', name: 't1', type: 'TABLE' }
+    const cols1: Record<string, TableField[]> = { t1: [{ name: 'id', type: 'INT64', mode: 'NULLABLE' }] }
+
+    // Route invoke by channel so concurrency/order doesn't matter
+    function routeInvoke(map: {
+      datasets: Dataset[]
+      tables: Record<string, Table[]>
+      columns: Record<string, Record<string, TableField[]>>
+    }) {
+      invoke().mockImplementation((channel: string, arg: unknown) => {
+        if (channel === CHANNELS.CATALOG_DATASETS) return Promise.resolve(map.datasets)
+        if (channel === CHANNELS.CATALOG_TABLES) {
+          const { datasetId } = arg as { datasetId: string }
+          return Promise.resolve(map.tables[datasetId] ?? [])
+        }
+        if (channel === CHANNELS.CATALOG_DATASET_COLUMNS) {
+          const { datasetId } = arg as { datasetId: string }
+          return Promise.resolve(map.columns[datasetId] ?? {})
+        }
+        return Promise.resolve(undefined)
+      })
+    }
+
+    it('populates tablesByDataset and schemaCache for every dataset', async () => {
+      routeInvoke({ datasets: [ds1], tables: { ds1: [t1] }, columns: { ds1: cols1 } })
+
+      await useCatalogStore.getState().warmCatalog('conn-1')
+
+      const s = useCatalogStore.getState()
+      expect(s.tablesByDataset['conn-1:ds1']).toEqual([t1])
+      expect(s.schemaCache['conn-1:ds1:t1']).toEqual(cols1.t1)
+      expect(s.warmState['conn-1']).toBe('warmed')
+    })
+
+    it('skips re-warming an already-warmed connection unless forced', async () => {
+      routeInvoke({ datasets: [ds1], tables: { ds1: [t1] }, columns: { ds1: cols1 } })
+      await useCatalogStore.getState().warmCatalog('conn-1')
+      invoke().mockClear()
+
+      await useCatalogStore.getState().warmCatalog('conn-1')
+      expect(invoke()).not.toHaveBeenCalled()
+
+      await useCatalogStore.getState().warmCatalog('conn-1', { force: true })
+      expect(invoke()).toHaveBeenCalledWith(CHANNELS.CATALOG_DATASETS, 'conn-1')
+    })
+
+    it('swallows per-dataset errors and still warms the rest', async () => {
+      invoke().mockImplementation((channel: string, arg: unknown) => {
+        if (channel === CHANNELS.CATALOG_DATASETS) return Promise.resolve([ds1, ds2])
+        if (channel === CHANNELS.CATALOG_TABLES) {
+          const { datasetId } = arg as { datasetId: string }
+          if (datasetId === 'ds1') return Promise.reject(new Error('permission denied'))
+          return Promise.resolve([{ ...t1, datasetId: 'ds2', id: 't2', name: 't2' }])
+        }
+        if (channel === CHANNELS.CATALOG_DATASET_COLUMNS) return Promise.resolve({})
+        return Promise.resolve(undefined)
+      })
+
+      await expect(useCatalogStore.getState().warmCatalog('conn-1')).resolves.toBeUndefined()
+      expect(useCatalogStore.getState().tablesByDataset['conn-1:ds2']).toBeDefined()
+      expect(useCatalogStore.getState().warmState['conn-1']).toBe('warmed')
+    })
+  })
 })

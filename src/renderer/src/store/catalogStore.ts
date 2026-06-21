@@ -8,6 +8,7 @@ interface CatalogState {
   schemaCache: Record<string, TableField[]>   // key: "${connectionId}:${datasetId}:${tableId}"
   expandedDatasets: Set<string>
   isLoading: Record<string, boolean>
+  warmState: Record<string, 'idle' | 'warming' | 'warmed'>
   loadDatasets: (connectionId: string) => Promise<void>
   loadTables: (connectionId: string, datasetId: string) => Promise<void>
   loadSchema: (
@@ -17,6 +18,17 @@ interface CatalogState {
     tableId: string
   ) => Promise<TableField[]>
   toggleDataset: (datasetId: string) => void
+  warmCatalog: (connectionId: string, opts?: { force?: boolean }) => Promise<void>
+}
+
+const WARM_CONCURRENCY = 5
+
+async function runCapped<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  const queue = [...items]
+  const workers = Array.from({ length: Math.min(limit, queue.length) }, async () => {
+    while (queue.length) await fn(queue.shift()!)
+  })
+  await Promise.all(workers)
 }
 
 export const useCatalogStore = create<CatalogState>((set, get) => ({
@@ -25,6 +37,7 @@ export const useCatalogStore = create<CatalogState>((set, get) => ({
   schemaCache: {},
   expandedDatasets: new Set(),
   isLoading: {},
+  warmState: {},
 
   loadDatasets: async (connectionId) => {
     set((s) => ({ isLoading: { ...s.isLoading, [connectionId]: true } }))
@@ -67,5 +80,41 @@ export const useCatalogStore = create<CatalogState>((set, get) => ({
       next.add(datasetId)
     }
     set({ expandedDatasets: next })
-  }
+  },
+
+  warmCatalog: async (connectionId, opts) => {
+    const state = get()
+    if (!opts?.force && state.warmState[connectionId] === 'warmed') return
+    if (state.warmState[connectionId] === 'warming') return
+    set((s) => ({ warmState: { ...s.warmState, [connectionId]: 'warming' } }))
+
+    try {
+      const datasets = await window.api.invoke(CHANNELS.CATALOG_DATASETS, connectionId)
+      set((s) => ({ datasetsByConnection: { ...s.datasetsByConnection, [connectionId]: datasets } }))
+
+      await runCapped(datasets, WARM_CONCURRENCY, async (ds) => {
+        try {
+          const [tables, columns] = await Promise.all([
+            window.api.invoke(CHANNELS.CATALOG_TABLES, { connectionId, datasetId: ds.id }),
+            window.api.invoke(CHANNELS.CATALOG_DATASET_COLUMNS, { connectionId, datasetId: ds.id })
+          ])
+          // One merged commit per dataset to limit editor reconfigure churn.
+          set((s) => {
+            const schemaPatch: Record<string, TableField[]> = {}
+            for (const [tableId, fields] of Object.entries(columns as Record<string, TableField[]>)) {
+              schemaPatch[`${connectionId}:${ds.id}:${tableId}`] = fields
+            }
+            return {
+              tablesByDataset: { ...s.tablesByDataset, [`${connectionId}:${ds.id}`]: tables },
+              schemaCache: { ...s.schemaCache, ...schemaPatch }
+            }
+          })
+        } catch {
+          // Skip datasets we can't read (permission/regional errors)
+        }
+      })
+    } finally {
+      set((s) => ({ warmState: { ...s.warmState, [connectionId]: 'warmed' } }))
+    }
+  },
 }))
