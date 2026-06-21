@@ -167,18 +167,23 @@ export interface GraphData {
   links: GraphLink[]
 }
 
-/** State for one side of a split-pane view (right pane). */
-export interface QueryPane {
-  sql: string
-  result?: QueryResult
-  error?: string
-  isRunning: boolean
-  cancelled?: boolean
-  logs: string[]
+// ── Result charts ────────────────────────────────────────────────────────────
+
+export type ChartAggregate = 'none' | 'sum' | 'avg' | 'count' | 'min' | 'max'
+
+export interface ChartConfig {
+  type: 'bar' | 'line' | 'scatter'
+  /** Result column used for the X axis (category). */
+  xCol: string
+  /** Result column used for the Y axis (value). */
+  yCol: string
+  aggregate: ChartAggregate
 }
 
 export interface QueryTab {
   id: string
+  /** Which editor group this tab belongs to. Defaults to 'left'. */
+  groupId?: 'left' | 'right'
   /** 'query' (default), 'table' (catalog inspection tab), or 'result' (pinned snapshot) */
   type?: 'query' | 'table' | 'result'
   title: string
@@ -192,13 +197,15 @@ export interface QueryTab {
   cancelled?: boolean
   logs: string[]
   savedQueryId?: string
-  /** Present when split-pane mode is active for this tab */
-  rightPane?: QueryPane
   /** Explain plan / dry-run result (shown in ExplainPanel) */
   explainResult?: { bytesProcessed: number; plan?: string; planFormat?: 'text' | 'json' }
   isExplaining?: boolean
   /** When true, the graph view replaces the results table for this tab. */
   viewAsGraph?: boolean
+  /** Which result surface this tab shows: the data table (default) or a chart. */
+  resultView?: 'table' | 'chart'
+  /** Persisted chart-builder selection for this tab. */
+  chartConfig?: ChartConfig
 }
 
 export interface SavedQuery {

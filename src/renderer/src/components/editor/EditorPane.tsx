@@ -1,15 +1,14 @@
-import { memo, useCallback, useState } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useQueryStore } from '../../store/queryStore'
+import { useConnectionStore } from '../../store/connectionStore'
 import { detectMissingLimit } from '../../lib/detectMissingLimit'
 import QueryEditor from './QueryEditor'
 import LimitWarningBanner from './LimitWarningBanner'
-import type { ConnectionEngine } from '@shared/types'
 import type { CypherSchema } from '../../lib/cypherLanguage'
 
 interface EditorPaneProps {
   tabId: string
-  engine?: ConnectionEngine
   sqlSchema?: Record<string, string[]>
   cypherSchema?: CypherSchema
   isSplit: boolean
@@ -19,12 +18,11 @@ interface EditorPaneProps {
 
 /**
  * The editor half of a query tab: CodeMirror + toolbar + auto-limit banner.
- * Subscribes only to the active tab's editing fields so a keystroke re-renders
- * this pane and nothing else. Run/cancel/explain dispatch store actions; save
- * and split are delegated to the parent (they touch Editor-level modal state).
+ * Engine is derived from the tab's own connection so split groups on different
+ * engines each get the right language/dialect.
  */
-function EditorPane({ tabId, engine, sqlSchema, cypherSchema, isSplit, onSplit, onSave }: EditorPaneProps) {
-  const { sql, isRunning, isExplaining, savedQueryId } = useQueryStore(
+function EditorPane({ tabId, sqlSchema, cypherSchema, isSplit, onSplit, onSave }: EditorPaneProps) {
+  const { sql, isRunning, isExplaining, savedQueryId, connectionId } = useQueryStore(
     useShallow((s) => {
       const t = s.tabs.find((x) => x.id === tabId)
       return {
@@ -32,6 +30,7 @@ function EditorPane({ tabId, engine, sqlSchema, cypherSchema, isSplit, onSplit, 
         isRunning: t?.isRunning ?? false,
         isExplaining: t?.isExplaining,
         savedQueryId: t?.savedQueryId,
+        connectionId: t?.connectionId,
       }
     }),
   )
@@ -40,13 +39,25 @@ function EditorPane({ tabId, engine, sqlSchema, cypherSchema, isSplit, onSplit, 
   const cancelQuery = useQueryStore((s) => s.cancelQuery)
   const explainQuery = useQueryStore((s) => s.explainQuery)
   const clearExplain = useQueryStore((s) => s.clearExplain)
+  const setTabConnection = useQueryStore((s) => s.setTabConnection)
+
+  const connections = useConnectionStore((s) => s.connections)
+  const pickerConnections = useMemo(
+    () => connections.map((c) => ({ id: c.id, name: c.name, engine: c.engine })),
+    [connections],
+  )
+  const engine = useMemo(
+    () => connections.find((c) => c.id === connectionId)?.engine,
+    [connections, connectionId],
+  )
 
   const [showLimitWarning, setShowLimitWarning] = useState(false)
 
   const handleChange = useCallback((next: string) => updateTabSql(tabId, next), [updateTabSql, tabId])
+  const handleConnectionChange = useCallback((id: string) => setTabConnection(tabId, id), [setTabConnection, tabId])
 
   const handleRun = useCallback(() => {
-    clearExplain(tabId) // drop any stale explain panel (no-op if none)
+    clearExplain(tabId)
     const current = useQueryStore.getState().tabs.find((t) => t.id === tabId)?.sql ?? ''
     if (detectMissingLimit(current)) setShowLimitWarning(true)
     else runQuery(tabId)
@@ -84,6 +95,9 @@ function EditorPane({ tabId, engine, sqlSchema, cypherSchema, isSplit, onSplit, 
         sqlSchema={sqlSchema}
         cypherSchema={cypherSchema}
         engine={engine}
+        connections={pickerConnections}
+        connectionId={connectionId}
+        onConnectionChange={handleConnectionChange}
       />
       {showLimitWarning && (
         <LimitWarningBanner
