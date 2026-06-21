@@ -4,6 +4,7 @@ import type { BigQueryConnection, Dataset, Table, TableField, TableSearchHit, Qu
 import {
   runWithLifecycle, elapsed,
   cancelRunningQuery as _cancelRunningQuery,
+  runCapped, groupColumnsByTable,
 } from './queryRuntime'
 
 // BigQuery client cache, keyed by connection ID
@@ -87,41 +88,35 @@ export async function searchTables(
   const pattern = `%${escaped}%`
   const perDatasetLimit = Math.min(limit, 50)
 
-  // Run datasets in batches of 5 to stay polite to BigQuery
   const CONCURRENCY = 5
   const hits: TableSearchHit[] = []
 
-  for (let i = 0; i < datasetIds.length; i += CONCURRENCY) {
-    if (hits.length >= limit) break
-    const batch = datasetIds.slice(i, i + CONCURRENCY)
-    const results = await Promise.all(
-      batch.map(async (datasetId) => {
-        try {
-          const sql = `
-            SELECT table_name, table_type
-              FROM \`${connection.projectId}.${datasetId}.INFORMATION_SCHEMA.TABLES\`
-             WHERE LOWER(table_name) LIKE LOWER(@pattern) ESCAPE '\\\\'
-             LIMIT ${perDatasetLimit}
-          `
-          const [rows] = await client.query({ query: sql, params: { pattern } })
-          return rows.map((r: Record<string, unknown>) => ({
-            datasetId,
-            tableId: r.table_name as string,
-            name: r.table_name as string,
-            type:
-              (r.table_type as string) === 'VIEW' ||
-              (r.table_type as string) === 'MATERIALIZED VIEW'
-                ? 'VIEW'
-                : 'TABLE'
-          } satisfies TableSearchHit))
-        } catch {
-          // Skip datasets we can't query (permission errors, regional mismatches)
-          return [] as TableSearchHit[]
-        }
-      })
-    )
-    for (const r of results) hits.push(...r)
-  }
+  await runCapped(datasetIds, CONCURRENCY, async (datasetId) => {
+    if (hits.length >= limit) return
+    try {
+      const sql = `
+        SELECT table_name, table_type
+          FROM \`${connection.projectId}.${datasetId}.INFORMATION_SCHEMA.TABLES\`
+         WHERE LOWER(table_name) LIKE LOWER(@pattern) ESCAPE '\\\\'
+         LIMIT ${perDatasetLimit}
+      `
+      const [rows] = await client.query({ query: sql, params: { pattern } })
+      for (const r of rows as Record<string, unknown>[]) {
+        hits.push({
+          datasetId,
+          tableId: r.table_name as string,
+          name: r.table_name as string,
+          type:
+            (r.table_type as string) === 'VIEW' ||
+            (r.table_type as string) === 'MATERIALIZED VIEW'
+              ? 'VIEW'
+              : 'TABLE'
+        } satisfies TableSearchHit)
+      }
+    } catch {
+      // Skip datasets we can't query (permission errors, regional mismatches)
+    }
+  })
 
   return hits.slice(0, limit)
 }
@@ -142,16 +137,10 @@ export async function getDatasetColumns(
      ORDER BY table_name, ordinal_position
   `
   const [rows] = await client.query({ query })
-  const out: Record<string, TableField[]> = {}
-  for (const r of rows as Record<string, unknown>[]) {
-    const tableId = r.table_name as string
-    ;(out[tableId] ??= []).push({
-      name: r.column_name as string,
-      type: r.data_type as string,
-      mode: 'NULLABLE'
-    })
-  }
-  return out
+  return groupColumnsByTable(rows as Record<string, unknown>[], (r) => ({
+    tableId: r.table_name as string,
+    field: { name: r.column_name as string, type: r.data_type as string, mode: 'NULLABLE' },
+  }))
 }
 
 export async function getTableSchema(

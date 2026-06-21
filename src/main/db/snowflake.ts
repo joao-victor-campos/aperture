@@ -11,6 +11,7 @@ import type {
 import {
   runWithLifecycle, elapsed,
   cancelRunningQuery as _cancelRunningQuery,
+  groupColumnsByTable,
 } from './queryRuntime'
 
 const DEFAULT_PAGE_SIZE = 100
@@ -278,16 +279,14 @@ export async function getDatasetColumns(
                 WHERE TABLE_SCHEMA = '${schemaName.replace(/'/g, "''")}'
                 ORDER BY TABLE_NAME, ORDINAL_POSITION`
   const rows = await executeAll(sfConn, sql)
-  const out: Record<string, TableField[]> = {}
-  for (const r of rows) {
-    const tableName = str(r, 'TABLE_NAME')
-    ;(out[tableName] ??= []).push({
+  return groupColumnsByTable(rows, (r) => ({
+    tableId: str(r, 'TABLE_NAME'),
+    field: {
       name: str(r, 'COLUMN_NAME'),
       type: str(r, 'DATA_TYPE'),
-      mode: str(r, 'IS_NULLABLE').toUpperCase() === 'YES' ? 'NULLABLE' : 'REQUIRED'
-    })
-  }
-  return out
+      mode: str(r, 'IS_NULLABLE').toUpperCase() === 'YES' ? 'NULLABLE' : 'REQUIRED',
+    },
+  }))
 }
 
 /**

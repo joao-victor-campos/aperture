@@ -4,6 +4,7 @@ import type { PostgresConnection, Dataset, Table, TableField, TableSearchHit, Qu
 import {
   elapsed, makeLogger, startHeartbeat, runningJobs,
   cancelRunningQuery as _cancelRunningQuery, QUERY_TIMEOUT_MS,
+  groupColumnsByTable,
 } from './queryRuntime'
 
 // Pool cache keyed by connection ID
@@ -131,15 +132,14 @@ export async function getDatasetColumns(
       ORDER BY table_name, ordinal_position`,
     [datasetId]
   )
-  const out: Record<string, TableField[]> = {}
-  for (const c of res.rows) {
-    ;(out[c.table_name] ??= []).push({
-      name: c.column_name,
-      type: c.data_type,
-      mode: c.is_nullable === 'YES' ? 'NULLABLE' : 'REQUIRED'
-    })
-  }
-  return out
+  return groupColumnsByTable(res.rows, (c) => ({
+    tableId: c.table_name as string,
+    field: {
+      name: c.column_name as string,
+      type: c.data_type as string,
+      mode: c.is_nullable === 'YES' ? 'NULLABLE' : 'REQUIRED',
+    },
+  }))
 }
 
 export async function runQuery(
