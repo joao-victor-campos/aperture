@@ -1,10 +1,11 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronLeft, ChevronRight, Loader2, Download, Pin, SlidersHorizontal, X, ChevronUp, ChevronDown as ChevronDownIcon, Sparkles } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, Download, Copy, Check, Pin, SlidersHorizontal, X, ChevronUp, ChevronDown as ChevronDownIcon, Sparkles } from 'lucide-react'
 import { CHANNELS } from '@shared/ipc'
 import type { QueryResult } from '@shared/types'
 import { filterSortRows } from '../../lib/filterSortRows'
 import { paginate } from '../../lib/paginate'
+import { rowsToTsv } from '../../lib/rowsToTsv'
 import type { Neo4jGraphValue } from '@shared/types'
 import { isGraphElement } from '../../lib/formatGraphElement'
 import GraphElementChip from './GraphElementChip'
@@ -39,6 +40,8 @@ function ResultsTable({
   const [loadingMore, setLoadingMore] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const exportRef = useRef<HTMLDivElement>(null)
   // colWidths: column name → px width (only set when user has dragged)
   const [colWidths, setColWidths] = useState<Record<string, number>>({})
@@ -55,6 +58,7 @@ function ResultsTable({
   useEffect(() => {
     return () => {
       if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+      if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current)
       resizingCol.current = null
     }
   }, [])
@@ -289,6 +293,19 @@ function ResultsTable({
     }
   }
 
+  const handleCopy = async () => {
+    // Copy the current filtered/sorted view across all fetched rows.
+    const tsv = rowsToTsv(filteredRows, columns)
+    try {
+      await navigator.clipboard.writeText(tsv)
+      if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current)
+      setCopied(true)
+      copiedTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // Clipboard can be blocked (permissions); nothing actionable to show here.
+    }
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Status bar */}
@@ -337,6 +354,16 @@ function ResultsTable({
             <span>{pinned ? 'Pinned' : 'Pin'}</span>
           </button>
         )}
+        {/* Copy to clipboard (TSV) */}
+        <button
+          onClick={handleCopy}
+          disabled={fetchedRows === 0}
+          title="Copy results to clipboard (TSV)"
+          className="flex items-center gap-1 text-xs px-2 py-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-40 disabled:cursor-not-allowed transition-colors border border-app-border"
+        >
+          {copied ? <Check size={11} className="text-app-ok" /> : <Copy size={11} />}
+          <span>{copied ? 'Copied' : 'Copy'}</span>
+        </button>
         {/* Export */}
         <div ref={exportRef} className="relative">
           <button
