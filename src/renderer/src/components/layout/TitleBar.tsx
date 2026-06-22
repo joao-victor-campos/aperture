@@ -1,9 +1,8 @@
 import { type RefObject } from 'react'
-import { Settings, Sparkles } from 'lucide-react'
-import { useUpdateStore } from '../../store/updateStore'
 import ApertureIcon from '../ApertureIcon'
 import CommandPalette, { type CommandPaletteHandle } from '../command/CommandPalette'
 import ConnectionMenu from './ConnectionMenu'
+import TitleBarActions from './TitleBarActions'
 import type { Connection } from '@shared/types'
 
 interface TitleBarProps {
@@ -18,8 +17,6 @@ interface TitleBarProps {
 }
 
 export default function TitleBar({ onAddConnection, onEditConnection, onOpenSettings, onShowShortcuts, onToggleChat, chatOpen, paletteRef }: TitleBarProps) {
-  const updateAvailable = useUpdateStore((s) => s.status?.updateAvailable ?? false)
-
   return (
     <div
       className="h-[46px] flex items-center px-4 gap-3 border-b border-app-border bg-app-bg shrink-0"
@@ -53,35 +50,7 @@ export default function TitleBar({ onAddConnection, onEditConnection, onOpenSett
         {/* Right spacer — inherits drag from parent */}
         <div className="flex-1" />
 
-        {/* AI chat toggle */}
-        <button
-          type="button"
-          onClick={onToggleChat}
-          aria-label="Toggle AI assistant"
-          aria-pressed={chatOpen}
-          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-          className={`p-1.5 rounded-md transition-colors ${
-            chatOpen ? 'text-app-accent-text bg-app-accent-subtle' : 'text-app-text-3 hover:text-app-text hover:bg-app-elevated'
-          }`}
-        >
-          <Sparkles size={15} />
-        </button>
-
-        {/* Settings */}
-        <button
-          onClick={onOpenSettings}
-          title={updateAvailable ? 'Settings — update available' : 'Settings'}
-          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-          className="relative p-1.5 rounded-md text-app-text-2 hover:text-app-text hover:bg-app-elevated transition-colors"
-        >
-          <Settings size={14} />
-          {updateAvailable && (
-            <span
-              className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-app-accent ring-2 ring-app-bg"
-              aria-label="Update available"
-            />
-          )}
-        </button>
+        <TitleBarActions onOpenSettings={onOpenSettings} onToggleChat={onToggleChat} chatOpen={chatOpen} />
       </div>
     </div>
   )
