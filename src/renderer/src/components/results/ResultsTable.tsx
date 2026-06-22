@@ -1,17 +1,17 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronLeft, ChevronRight, Loader2, Download, Copy, Check, Pin, SlidersHorizontal, X, ChevronUp, ChevronDown as ChevronDownIcon } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, X, ChevronUp, ChevronDown as ChevronDownIcon } from 'lucide-react'
 import { CHANNELS } from '@shared/ipc'
 import type { QueryResult } from '@shared/types'
 import { filterSortRows } from '../../lib/filterSortRows'
 import { paginate } from '../../lib/paginate'
 import { rowsToTsv } from '../../lib/rowsToTsv'
 import { formatCell } from '../../lib/formatCell'
-import { formatBytes } from '../../lib/formatBytes'
 import type { Neo4jGraphValue } from '@shared/types'
 import { isGraphElement } from '../../lib/formatGraphElement'
 import GraphElementChip from './GraphElementChip'
 import ResultsStateView, { resultsViewState } from './ResultsStateView'
+import ResultsToolbar from './ResultsToolbar'
 
 interface ResultsTableProps {
   result?: QueryResult
@@ -40,11 +40,9 @@ function ResultsTable({
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(100)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [exportOpen, setExportOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [copied, setCopied] = useState(false)
   const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const exportRef = useRef<HTMLDivElement>(null)
   // colWidths: column name → px width (only set when user has dragged)
   const [colWidths, setColWidths] = useState<Record<string, number>>({})
   const resizingCol = useRef<{ col: string; startX: number; startWidth: number } | null>(null)
@@ -71,18 +69,6 @@ function ResultsTable({
     setCopiedCol(col)
     copyTimeoutRef.current = setTimeout(() => setCopiedCol(null), 1500)
   }
-
-  // Close export popover on outside click
-  useEffect(() => {
-    if (!exportOpen) return
-    const handler = (e: MouseEvent) => {
-      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
-        setExportOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [exportOpen])
 
   // Reset to first page + col widths + filters whenever a new result set arrives
   const resultColumnsRef = useRef<string[]>([])
@@ -191,7 +177,6 @@ function ResultsTable({
     : `${fetchedRows.toLocaleString()}`
 
   const handleExport = async (format: 'csv' | 'json' | 'tsv') => {
-    setExportOpen(false)
     setExporting(true)
     try {
       await window.api.invoke(CHANNELS.EXPORT_RESULTS, { rows, columns, format })
@@ -217,88 +202,24 @@ function ResultsTable({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Status bar */}
-      <div className="flex items-center gap-4 px-3 py-1.5 border-b border-app-border bg-app-surface shrink-0">
-        <span className="text-xs text-app-text-2 font-tabular">
-          {displayTotal === 1 ? '1 row' : `${displayTotalStr} rows`}
-          {hasMore && serverTotal == null && '+'}
-        </span>
-        <span className="text-xs text-app-text-3 font-tabular">{executionTimeMs}ms</span>
-        {bytesProcessed !== undefined && (
-          <span className="text-xs text-app-text-3 font-tabular">{formatBytes(bytesProcessed)} processed</span>
-        )}
-        {fetchedRows < (serverTotal ?? fetchedRows) && (
-          <span className="text-xs text-app-text-3 font-tabular">
-            ({fetchedRows.toLocaleString()} fetched)
-          </span>
-        )}
-        <div className="flex-1" />
-        {/* Filter/sort toggle */}
-        <button
-          onClick={() => setBuilderOpen((v) => !v)}
-          title={builderOpen ? 'Hide filter bar' : 'Filter & sort'}
-          className={`relative flex items-center gap-1 text-xs px-2 py-0.5 rounded transition-colors border border-app-border ${
-            builderOpen || activeFilterCount > 0
-              ? 'text-app-accent border-app-accent/50 hover:bg-app-elevated'
-              : 'text-app-text-2 hover:text-app-text hover:bg-app-elevated'
-          }`}
-        >
-          <SlidersHorizontal size={11} />
-          <span>Filter</span>
-          {activeFilterCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-app-accent text-white text-[9px] rounded-full w-3.5 h-3.5 flex items-center justify-center font-bold">
-              {activeFilterCount}
-            </span>
-          )}
-        </button>
-        {/* Pin result */}
-        {onPin && (
-          <button
-            onClick={onPin}
-            disabled={pinned || fetchedRows === 0}
-            title={pinned ? 'Result pinned' : 'Pin result as snapshot tab'}
-            className="flex items-center gap-1 text-xs px-2 py-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-40 disabled:cursor-not-allowed transition-colors border border-app-border"
-          >
-            <Pin size={11} className={pinned ? 'text-app-accent' : ''} />
-            <span>{pinned ? 'Pinned' : 'Pin'}</span>
-          </button>
-        )}
-        {/* Copy to clipboard (TSV) */}
-        <button
-          onClick={handleCopy}
-          disabled={fetchedRows === 0}
-          title="Copy results to clipboard (TSV)"
-          className="flex items-center gap-1 text-xs px-2 py-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-40 disabled:cursor-not-allowed transition-colors border border-app-border"
-        >
-          {copied ? <Check size={11} className="text-app-ok" /> : <Copy size={11} />}
-          <span>{copied ? 'Copied' : 'Copy'}</span>
-        </button>
-        {/* Export */}
-        <div ref={exportRef} className="relative">
-          <button
-            onClick={() => setExportOpen((v) => !v)}
-            disabled={exporting || fetchedRows === 0}
-            title="Export results"
-            className="flex items-center gap-1 text-xs px-2 py-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-40 disabled:cursor-not-allowed transition-colors border border-app-border"
-          >
-            <Download size={11} />
-            <span>{exporting ? 'Saving…' : 'Export'}</span>
-          </button>
-          {exportOpen && (
-            <div className="absolute top-full right-0 mt-1 bg-app-surface border border-app-border rounded-lg shadow-xl py-1 z-50 min-w-[100px]">
-              {(['csv', 'tsv', 'json'] as const).map((fmt) => (
-                <button
-                  key={fmt}
-                  onClick={() => handleExport(fmt)}
-                  className="w-full text-left px-3 py-1.5 text-xs text-app-text hover:bg-app-elevated transition-colors uppercase"
-                >
-                  {fmt}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      <ResultsToolbar
+        displayTotal={displayTotal}
+        displayTotalStr={displayTotalStr}
+        hasMore={hasMore}
+        serverTotal={serverTotal}
+        executionTimeMs={executionTimeMs}
+        bytesProcessed={bytesProcessed}
+        fetchedRows={fetchedRows}
+        activeFilterCount={activeFilterCount}
+        builderOpen={builderOpen}
+        onToggleBuilder={() => setBuilderOpen((v) => !v)}
+        onPin={onPin}
+        pinned={pinned}
+        copied={copied}
+        onCopy={handleCopy}
+        exporting={exporting}
+        onExport={handleExport}
+      />
 
       {/* Filter/sort bar */}
       {builderOpen && (
