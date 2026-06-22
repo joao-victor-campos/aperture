@@ -1,6 +1,6 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronLeft, ChevronRight, Loader2, X, ChevronUp, ChevronDown as ChevronDownIcon } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, ChevronUp, ChevronDown as ChevronDownIcon } from 'lucide-react'
 import { CHANNELS } from '@shared/ipc'
 import type { QueryResult } from '@shared/types'
 import { filterSortRows } from '../../lib/filterSortRows'
@@ -12,6 +12,7 @@ import { isGraphElement } from '../../lib/formatGraphElement'
 import GraphElementChip from './GraphElementChip'
 import ResultsStateView, { resultsViewState } from './ResultsStateView'
 import ResultsToolbar from './ResultsToolbar'
+import FilterSortBar from './FilterSortBar'
 
 interface ResultsTableProps {
   result?: QueryResult
@@ -221,33 +222,15 @@ function ResultsTable({
         onExport={handleExport}
       />
 
-      {/* Filter/sort bar */}
       {builderOpen && (
-        <div className="flex items-center gap-1 px-2 py-1.5 border-b border-app-border bg-app-elevated/40 shrink-0 overflow-x-auto">
-          {columns.map((col) => (
-            <div key={col} className="flex items-center shrink-0" style={{ width: colWidths[col] ?? DEFAULT_COL_WIDTH }}>
-              <input
-                type="text"
-                value={colFilters[col] ?? ''}
-                onChange={(e) => {
-                  setColFilters((prev) => ({ ...prev, [col]: e.target.value }))
-                  setPage(0)
-                }}
-                placeholder={col}
-                className="w-full bg-app-surface border border-app-border rounded px-2 py-0.5 text-[11px] text-app-text placeholder-app-text-3 focus:outline-none focus:border-app-accent transition-colors"
-              />
-            </div>
-          ))}
-          {activeFilterCount > 0 && (
-            <button
-              onClick={() => { setColFilters({}); setSortCol(null); setPage(0) }}
-              className="shrink-0 flex items-center gap-1 text-[11px] px-2 py-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated transition-colors border border-app-border"
-            >
-              <X size={10} />
-              Clear
-            </button>
-          )}
-        </div>
+        <FilterSortBar
+          columns={columns}
+          colWidths={colWidths}
+          colFilters={colFilters}
+          activeFilterCount={activeFilterCount}
+          onFilterChange={(col, value) => { setColFilters((prev) => ({ ...prev, [col]: value })); setPage(0) }}
+          onClear={() => { setColFilters({}); setSortCol(null); setPage(0) }}
+        />
       )}
 
       {/* Table */}
