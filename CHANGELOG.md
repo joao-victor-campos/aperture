@@ -17,6 +17,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - The editor split now spans two independent connections (replaces the previous same-connection two-pane split). The catalog sidebar follows whichever editor group is focused.
+- Internal: de-duplicated the database adapter query lifecycle (heartbeat, 180s timeout, cancellation, concurrency) into a shared `queryRuntime` module. No user-facing behavior change except a unified "still running" progress label across all four engines.
 
 ---
 ## [2.4.0] - 2026-06-18
