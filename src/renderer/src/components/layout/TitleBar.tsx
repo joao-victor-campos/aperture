@@ -2,11 +2,11 @@ import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 're
 import { createPortal } from 'react-dom'
 import { Settings, Plus, ChevronDown, Trash2, Pencil, Sparkles } from 'lucide-react'
 import { useConnectionStore } from '../../store/connectionStore'
-import type { ConnectionStatus } from '../../store/connectionStore'
 import { useUpdateStore } from '../../store/updateStore'
 import { useQueryStore } from '../../store/queryStore'
 import ApertureIcon from '../ApertureIcon'
 import CommandPalette, { type CommandPaletteHandle } from '../command/CommandPalette'
+import StatusDot from './StatusDot'
 import { connectionLabel, engineAccent, engineColor } from '../../lib/connectionMeta'
 import type { Connection } from '@shared/types'
 
@@ -278,11 +278,4 @@ export default function TitleBar({ onAddConnection, onEditConnection, onOpenSett
       )}
     </div>
   )
-}
-
-function StatusDot({ status }: { status: ConnectionStatus }) {
-  // Use the design-system primitives (.app-dot with halo glow); fallback grey for unknown
-  if (status === 'ok')    return <span className="app-dot app-dot--ok shrink-0" />
-  if (status === 'error') return <span className="app-dot app-dot--err shrink-0" />
-  return <span className="app-dot shrink-0" style={{ backgroundColor: 'rgb(var(--c-text-3))' }} />
 }
