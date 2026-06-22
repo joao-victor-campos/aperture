@@ -13,9 +13,11 @@ import type {
   TableSearchHit,
   QueryResult,
 } from '../../shared/types'
+import {
+  runWithLifecycle, elapsed,
+  cancelRunningQuery as _cancelRunningQuery,
+} from './queryRuntime'
 
-const QUERY_TIMEOUT_MS = 180_000
-const HEARTBEAT_INTERVAL_MS = 10_000
 const DEFAULT_PAGE_SIZE = 100
 const SCHEMA_SAMPLE_SIZE = 50
 
@@ -38,12 +40,6 @@ function getDriver(connection: Neo4jConnection): Driver {
   )
   driverCache.set(connection.id, driver)
   return driver
-}
-
-function elapsed(startMs: number): string {
-  const s = Math.round((Date.now() - startMs) / 1000)
-  const m = Math.floor(s / 60)
-  return m > 0 ? `${m}m ${s % 60}s` : `${s}s`
 }
 
 /** Backtick-quote a Cypher identifier (label / relationship type), escaping backticks. */
@@ -305,11 +301,6 @@ export async function searchTables(
 }
 
 // ── Running / completed query state ───────────────────────────────────────────────
-interface RunningJob {
-  session: Session
-  webContents: WebContents
-}
-const runningJobs = new Map<string, RunningJob>()
 // Full serialized result retained after execution for in-memory pagination.
 const completedResults = new Map<string, { columns: string[]; rows: Record<string, unknown>[]; totalRows: number }>()
 
@@ -403,81 +394,47 @@ export async function runQuery(
   webContents: WebContents,
 ): Promise<QueryResult> {
   const driver = getDriver(connection)
-  const session = driver.session({ database: databaseName(connection) })
   const start = Date.now()
 
-  const log = (message: string) => {
-    if (!webContents.isDestroyed()) {
-      webContents.send(CHANNELS.QUERY_LOG, { tabId, message })
-    }
-  }
-  log('Submitting query to Neo4j…')
+  return runWithLifecycle({
+    tabId,
+    webContents,
+    timeoutMessage: 'Query timed out after 180 seconds. The session has been closed.',
+    execute: async ({ log, registerCancel }) => {
+      const session = driver.session({ database: databaseName(connection) })
+      registerCancel(async () => { await session.close().catch(() => {}) })
+      log('Submitting query to Neo4j…')
 
-  let done = false
-  let heartbeatTimer: ReturnType<typeof setInterval> | null = null
-  let timeoutTimer: ReturnType<typeof setTimeout> | null = null
+      try {
+        const result = await session.run(cypher)
+        const rawKeys = (result as { keys?: ReadonlyArray<PropertyKey> }).keys
+          ?? result.records[0]?.keys
+          ?? []
+        const columns = (rawKeys as ReadonlyArray<PropertyKey>).map((k) => String(k))
+        const allRows = result.records.map((r) => serializeRecord(r, columns))
+        await session.close().catch(() => {})
 
-  const cleanup = () => {
-    if (done) return
-    done = true
-    if (heartbeatTimer) clearInterval(heartbeatTimer)
-    if (timeoutTimer) clearTimeout(timeoutTimer)
-    runningJobs.delete(tabId)
-  }
+        const totalRows = allRows.length
+        const pageRows = allRows.slice(0, DEFAULT_PAGE_SIZE)
+        const hasMore = totalRows > DEFAULT_PAGE_SIZE
+        completedResults.set(tabId, { columns, rows: allRows, totalRows })
+        log(`Fetched ${totalRows.toLocaleString()} rows · ${elapsed(start)}`)
 
-  heartbeatTimer = setInterval(() => log(`Still running… ${elapsed(start)} elapsed`), HEARTBEAT_INTERVAL_MS)
-
-  // Register the session immediately so cancelRunningQuery can close it mid-flight.
-  runningJobs.set(tabId, { session, webContents })
-
-  const queryPromise = session
-    .run(cypher)
-    .then(async (result) => {
-      // Result.keys exists in neo4j-driver but is typed loosely; derive from first record otherwise.
-      const rawKeys = (result as { keys?: ReadonlyArray<PropertyKey> }).keys
-        ?? result.records[0]?.keys
-        ?? []
-      const columns = (rawKeys as ReadonlyArray<PropertyKey>).map((k) => String(k))
-      const allRows = result.records.map((r) => serializeRecord(r, columns))
-      await session.close().catch(() => {})
-      cleanup()
-
-      const totalRows = allRows.length
-      const pageRows = allRows.slice(0, DEFAULT_PAGE_SIZE)
-      const hasMore = totalRows > DEFAULT_PAGE_SIZE
-      completedResults.set(tabId, { columns, rows: allRows, totalRows })
-      log(`Fetched ${totalRows.toLocaleString()} rows · ${elapsed(start)}`)
-
-      return {
-        columns,
-        rows: pageRows,
-        rowCount: pageRows.length,
-        executionTimeMs: Date.now() - start,
-        totalRows,
-        pageToken: hasMore ? String(DEFAULT_PAGE_SIZE) : null,
-        hasMore,
-      } satisfies QueryResult
-    })
-    .catch(async (err: Error) => {
-      await session.close().catch(() => {})
-      cleanup()
-      throw err
-    })
-
-  // Prevent unhandled rejection after Promise.race settles.
-  queryPromise.catch(() => {})
-
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutTimer = setTimeout(async () => {
-      log('Timeout reached (180s) · Cancelling…')
-      const running = runningJobs.get(tabId)
-      if (running) await running.session.close().catch(() => {})
-      cleanup()
-      reject(new Error('Query timed out after 180 seconds. The session has been closed.'))
-    }, QUERY_TIMEOUT_MS)
+        return {
+          columns,
+          rows: pageRows,
+          rowCount: pageRows.length,
+          executionTimeMs: Date.now() - start,
+          totalRows,
+          pageToken: hasMore ? String(DEFAULT_PAGE_SIZE) : null,
+          hasMore,
+        } satisfies QueryResult
+      } catch (err) {
+        await session.close().catch(() => {})
+        throw err
+      }
+    },
   })
-
-  return Promise.race([queryPromise, timeoutPromise])
 }
 
 /**
@@ -504,17 +461,7 @@ export async function getQueryPage(tabId: string, pageToken: string): Promise<Qu
   }
 }
 
-/** Cancel the running query for the given tab by closing its session. No-op if none active. */
-export async function cancelRunningQuery(tabId: string): Promise<void> {
-  const running = runningJobs.get(tabId)
-  if (!running) return
-  const { session, webContents } = running
-  if (!webContents.isDestroyed()) {
-    webContents.send(CHANNELS.QUERY_LOG, { tabId, message: 'Cancelled by user.' })
-  }
-  await session.close().catch(() => {})
-  runningJobs.delete(tabId)
-}
+export const cancelRunningQuery = _cancelRunningQuery
 
 /**
  * Validate a query without executing it via EXPLAIN. Neo4j has no byte-cost
@@ -546,11 +493,8 @@ export const _internal = {
   driverCache,
   getDriver,
   databaseName,
-  elapsed,
   quoteIdentifier,
   intToNumber,
-  QUERY_TIMEOUT_MS,
-  HEARTBEAT_INTERVAL_MS,
   DEFAULT_PAGE_SIZE,
   SCHEMA_SAMPLE_SIZE,
 }

@@ -1,22 +1,14 @@
-import { Pool, Client, PoolClient } from 'pg'
+import { Pool } from 'pg'
 import type { WebContents } from 'electron'
-import { CHANNELS } from '../../shared/ipc'
 import type { PostgresConnection, Dataset, Table, TableField, TableSearchHit, QueryResult } from '../../shared/types'
-
-const QUERY_TIMEOUT_MS = 180_000
-const HEARTBEAT_INTERVAL_MS = 10_000
+import {
+  elapsed, makeLogger, startHeartbeat, runningJobs,
+  cancelRunningQuery as _cancelRunningQuery, QUERY_TIMEOUT_MS,
+  groupColumnsByTable,
+} from './queryRuntime'
 
 // Pool cache keyed by connection ID
 const pools = new Map<string, Pool>()
-
-// Active clients keyed by tab ID — used for cancellation via PID
-interface RunningQuery {
-  client: PoolClient
-  pid: number
-  connectionId: string
-  webContents: WebContents
-}
-const runningQueries = new Map<string, RunningQuery>()
 
 // Cache results for pagination (mimicking BigQuery's behavior)
 const cachedResults = new Map<string, any[]>()
@@ -140,15 +132,14 @@ export async function getDatasetColumns(
       ORDER BY table_name, ordinal_position`,
     [datasetId]
   )
-  const out: Record<string, TableField[]> = {}
-  for (const c of res.rows) {
-    ;(out[c.table_name] ??= []).push({
-      name: c.column_name,
-      type: c.data_type,
-      mode: c.is_nullable === 'YES' ? 'NULLABLE' : 'REQUIRED'
-    })
-  }
-  return out
+  return groupColumnsByTable(res.rows, (c) => ({
+    tableId: c.table_name as string,
+    field: {
+      name: c.column_name as string,
+      type: c.data_type as string,
+      mode: c.is_nullable === 'YES' ? 'NULLABLE' : 'REQUIRED',
+    },
+  }))
 }
 
 export async function runQuery(
@@ -159,40 +150,32 @@ export async function runQuery(
 ): Promise<QueryResult> {
   const pool = getPool(connection)
   const start = Date.now()
-  const log = (message: string) => {
-    if (!webContents.isDestroyed()) {
-      webContents.send(CHANNELS.QUERY_LOG, { tabId, message })
-    }
-  }
+  const log = makeLogger(webContents, tabId)
 
   log('Connecting to Postgres...')
   const client = await pool.connect()
-  
+
+  let stopHeartbeat: (() => void) | null = null
   try {
-    // Get backend PID so we can cancel this specific query if needed
     const pidRes = await client.query('SELECT pg_backend_pid()')
     const pid = pidRes.rows[0].pg_backend_pid
-    runningQueries.set(tabId, { client, pid, connectionId: connection.id, webContents })
+    // Register cancel via a separate pooled connection (pg_cancel_backend).
+    runningJobs.set(tabId, {
+      webContents,
+      cancel: async () => { await pool.query('SELECT pg_cancel_backend($1)', [pid]) },
+    })
 
     log(`Query started · PID: ${pid}`)
-    
-    let heartbeatTimer = setInterval(() => {
-      log(`Still running… ${Math.round((Date.now() - start)/1000)}s elapsed`)
-    }, HEARTBEAT_INTERVAL_MS)
+    stopHeartbeat = startHeartbeat(log, start)
 
-    // Set a statement timeout for this specific query
     await client.query(`SET statement_timeout = ${QUERY_TIMEOUT_MS}`)
-
     const res = await client.query(sql)
-    clearInterval(heartbeatTimer)
+    stopHeartbeat()
 
     const rows = res.rows
     const columns = rows.length > 0 ? Object.keys(rows[0]) : []
-    
-    // Store in cache for pagination (Postgres doesn't save results like BQ)
     cachedResults.set(tabId, rows)
-
-    log(`Done · ${rows.length.toLocaleString()} rows fetched · ${Date.now() - start}ms`)
+    log(`Done · ${rows.length.toLocaleString()} rows fetched · ${elapsed(start)}`)
 
     return {
       columns,
@@ -200,13 +183,14 @@ export async function runQuery(
       rowCount: rows.length,
       executionTimeMs: Date.now() - start,
       hasMore: rows.length > DEFAULT_PAGE_SIZE,
-      pageToken: rows.length > DEFAULT_PAGE_SIZE ? '1' : null 
+      pageToken: rows.length > DEFAULT_PAGE_SIZE ? '1' : null
     }
   } catch (err) {
     log(`Error: ${(err as Error).message}`)
     throw err
   } finally {
-    runningQueries.delete(tabId)
+    if (stopHeartbeat) stopHeartbeat()
+    runningJobs.delete(tabId)
     client.release()
   }
 }
@@ -230,19 +214,7 @@ export async function getQueryPage(tabId: string, pageToken: string): Promise<Qu
   }
 }
 
-export async function cancelRunningQuery(tabId: string): Promise<void> {
-  const running = runningQueries.get(tabId)
-  if (!running) return
-
-  const { pid, webContents, connectionId } = running
-  logToWebContents(webContents, tabId, 'Cancelling Postgres process...')
-  
-  // We need a separate connection to issue the cancel command
-  const pool = pools.get(connectionId)
-  if (pool) await pool.query('SELECT pg_cancel_backend($1)', [pid])
-  
-  runningQueries.delete(tabId)
-}
+export const cancelRunningQuery = _cancelRunningQuery
 
 export async function dryRunQuery(connection: PostgresConnection, sql: string): Promise<{ bytesProcessed: number; plan?: string; planFormat?: 'text' | 'json' }> {
   const pool = getPool(connection)
@@ -262,10 +234,4 @@ export function invalidateClient(connectionId: string): void {
   pools.delete(connectionId)
   // Fire and forget; we only need to drop the pool from cache.
   void pool.end().catch(() => {})
-}
-
-function logToWebContents(webContents: WebContents, tabId: string, message: string) {
-  if (!webContents.isDestroyed()) {
-    webContents.send(CHANNELS.QUERY_LOG, { tabId, message })
-  }
 }

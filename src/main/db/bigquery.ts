@@ -1,20 +1,14 @@
 import { BigQuery, Job } from '@google-cloud/bigquery'
 import type { WebContents } from 'electron'
-import { CHANNELS } from '../../shared/ipc'
 import type { BigQueryConnection, Dataset, Table, TableField, TableSearchHit, QueryResult } from '../../shared/types'
-
-const QUERY_TIMEOUT_MS = 180_000
-const HEARTBEAT_INTERVAL_MS = 10_000
+import {
+  runWithLifecycle, elapsed,
+  cancelRunningQuery as _cancelRunningQuery,
+  runCapped, groupColumnsByTable,
+} from './queryRuntime'
 
 // BigQuery client cache, keyed by connection ID
 const clients = new Map<string, BigQuery>()
-
-// Active running jobs, keyed by tab ID — used for cancellation
-interface RunningJob {
-  job: Job
-  webContents: WebContents
-}
-const runningJobs = new Map<string, RunningJob>()
 
 // Completed jobs, keyed by tab ID — used for fetching subsequent pages
 const completedJobs = new Map<string, Job>()
@@ -30,12 +24,6 @@ function getClient(connection: BigQueryConnection): BigQuery {
   const client = new BigQuery(options)
   clients.set(connection.id, client)
   return client
-}
-
-function elapsed(startMs: number): string {
-  const s = Math.round((Date.now() - startMs) / 1000)
-  const m = Math.floor(s / 60)
-  return m > 0 ? `${m}m ${s % 60}s` : `${s}s`
 }
 
 export async function testConnection(
@@ -100,41 +88,35 @@ export async function searchTables(
   const pattern = `%${escaped}%`
   const perDatasetLimit = Math.min(limit, 50)
 
-  // Run datasets in batches of 5 to stay polite to BigQuery
   const CONCURRENCY = 5
   const hits: TableSearchHit[] = []
 
-  for (let i = 0; i < datasetIds.length; i += CONCURRENCY) {
-    if (hits.length >= limit) break
-    const batch = datasetIds.slice(i, i + CONCURRENCY)
-    const results = await Promise.all(
-      batch.map(async (datasetId) => {
-        try {
-          const sql = `
-            SELECT table_name, table_type
-              FROM \`${connection.projectId}.${datasetId}.INFORMATION_SCHEMA.TABLES\`
-             WHERE LOWER(table_name) LIKE LOWER(@pattern) ESCAPE '\\\\'
-             LIMIT ${perDatasetLimit}
-          `
-          const [rows] = await client.query({ query: sql, params: { pattern } })
-          return rows.map((r: Record<string, unknown>) => ({
-            datasetId,
-            tableId: r.table_name as string,
-            name: r.table_name as string,
-            type:
-              (r.table_type as string) === 'VIEW' ||
-              (r.table_type as string) === 'MATERIALIZED VIEW'
-                ? 'VIEW'
-                : 'TABLE'
-          } satisfies TableSearchHit))
-        } catch {
-          // Skip datasets we can't query (permission errors, regional mismatches)
-          return [] as TableSearchHit[]
-        }
-      })
-    )
-    for (const r of results) hits.push(...r)
-  }
+  await runCapped(datasetIds, CONCURRENCY, async (datasetId) => {
+    if (hits.length >= limit) return
+    try {
+      const sql = `
+        SELECT table_name, table_type
+          FROM \`${connection.projectId}.${datasetId}.INFORMATION_SCHEMA.TABLES\`
+         WHERE LOWER(table_name) LIKE LOWER(@pattern) ESCAPE '\\\\'
+         LIMIT ${perDatasetLimit}
+      `
+      const [rows] = await client.query({ query: sql, params: { pattern } })
+      for (const r of rows as Record<string, unknown>[]) {
+        hits.push({
+          datasetId,
+          tableId: r.table_name as string,
+          name: r.table_name as string,
+          type:
+            (r.table_type as string) === 'VIEW' ||
+            (r.table_type as string) === 'MATERIALIZED VIEW'
+              ? 'VIEW'
+              : 'TABLE'
+        } satisfies TableSearchHit)
+      }
+    } catch {
+      // Skip datasets we can't query (permission errors, regional mismatches)
+    }
+  })
 
   return hits.slice(0, limit)
 }
@@ -155,16 +137,10 @@ export async function getDatasetColumns(
      ORDER BY table_name, ordinal_position
   `
   const [rows] = await client.query({ query })
-  const out: Record<string, TableField[]> = {}
-  for (const r of rows as Record<string, unknown>[]) {
-    const tableId = r.table_name as string
-    ;(out[tableId] ??= []).push({
-      name: r.column_name as string,
-      type: r.data_type as string,
-      mode: 'NULLABLE'
-    })
-  }
-  return out
+  return groupColumnsByTable(rows as Record<string, unknown>[], (r) => ({
+    tableId: r.table_name as string,
+    field: { name: r.column_name as string, type: r.data_type as string, mode: 'NULLABLE' },
+  }))
 }
 
 export async function getTableSchema(
@@ -186,43 +162,22 @@ export async function runQuery(
   const client = getClient(connection)
   const start = Date.now()
 
-  const log = (message: string) => {
-    if (!webContents.isDestroyed()) {
-      webContents.send(CHANNELS.QUERY_LOG, { tabId, message })
-    }
-  }
+  return runWithLifecycle({
+    tabId,
+    webContents,
+    timeoutMessage: 'Query timed out after 180 seconds. The job has been cancelled.',
+    execute: async ({ log, registerCancel }) => {
+      log('Creating BigQuery job…')
+      const [job] = await client.createQueryJob({ query: sql, useLegacySql: false })
+      log(`Job created · ${job.id}`)
+      log('Waiting for results…')
+      registerCancel(async () => { await job.cancel() })
 
-  // ── 1. Create the job (gives us a handle for cancellation) ──────────────
-  log('Creating BigQuery job…')
-  const [job] = await client.createQueryJob({ query: sql, useLegacySql: false })
-  log(`Job created · ${job.id}`)
-  log('Waiting for results…')
+      const [rows, nextQuery, apiResponse] = await job.getQueryResults({
+        autoPaginate: false,
+        maxResults: DEFAULT_PAGE_SIZE,
+      })
 
-  runningJobs.set(tabId, { job: job as RunningJob['job'], webContents })
-
-  // ── 2. Cleanup helper (idempotent) ───────────────────────────────────────
-  let done = false
-  let heartbeatTimer: ReturnType<typeof setInterval> | null = null
-  let timeoutTimer: ReturnType<typeof setTimeout> | null = null
-
-  const cleanup = () => {
-    if (done) return
-    done = true
-    if (heartbeatTimer) clearInterval(heartbeatTimer)
-    if (timeoutTimer) clearTimeout(timeoutTimer)
-    runningJobs.delete(tabId)
-  }
-
-  // ── 3. Heartbeat every 10s so user sees progress ─────────────────────────
-  heartbeatTimer = setInterval(() => {
-    log(`Still running… ${elapsed(start)} elapsed`)
-  }, HEARTBEAT_INTERVAL_MS)
-
-  // ── 4. Core query promise (fetch first page only) ───────────────────────
-  const queryPromise = job
-    .getQueryResults({ autoPaginate: false, maxResults: DEFAULT_PAGE_SIZE })
-    .then(([rows, nextQuery, apiResponse]) => {
-      cleanup()
       const columns = rows.length > 0 ? Object.keys(rows[0] as object) : []
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const statsBytes = (job.metadata as any)?.statistics?.query?.totalBytesProcessed
@@ -235,7 +190,6 @@ export async function runQuery(
       const totalLabel = totalRows != null ? ` (${totalRows.toLocaleString()} total)` : ''
       log(`Done · ${rows.length.toLocaleString()} rows fetched${totalLabel} · ${elapsed(start)}${byteLabel}`)
 
-      // Store job for subsequent page fetches
       completedJobs.set(tabId, job)
 
       return {
@@ -248,30 +202,8 @@ export async function runQuery(
         pageToken,
         hasMore: pageToken != null
       } satisfies QueryResult
-    })
-    .catch((err: Error) => {
-      cleanup()
-      throw err
-    })
-
-  // Prevent unhandled rejection after Promise.race settles
-  queryPromise.catch(() => {})
-
-  // ── 5. 180s timeout race ─────────────────────────────────────────────────
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutTimer = setTimeout(async () => {
-      log(`Timeout reached (180s) · Cancelling job…`)
-      try {
-        await job.cancel()
-      } catch {
-        // ignore cancel errors
-      }
-      cleanup()
-      reject(new Error('Query timed out after 180 seconds. The job has been cancelled.'))
-    }, QUERY_TIMEOUT_MS)
+    }
   })
-
-  return Promise.race([queryPromise, timeoutPromise])
 }
 
 export async function getQueryPage(
@@ -304,20 +236,7 @@ export async function getQueryPage(
   }
 }
 
-export async function cancelRunningQuery(tabId: string): Promise<void> {
-  const running = runningJobs.get(tabId)
-  if (!running) return
-  const { job, webContents } = running
-  if (!webContents.isDestroyed()) {
-    webContents.send(CHANNELS.QUERY_LOG, { tabId, message: 'Cancelled by user.' })
-  }
-  try {
-    await job.cancel()
-  } catch {
-    // ignore — job may have already completed
-  }
-  runningJobs.delete(tabId)
-}
+export const cancelRunningQuery = _cancelRunningQuery
 
 export async function dryRunQuery(
   connection: BigQueryConnection,
