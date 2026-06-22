@@ -148,6 +148,26 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-06-22] Refactor: Decompose TitleBar (TD-4)
+
+**Type:** Change
+**Context:** Tier 2 tech-debt decomposition (register `docs/superpowers/specs/2026-06-21-tech-debt-register-design.md`). `TitleBar.tsx` was the most-churned file in the repo (310 LOC, 17 commits) — it had accreted the connection breadcrumb + dropdown, edit/delete-confirm state machine, health dots, per-engine accents, AI toggle, and the settings/update badge. Per plan `docs/superpowers/plans/2026-06-21-decompose-titlebar.md`. Sibling of TD-3 (ResultsTable); shipped on its own branch/PR.
+**Problem / Change:** One churn-magnet component owning many unrelated concerns. No behavior change intended.
+**Solution / Outcome:** Behavior-preserving extraction. `TitleBar` becomes a thin layout shell (310 → 57 LOC): traffic-light spacer + brand + `<ConnectionMenu>` + the centered `<CommandPalette>` (kept in place with its `paletteRef`) + `<TitleBarActions>`. Extracted units:
+- **`lib/connectionMeta.ts`** — pure `connectionLabel`/`engineAccent`/`engineColor` (now unit-tested, 6 tests). Note `engineColor` and `engineAccent` have distinct unknown-engine fallbacks (`text-app-text` vs `text-app-text-3`).
+- **`StatusDot.tsx`** — the health dot (ok/error/unknown).
+- **`ConnectionMenu.tsx`** — the churn-magnet core: breadcrumb trigger + "add" button + the `createPortal` dropdown with the edit/delete-confirm state machine (3s auto-dismiss, disabled-while-deleting), open/position/outside-click, and the row-click focused-tab re-point (`useQueryStore.getState()` → `setTabConnection` → `setActive`). Reads `connectionStore`/`queryStore` itself, as `TitleBar` did.
+- **`TitleBarActions.tsx`** — the AI chat toggle (`aria-pressed`) + settings button with the `updateStore`-driven update badge.
+- **Tests/CI.** No component-test infra for these UI files (outside the coverage include set); verification was `tsc` + the full suite staying green per task + the new `connectionMeta` tests. `just ci` green: 508 tests, coverage gate holds.
+
+**Files affected:**
+- `src/renderer/src/components/layout/TitleBar.tsx` — reduced to a thin shell
+- `src/renderer/src/components/layout/{StatusDot,ConnectionMenu,TitleBarActions}.tsx` — created
+- `src/renderer/src/lib/connectionMeta.ts` — created (moved out of TitleBar)
+- `src/__tests__/renderer/lib/connectionMeta.test.ts` — created
+- `CHANGELOG.md` — Unreleased "Changed" entry
+- `docs/superpowers/plans/2026-06-21-decompose-titlebar.md` — plan
+
 ### [2026-06-21] Refactor: Shared adapter query-runtime (TD-1/TD-2)
 
 **Type:** Change
