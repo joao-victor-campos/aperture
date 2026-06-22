@@ -157,13 +157,17 @@ adapter).
 
 ## Intentional behavioral notes
 
-1. **BigQuery heartbeat timing.** Today BigQuery starts its heartbeat *after*
-   `createQueryJob` resolves; under `runWithLifecycle` the heartbeat starts before
-   `execute` runs, so a slow job-create phase may emit one extra "Still running…"
-   line. Harmless, arguably better feedback.
+1. **BigQuery heartbeat and timeout timing.** Today BigQuery starts its heartbeat
+   *after* `createQueryJob` resolves; under `runWithLifecycle` both the heartbeat and
+   the 180s timeout clock start before `execute` runs, so a slow job-create phase may
+   emit one extra "Still running…" line and is counted toward the timeout budget
+   (negligible — `createQueryJob` is sub-second). Harmless, arguably better feedback.
 2. **Postgres heartbeat string.** Changes from `${seconds}s elapsed` to
    `${elapsed(start)} elapsed` (e.g. `1m 5s`), matching the other three engines.
    This is the drift fix, not a regression.
+3. **Postgres cancel message.** Routing cancellation through the shared
+   `cancelRunningQuery` unifies the cancel log line to `Cancelled by user.` (was
+   `Cancelling Postgres process...`), matching the other three engines. Intentional.
 
 ## Testing
 
