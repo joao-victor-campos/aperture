@@ -148,6 +148,29 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-06-22] Refactor: Decompose ResultsTable (TD-3)
+
+**Type:** Change
+**Context:** Tier 2 tech-debt decomposition (register `docs/superpowers/specs/2026-06-21-tech-debt-register-design.md`). `ResultsTable.tsx` was the largest file in the repo (607 LOC, 27 hooks/fns, 15 commits) — virtualization, filter/sort, TSV-copy, pagination, export, and graph-cell rendering all in one component. Per plan `docs/superpowers/plans/2026-06-21-decompose-results-table.md`.
+**Problem / Change:** One oversized component mixing many concerns. No behavior change intended.
+**Solution / Outcome:** Behavior-preserving extraction behind the existing `memo` boundary. `ResultsTable` stays the memoized default export and the **orchestrator** (607 → 210 LOC) — it keeps all state (page/pageSize/filters/sort/colWidths/export+copy flags), the `filteredRows`/`pageRows` derivations, the new-result reset effect, and `handleNextPage`/`handleExport`/`handleCopy`. Extracted units:
+- **`lib/formatCell.ts` + `lib/formatBytes.ts`** — pure formatters (now unit-tested, 7 tests).
+- **`QueryLogView.tsx`** — the shared log-list renderer (used by the running/cancelled/error states; owns the scroll-to-end).
+- **`ResultsStateView.tsx`** — running / cancelled / error / empty early states + a `resultsViewState()` discriminator; the orchestrator early-returns it when `state !== 'table'`.
+- **`ResultsToolbar.tsx`** — the top status bar (counts + filter/pin/copy/export controls); owns the export popover's open/outside-click state locally.
+- **`FilterSortBar.tsx`** — the per-column filter input row.
+- **`ResultsGrid.tsx`** — the virtualized `<table>`; owns the TanStack virtualizer (scroll/tbody refs, `scrollMargin` measurement, spacer-row padding math), column-resize, and copy-column-name. `colWidths` stays in the parent (shared with the filter bar + reset effect); the sort toggle is a parent `onToggleSort` callback; `resetKey={filteredRows}` (array identity) preserves the original scroll-reset semantics.
+- **`ResultsPagination.tsx`** — the bottom pagination bar (range label, rows-per-page, prev/next).
+- **Tests/CI.** No component-test infra exists for these UI files (outside the coverage include set); verification was `tsc` + the full suite staying green per task + the new `lib/*` formatter tests. `just ci` green: 509 tests, coverage gate holds.
+
+**Files affected:**
+- `src/renderer/src/components/results/ResultsTable.tsx` — reduced to orchestrator
+- `src/renderer/src/components/results/{QueryLogView,ResultsStateView,ResultsToolbar,FilterSortBar,ResultsGrid,ResultsPagination}.tsx` — created
+- `src/renderer/src/lib/{formatCell,formatBytes}.ts` — created (moved out of ResultsTable)
+- `src/__tests__/renderer/lib/{formatCell,formatBytes}.test.ts` — created
+- `CHANGELOG.md` — Unreleased "Changed" entry
+- `docs/superpowers/plans/2026-06-21-decompose-results-table.md` — plan
+
 ### [2026-06-21] Refactor: Shared adapter query-runtime (TD-1/TD-2)
 
 **Type:** Change

@@ -1,14 +1,14 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronLeft, ChevronRight, Loader2, Download, Copy, Check, Pin, SlidersHorizontal, X, ChevronUp, ChevronDown as ChevronDownIcon, Sparkles } from 'lucide-react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { CHANNELS } from '@shared/ipc'
 import type { QueryResult } from '@shared/types'
 import { filterSortRows } from '../../lib/filterSortRows'
 import { paginate } from '../../lib/paginate'
 import { rowsToTsv } from '../../lib/rowsToTsv'
-import type { Neo4jGraphValue } from '@shared/types'
-import { isGraphElement } from '../../lib/formatGraphElement'
-import GraphElementChip from './GraphElementChip'
+import ResultsStateView, { resultsViewState } from './ResultsStateView'
+import ResultsToolbar from './ResultsToolbar'
+import FilterSortBar from './FilterSortBar'
+import ResultsGrid from './ResultsGrid'
+import ResultsPagination from './ResultsPagination'
 
 interface ResultsTableProps {
   result?: QueryResult
@@ -23,68 +23,31 @@ interface ResultsTableProps {
   onFixWithAI?: () => void
 }
 
-const PAGE_SIZES = [50, 100, 250, 500]
-const MIN_COL_WIDTH = 60
-const MAX_COL_WIDTH = 1200
-const DEFAULT_COL_WIDTH = 160
-
-const ROW_HEIGHT = 29 // px — fixed; cells are single-line (truncate)
 const EMPTY_ROWS: Record<string, unknown>[] = []
 
 function ResultsTable({
   result, error, isRunning, cancelled, logs = [], onFetchPage, onPin, pinned, onFixWithAI,
 }: ResultsTableProps) {
-  const logEndRef = useRef<HTMLDivElement>(null)
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(100)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [exportOpen, setExportOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [copied, setCopied] = useState(false)
   const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const exportRef = useRef<HTMLDivElement>(null)
   // colWidths: column name → px width (only set when user has dragged)
   const [colWidths, setColWidths] = useState<Record<string, number>>({})
-  const resizingCol = useRef<{ col: string; startX: number; startWidth: number } | null>(null)
-  const [copiedCol, setCopiedCol] = useState<string | null>(null)
-  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Filter / sort state
   const [builderOpen, setBuilderOpen] = useState(false)
   const [colFilters, setColFilters] = useState<Record<string, string>>({})
   const [sortCol, setSortCol] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
-  // Clean up pending timers and any in-flight resize listeners on unmount
+  // Clean up pending timers on unmount
   useEffect(() => {
     return () => {
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
       if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current)
-      resizingCol.current = null
     }
   }, [])
-
-  const handleCopyColName = (col: string) => {
-    navigator.clipboard.writeText(col)
-    if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
-    setCopiedCol(col)
-    copyTimeoutRef.current = setTimeout(() => setCopiedCol(null), 1500)
-  }
-
-  useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [logs])
-
-  // Close export popover on outside click
-  useEffect(() => {
-    if (!exportOpen) return
-    const handler = (e: MouseEvent) => {
-      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
-        setExportOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [exportOpen])
 
   // Reset to first page + col widths + filters whenever a new result set arrives
   const resultColumnsRef = useRef<string[]>([])
@@ -100,29 +63,6 @@ function ResultsTable({
     }
   }, [result])
 
-  // ── Column resize handlers ───────────────────────────────────────────────
-  const handleResizeMouseDown = (e: React.MouseEvent, col: string) => {
-    e.preventDefault()
-    e.stopPropagation()
-    const currentWidth = colWidths[col] ?? DEFAULT_COL_WIDTH
-    resizingCol.current = { col, startX: e.clientX, startWidth: currentWidth }
-
-    const onMove = (ev: MouseEvent) => {
-      if (!resizingCol.current) return
-      const delta = ev.clientX - resizingCol.current.startX
-      const newWidth = Math.min(MAX_COL_WIDTH, Math.max(MIN_COL_WIDTH, resizingCol.current.startWidth + delta))
-      const col = resizingCol.current.col
-      setColWidths((prev) => ({ ...prev, [col]: newWidth }))
-    }
-    const onUp = () => {
-      resizingCol.current = null
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-    }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-  }
-
   // Derive filtered/sorted/paged rows once — memoized so typing/resizing the
   // parent does not recompute over the full result set.
   const allRows = result?.rows ?? EMPTY_ROWS
@@ -135,124 +75,12 @@ function ResultsTable({
     [filteredRows, page, pageSize],
   )
 
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const tbodyRef = useRef<HTMLTableSectionElement>(null)
-  const [scrollMargin, setScrollMargin] = useState(0)
-  // Measure the tbody's offset from the scroll container (= sticky thead height)
-  // so the virtualizer's range math accounts for the header. Updates only on change.
-  useLayoutEffect(() => {
-    const top = tbodyRef.current?.offsetTop ?? 0
-    setScrollMargin((prev) => (prev !== top ? top : prev))
-  })
-  const rowVirtualizer = useVirtualizer({
-    count: pageRows.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 12,
-    scrollMargin,
-  })
-
-  // When the visible window changes (page flip, filter/sort, new result),
-  // reset scroll to top so the virtualizer renders from the first row.
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = 0
-  }, [page, filteredRows])
-
-  if (isRunning) {
-    return (
-      <div className="flex flex-col h-full">
-        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-app-border bg-app-surface shrink-0">
-          <span className="app-dot animate-pulse" style={{ backgroundColor: 'rgb(var(--c-accent))' }} />
-          <span className="text-xs text-app-text-2 font-medium">Running…</span>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4 font-mono text-xs selectable bg-app-bg">
-          {logs.length === 0 ? (
-            <span className="text-app-text-3 animate-pulse">Connecting…</span>
-          ) : (
-            <div className="space-y-1">
-              {logs.map((line, i) => (
-                <div
-                  key={i}
-                  className={`flex items-start gap-2 ${i === logs.length - 1 ? 'text-app-text' : 'text-app-text-3'}`}
-                >
-                  <span className="shrink-0 mt-px text-app-text-3/50">›</span>
-                  <span>{line}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          <div ref={logEndRef} />
-        </div>
-      </div>
-    )
+  const state = resultsViewState({ isRunning, cancelled, error, hasResult: !!result })
+  if (state !== 'table') {
+    return <ResultsStateView state={state} logs={logs} error={error} onFixWithAI={onFixWithAI} />
   }
 
-  if (cancelled) {
-    return (
-      <div className="flex flex-col h-full">
-        {logs.length > 0 && (
-          <div className="flex-1 overflow-y-auto p-4 font-mono text-xs selectable bg-app-bg">
-            <div className="space-y-1">
-              {logs.map((line, i) => (
-                <div key={i} className="flex items-start gap-2 text-app-text-3">
-                  <span className="shrink-0 mt-px text-app-text-3/50">›</span>
-                  <span>{line}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        <div className="flex items-center justify-center gap-2 py-6 text-app-warn text-xs border-t border-app-border bg-app-warn-subtle/40">
-          <span className="app-dot" style={{ backgroundColor: 'rgb(var(--c-state-warn))' }} />
-          Query cancelled
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col h-full">
-        {logs.length > 0 && (
-          <div className="overflow-y-auto max-h-32 p-3 font-mono text-xs border-b border-app-border selectable bg-app-bg">
-            <div className="space-y-1">
-              {logs.map((line, i) => (
-                <div key={i} className="flex items-start gap-2 text-app-text-3">
-                  <span className="shrink-0 mt-px text-app-text-3/50">›</span>
-                  <span>{line}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        <div className="p-4">
-          <div className="bg-app-err-subtle border border-app-err/30 rounded-lg p-3">
-            <p className="text-xs font-mono text-app-err whitespace-pre-wrap selectable">{error}</p>
-          </div>
-          {onFixWithAI && (
-            <button
-              type="button"
-              onClick={onFixWithAI}
-              className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-ui font-medium bg-app-accent hover:bg-app-accent-hover text-white transition-colors"
-            >
-              <Sparkles size={13} /> Fix with AI
-            </button>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  if (!result) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center gap-2 text-app-text-3 text-sm bg-app-bg">
-        <span className="app-section-label">Empty</span>
-        <span>Run a query to see results</span>
-      </div>
-    )
-  }
-
-  const { columns, rows, executionTimeMs, bytesProcessed, totalRows: serverTotal, hasMore } = result
+  const { columns, rows, executionTimeMs, bytesProcessed, totalRows: serverTotal, hasMore } = result!
   const fetchedRows = rows.length
   const activeFilterCount = Object.values(colFilters).filter((v) => v.trim() !== '').length
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
@@ -282,7 +110,6 @@ function ResultsTable({
     : `${fetchedRows.toLocaleString()}`
 
   const handleExport = async (format: 'csv' | 'json' | 'tsv') => {
-    setExportOpen(false)
     setExporting(true)
     try {
       await window.api.invoke(CHANNELS.EXPORT_RESULTS, { rows, columns, format })
@@ -308,300 +135,76 @@ function ResultsTable({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Status bar */}
-      <div className="flex items-center gap-4 px-3 py-1.5 border-b border-app-border bg-app-surface shrink-0">
-        <span className="text-xs text-app-text-2 font-tabular">
-          {displayTotal === 1 ? '1 row' : `${displayTotalStr} rows`}
-          {hasMore && serverTotal == null && '+'}
-        </span>
-        <span className="text-xs text-app-text-3 font-tabular">{executionTimeMs}ms</span>
-        {bytesProcessed !== undefined && (
-          <span className="text-xs text-app-text-3 font-tabular">{formatBytes(bytesProcessed)} processed</span>
-        )}
-        {fetchedRows < (serverTotal ?? fetchedRows) && (
-          <span className="text-xs text-app-text-3 font-tabular">
-            ({fetchedRows.toLocaleString()} fetched)
-          </span>
-        )}
-        <div className="flex-1" />
-        {/* Filter/sort toggle */}
-        <button
-          onClick={() => setBuilderOpen((v) => !v)}
-          title={builderOpen ? 'Hide filter bar' : 'Filter & sort'}
-          className={`relative flex items-center gap-1 text-xs px-2 py-0.5 rounded transition-colors border border-app-border ${
-            builderOpen || activeFilterCount > 0
-              ? 'text-app-accent border-app-accent/50 hover:bg-app-elevated'
-              : 'text-app-text-2 hover:text-app-text hover:bg-app-elevated'
-          }`}
-        >
-          <SlidersHorizontal size={11} />
-          <span>Filter</span>
-          {activeFilterCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-app-accent text-white text-[9px] rounded-full w-3.5 h-3.5 flex items-center justify-center font-bold">
-              {activeFilterCount}
-            </span>
-          )}
-        </button>
-        {/* Pin result */}
-        {onPin && (
-          <button
-            onClick={onPin}
-            disabled={pinned || fetchedRows === 0}
-            title={pinned ? 'Result pinned' : 'Pin result as snapshot tab'}
-            className="flex items-center gap-1 text-xs px-2 py-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-40 disabled:cursor-not-allowed transition-colors border border-app-border"
-          >
-            <Pin size={11} className={pinned ? 'text-app-accent' : ''} />
-            <span>{pinned ? 'Pinned' : 'Pin'}</span>
-          </button>
-        )}
-        {/* Copy to clipboard (TSV) */}
-        <button
-          onClick={handleCopy}
-          disabled={fetchedRows === 0}
-          title="Copy results to clipboard (TSV)"
-          className="flex items-center gap-1 text-xs px-2 py-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-40 disabled:cursor-not-allowed transition-colors border border-app-border"
-        >
-          {copied ? <Check size={11} className="text-app-ok" /> : <Copy size={11} />}
-          <span>{copied ? 'Copied' : 'Copy'}</span>
-        </button>
-        {/* Export */}
-        <div ref={exportRef} className="relative">
-          <button
-            onClick={() => setExportOpen((v) => !v)}
-            disabled={exporting || fetchedRows === 0}
-            title="Export results"
-            className="flex items-center gap-1 text-xs px-2 py-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-40 disabled:cursor-not-allowed transition-colors border border-app-border"
-          >
-            <Download size={11} />
-            <span>{exporting ? 'Saving…' : 'Export'}</span>
-          </button>
-          {exportOpen && (
-            <div className="absolute top-full right-0 mt-1 bg-app-surface border border-app-border rounded-lg shadow-xl py-1 z-50 min-w-[100px]">
-              {(['csv', 'tsv', 'json'] as const).map((fmt) => (
-                <button
-                  key={fmt}
-                  onClick={() => handleExport(fmt)}
-                  className="w-full text-left px-3 py-1.5 text-xs text-app-text hover:bg-app-elevated transition-colors uppercase"
-                >
-                  {fmt}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      <ResultsToolbar
+        displayTotal={displayTotal}
+        displayTotalStr={displayTotalStr}
+        hasMore={hasMore}
+        serverTotal={serverTotal}
+        executionTimeMs={executionTimeMs}
+        bytesProcessed={bytesProcessed}
+        fetchedRows={fetchedRows}
+        activeFilterCount={activeFilterCount}
+        builderOpen={builderOpen}
+        onToggleBuilder={() => setBuilderOpen((v) => !v)}
+        onPin={onPin}
+        pinned={pinned}
+        copied={copied}
+        onCopy={handleCopy}
+        exporting={exporting}
+        onExport={handleExport}
+      />
 
-      {/* Filter/sort bar */}
       {builderOpen && (
-        <div className="flex items-center gap-1 px-2 py-1.5 border-b border-app-border bg-app-elevated/40 shrink-0 overflow-x-auto">
-          {columns.map((col) => (
-            <div key={col} className="flex items-center shrink-0" style={{ width: colWidths[col] ?? DEFAULT_COL_WIDTH }}>
-              <input
-                type="text"
-                value={colFilters[col] ?? ''}
-                onChange={(e) => {
-                  setColFilters((prev) => ({ ...prev, [col]: e.target.value }))
-                  setPage(0)
-                }}
-                placeholder={col}
-                className="w-full bg-app-surface border border-app-border rounded px-2 py-0.5 text-[11px] text-app-text placeholder-app-text-3 focus:outline-none focus:border-app-accent transition-colors"
-              />
-            </div>
-          ))}
-          {activeFilterCount > 0 && (
-            <button
-              onClick={() => { setColFilters({}); setSortCol(null); setPage(0) }}
-              className="shrink-0 flex items-center gap-1 text-[11px] px-2 py-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated transition-colors border border-app-border"
-            >
-              <X size={10} />
-              Clear
-            </button>
-          )}
-        </div>
+        <FilterSortBar
+          columns={columns}
+          colWidths={colWidths}
+          colFilters={colFilters}
+          activeFilterCount={activeFilterCount}
+          onFilterChange={(col, value) => { setColFilters((prev) => ({ ...prev, [col]: value })); setPage(0) }}
+          onClear={() => { setColFilters({}); setSortCol(null); setPage(0) }}
+        />
       )}
 
-      {/* Table */}
-      <div ref={scrollRef} className="flex-1 overflow-auto selectable results-area">
-        <table className="text-xs border-collapse" style={{ tableLayout: 'fixed', width: 'max-content', minWidth: '100%' }}>
-          <colgroup>
-            {columns.map((col) => (
-              <col key={col} style={{ width: colWidths[col] ?? DEFAULT_COL_WIDTH }} />
-            ))}
-          </colgroup>
-          <thead className="sticky top-0 bg-app-bg z-10">
-            <tr>
-              {columns.map((col) => (
-                <th
-                  key={col}
-                  className="relative px-3 py-2 text-left text-app-text-2 font-medium border-b border-app-border whitespace-nowrap select-none"
-                  style={{ width: colWidths[col] ?? DEFAULT_COL_WIDTH }}
-                >
-                  <div className="flex items-center gap-1 pr-2">
-                    <span
-                      onClick={() => handleCopyColName(col)}
-                      title={`Click to copy "${col}"`}
-                      className="block truncate cursor-pointer hover:text-app-text transition-colors flex-1 min-w-0"
-                    >
-                      {copiedCol === col ? '✓ Copied' : col}
-                    </span>
-                    {/* Sort toggle */}
-                    <button
-                      onClick={() => {
-                        if (sortCol === col) {
-                          if (sortDir === 'asc') setSortDir('desc')
-                          else { setSortCol(null); setSortDir('asc') }
-                        } else {
-                          setSortCol(col)
-                          setSortDir('asc')
-                        }
-                        setPage(0)
-                      }}
-                      className={`shrink-0 transition-opacity ${sortCol === col ? 'opacity-100' : 'opacity-0 group-hover:opacity-60'}`}
-                      title={sortCol === col ? (sortDir === 'asc' ? 'Sort descending' : 'Remove sort') : `Sort by ${col}`}
-                    >
-                      {sortCol === col
-                        ? (sortDir === 'asc' ? <ChevronUp size={10} className="text-app-accent" /> : <ChevronDownIcon size={10} className="text-app-accent" />)
-                        : <ChevronUp size={10} className="text-app-text-3" />
-                      }
-                    </button>
-                  </div>
-                  {/* Resize handle */}
-                  <div
-                    onMouseDown={(e) => handleResizeMouseDown(e, col)}
-                    className="absolute right-0 top-0 h-full w-3 flex items-center justify-center cursor-col-resize group z-20"
-                  >
-                    <div className="w-px h-4 bg-app-border group-hover:bg-app-accent transition-colors" />
-                  </div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody ref={tbodyRef}>
-            {(() => {
-              const virtualItems = rowVirtualizer.getVirtualItems()
-              const totalSize = rowVirtualizer.getTotalSize()
-              // start/end are relative to the scroll element (incl. scrollMargin);
-              // spacers live inside the tbody which already starts at scrollMargin.
-              const paddingTop = virtualItems.length > 0 ? virtualItems[0].start - scrollMargin : 0
-              const paddingBottom =
-                virtualItems.length > 0
-                  ? totalSize - (virtualItems[virtualItems.length - 1].end - scrollMargin)
-                  : 0
-              return (
-                <>
-                  {paddingTop > 0 && (
-                    <tr aria-hidden="true">
-                      <td colSpan={columns.length} style={{ height: paddingTop, padding: 0, border: 0 }} />
-                    </tr>
-                  )}
-                  {virtualItems.map((vi) => {
-                    const row = pageRows[vi.index]
-                    return (
-                      <tr
-                        key={`${page}-${vi.index}`}
-                        style={{ height: ROW_HEIGHT }}
-                        className={`hover:bg-app-elevated/40 transition-colors ${vi.index % 2 === 0 ? '' : 'bg-app-surface/30'}`}
-                      >
-                        {columns.map((col) => {
-                          const cell = row[col]
-                          return (
-                            <td
-                              key={col}
-                              className="px-3 py-1.5 text-app-text font-mono border-b border-app-border/40 overflow-hidden"
-                              style={{ width: colWidths[col] ?? DEFAULT_COL_WIDTH, maxWidth: colWidths[col] ?? DEFAULT_COL_WIDTH }}
-                              title={isGraphElement(cell) ? undefined : formatCell(cell)}
-                            >
-                              {isGraphElement(cell) ? (
-                                <GraphElementChip value={cell as Neo4jGraphValue} />
-                              ) : (
-                                <span className="block truncate">{formatCell(cell)}</span>
-                              )}
-                            </td>
-                          )
-                        })}
-                      </tr>
-                    )
-                  })}
-                  {paddingBottom > 0 && (
-                    <tr aria-hidden="true">
-                      <td colSpan={columns.length} style={{ height: paddingBottom, padding: 0, border: 0 }} />
-                    </tr>
-                  )}
-                </>
-              )
-            })()}
-          </tbody>
-        </table>
-      </div>
+      <ResultsGrid
+        columns={columns}
+        pageRows={pageRows}
+        page={page}
+        resetKey={filteredRows}
+        colWidths={colWidths}
+        setColWidths={setColWidths}
+        sortCol={sortCol}
+        sortDir={sortDir}
+        onToggleSort={(col) => {
+          if (sortCol === col) {
+            if (sortDir === 'asc') setSortDir('desc')
+            else { setSortCol(null); setSortDir('asc') }
+          } else {
+            setSortCol(col); setSortDir('asc')
+          }
+          setPage(0)
+        }}
+      />
 
-      {/* Pagination bar */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-t border-app-border bg-app-surface shrink-0">
-        <span className="text-xs text-app-text-3 font-tabular">
-          {filteredRows.length === 0
-            ? 'No rows'
-            : `${startRow.toLocaleString()}–${endRow.toLocaleString()} of ${activeFilterCount > 0 ? `${filteredRows.length.toLocaleString()} filtered` : displayTotalStr}`}
-          {!activeFilterCount && hasMore && serverTotal == null && '+'}
-        </span>
-
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-app-text-3">Rows per page</span>
-            <select
-              value={pageSize}
-              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0) }}
-              className="bg-app-elevated text-app-text text-xs rounded px-1.5 py-0.5 border border-app-border focus:outline-none focus:border-app-accent cursor-pointer"
-            >
-              {PAGE_SIZES.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setPage((p) => p - 1)}
-              disabled={page === 0}
-              className="p-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronLeft size={14} />
-            </button>
-            <span className="text-xs text-app-text-2 min-w-[60px] text-center font-tabular">
-              {loadingMore ? (
-                <Loader2 size={12} className="inline animate-spin" />
-              ) : (
-                `${page + 1} / ${totalPages}${hasMore ? '+' : ''}`
-              )}
-            </span>
-            <button
-              onClick={handleNextPage}
-              disabled={onLastFetchedPage && !canLoadMore}
-              className="p-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronRight size={14} />
-            </button>
-          </div>
-        </div>
-      </div>
+      <ResultsPagination
+        filteredCount={filteredRows.length}
+        startRow={startRow}
+        endRow={endRow}
+        displayTotalStr={displayTotalStr}
+        activeFilterCount={activeFilterCount}
+        hasMore={hasMore}
+        serverTotal={serverTotal}
+        page={page}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        loadingMore={loadingMore}
+        onPrev={() => setPage((p) => p - 1)}
+        onNext={handleNextPage}
+        onPageSizeChange={(size) => { setPageSize(size); setPage(0) }}
+        onLastFetchedPage={onLastFetchedPage}
+        canLoadMore={!!canLoadMore}
+      />
     </div>
   )
 }
 
 export default memo(ResultsTable)
-
-// ── Cell formatter ───────────────────────────────────────────────────────────
-function formatCell(value: unknown): string {
-  if (value === null || value === undefined) return 'NULL'
-  if (typeof value === 'object') {
-    // BigQuery wraps DATE / DATETIME / TIMESTAMP / NUMERIC as { value: "..." }
-    const v = value as Record<string, unknown>
-    if ('value' in v && typeof v.value === 'string') return v.value
-    return JSON.stringify(value)
-  }
-  return String(value)
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1e6) return `${(bytes / 1e3).toFixed(1)} KB`
-  if (bytes < 1e9) return `${(bytes / 1e6).toFixed(1)} MB`
-  return `${(bytes / 1e9).toFixed(2)} GB`
-}
