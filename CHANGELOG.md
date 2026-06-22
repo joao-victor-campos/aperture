@@ -19,6 +19,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - The editor split now spans two independent connections (replaces the previous same-connection two-pane split). The catalog sidebar follows whichever editor group is focused.
 - Internal: de-duplicated the database adapter query lifecycle (heartbeat, 180s timeout, cancellation, concurrency) into a shared `queryRuntime` module. No user-facing behavior change except a unified "still running" progress label across all four engines.
 - Internal: decomposed the 607-line `ResultsTable` into focused units (toolbar, filter/sort bar, virtualized grid, pagination, state views) plus `formatCell`/`formatBytes` helpers. No behavior change.
+- Internal: decomposed the most-churned `TitleBar` into focused units (`ConnectionMenu`, `TitleBarActions`, `StatusDot`) plus `connectionMeta` helpers. No behavior change.
 
 ### Fixed
 - Results table column resize now works correctly when the columns are narrower than the panel. Previously the table's `min-width: 100%` made `table-layout: fixed` redistribute the leftover space across all columns, so dragging a column border fought the redistribution (the column wouldn't shrink, and adjacent columns appeared to drift apart). A flexible trailing spacer column now absorbs the leftover width, so each column honors its exact dragged width while the table still fills the panel.
