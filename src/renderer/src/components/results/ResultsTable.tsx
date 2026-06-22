@@ -1,5 +1,4 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { CHANNELS } from '@shared/ipc'
 import type { QueryResult } from '@shared/types'
 import { filterSortRows } from '../../lib/filterSortRows'
@@ -9,6 +8,7 @@ import ResultsStateView, { resultsViewState } from './ResultsStateView'
 import ResultsToolbar from './ResultsToolbar'
 import FilterSortBar from './FilterSortBar'
 import ResultsGrid from './ResultsGrid'
+import ResultsPagination from './ResultsPagination'
 
 interface ResultsTableProps {
   result?: QueryResult
@@ -22,8 +22,6 @@ interface ResultsTableProps {
   /** When set, the error state shows a "Fix with AI" button that hands the SQL + error to the chat. */
   onFixWithAI?: () => void
 }
-
-const PAGE_SIZES = [50, 100, 250, 500]
 
 const EMPTY_ROWS: Record<string, unknown>[] = []
 
@@ -187,54 +185,24 @@ function ResultsTable({
         }}
       />
 
-      {/* Pagination bar */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-t border-app-border bg-app-surface shrink-0">
-        <span className="text-xs text-app-text-3 font-tabular">
-          {filteredRows.length === 0
-            ? 'No rows'
-            : `${startRow.toLocaleString()}–${endRow.toLocaleString()} of ${activeFilterCount > 0 ? `${filteredRows.length.toLocaleString()} filtered` : displayTotalStr}`}
-          {!activeFilterCount && hasMore && serverTotal == null && '+'}
-        </span>
-
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-app-text-3">Rows per page</span>
-            <select
-              value={pageSize}
-              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0) }}
-              className="bg-app-elevated text-app-text text-xs rounded px-1.5 py-0.5 border border-app-border focus:outline-none focus:border-app-accent cursor-pointer"
-            >
-              {PAGE_SIZES.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setPage((p) => p - 1)}
-              disabled={page === 0}
-              className="p-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronLeft size={14} />
-            </button>
-            <span className="text-xs text-app-text-2 min-w-[60px] text-center font-tabular">
-              {loadingMore ? (
-                <Loader2 size={12} className="inline animate-spin" />
-              ) : (
-                `${page + 1} / ${totalPages}${hasMore ? '+' : ''}`
-              )}
-            </span>
-            <button
-              onClick={handleNextPage}
-              disabled={onLastFetchedPage && !canLoadMore}
-              className="p-0.5 rounded text-app-text-2 hover:text-app-text hover:bg-app-elevated disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronRight size={14} />
-            </button>
-          </div>
-        </div>
-      </div>
+      <ResultsPagination
+        filteredCount={filteredRows.length}
+        startRow={startRow}
+        endRow={endRow}
+        displayTotalStr={displayTotalStr}
+        activeFilterCount={activeFilterCount}
+        hasMore={hasMore}
+        serverTotal={serverTotal}
+        page={page}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        loadingMore={loadingMore}
+        onPrev={() => setPage((p) => p - 1)}
+        onNext={handleNextPage}
+        onPageSizeChange={(size) => { setPageSize(size); setPage(0) }}
+        onLastFetchedPage={onLastFetchedPage}
+        canLoadMore={!!canLoadMore}
+      />
     </div>
   )
 }
