@@ -1,6 +1,6 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronLeft, ChevronRight, Loader2, Download, Copy, Check, Pin, SlidersHorizontal, X, ChevronUp, ChevronDown as ChevronDownIcon, Sparkles } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, Download, Copy, Check, Pin, SlidersHorizontal, X, ChevronUp, ChevronDown as ChevronDownIcon } from 'lucide-react'
 import { CHANNELS } from '@shared/ipc'
 import type { QueryResult } from '@shared/types'
 import { filterSortRows } from '../../lib/filterSortRows'
@@ -11,6 +11,7 @@ import { formatBytes } from '../../lib/formatBytes'
 import type { Neo4jGraphValue } from '@shared/types'
 import { isGraphElement } from '../../lib/formatGraphElement'
 import GraphElementChip from './GraphElementChip'
+import ResultsStateView, { resultsViewState } from './ResultsStateView'
 
 interface ResultsTableProps {
   result?: QueryResult
@@ -36,7 +37,6 @@ const EMPTY_ROWS: Record<string, unknown>[] = []
 function ResultsTable({
   result, error, isRunning, cancelled, logs = [], onFetchPage, onPin, pinned, onFixWithAI,
 }: ResultsTableProps) {
-  const logEndRef = useRef<HTMLDivElement>(null)
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(100)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -71,10 +71,6 @@ function ResultsTable({
     setCopiedCol(col)
     copyTimeoutRef.current = setTimeout(() => setCopiedCol(null), 1500)
   }
-
-  useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [logs])
 
   // Close export popover on outside click
   useEffect(() => {
@@ -160,101 +156,12 @@ function ResultsTable({
     if (scrollRef.current) scrollRef.current.scrollTop = 0
   }, [page, filteredRows])
 
-  if (isRunning) {
-    return (
-      <div className="flex flex-col h-full">
-        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-app-border bg-app-surface shrink-0">
-          <span className="app-dot animate-pulse" style={{ backgroundColor: 'rgb(var(--c-accent))' }} />
-          <span className="text-xs text-app-text-2 font-medium">Running…</span>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4 font-mono text-xs selectable bg-app-bg">
-          {logs.length === 0 ? (
-            <span className="text-app-text-3 animate-pulse">Connecting…</span>
-          ) : (
-            <div className="space-y-1">
-              {logs.map((line, i) => (
-                <div
-                  key={i}
-                  className={`flex items-start gap-2 ${i === logs.length - 1 ? 'text-app-text' : 'text-app-text-3'}`}
-                >
-                  <span className="shrink-0 mt-px text-app-text-3/50">›</span>
-                  <span>{line}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          <div ref={logEndRef} />
-        </div>
-      </div>
-    )
+  const state = resultsViewState({ isRunning, cancelled, error, hasResult: !!result })
+  if (state !== 'table') {
+    return <ResultsStateView state={state} logs={logs} error={error} onFixWithAI={onFixWithAI} />
   }
 
-  if (cancelled) {
-    return (
-      <div className="flex flex-col h-full">
-        {logs.length > 0 && (
-          <div className="flex-1 overflow-y-auto p-4 font-mono text-xs selectable bg-app-bg">
-            <div className="space-y-1">
-              {logs.map((line, i) => (
-                <div key={i} className="flex items-start gap-2 text-app-text-3">
-                  <span className="shrink-0 mt-px text-app-text-3/50">›</span>
-                  <span>{line}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        <div className="flex items-center justify-center gap-2 py-6 text-app-warn text-xs border-t border-app-border bg-app-warn-subtle/40">
-          <span className="app-dot" style={{ backgroundColor: 'rgb(var(--c-state-warn))' }} />
-          Query cancelled
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col h-full">
-        {logs.length > 0 && (
-          <div className="overflow-y-auto max-h-32 p-3 font-mono text-xs border-b border-app-border selectable bg-app-bg">
-            <div className="space-y-1">
-              {logs.map((line, i) => (
-                <div key={i} className="flex items-start gap-2 text-app-text-3">
-                  <span className="shrink-0 mt-px text-app-text-3/50">›</span>
-                  <span>{line}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        <div className="p-4">
-          <div className="bg-app-err-subtle border border-app-err/30 rounded-lg p-3">
-            <p className="text-xs font-mono text-app-err whitespace-pre-wrap selectable">{error}</p>
-          </div>
-          {onFixWithAI && (
-            <button
-              type="button"
-              onClick={onFixWithAI}
-              className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-ui font-medium bg-app-accent hover:bg-app-accent-hover text-white transition-colors"
-            >
-              <Sparkles size={13} /> Fix with AI
-            </button>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  if (!result) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center gap-2 text-app-text-3 text-sm bg-app-bg">
-        <span className="app-section-label">Empty</span>
-        <span>Run a query to see results</span>
-      </div>
-    )
-  }
-
-  const { columns, rows, executionTimeMs, bytesProcessed, totalRows: serverTotal, hasMore } = result
+  const { columns, rows, executionTimeMs, bytesProcessed, totalRows: serverTotal, hasMore } = result!
   const fetchedRows = rows.length
   const activeFilterCount = Object.values(colFilters).filter((v) => v.trim() !== '').length
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
