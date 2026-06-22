@@ -7,7 +7,8 @@ import { useUpdateStore } from '../../store/updateStore'
 import { useQueryStore } from '../../store/queryStore'
 import ApertureIcon from '../ApertureIcon'
 import CommandPalette, { type CommandPaletteHandle } from '../command/CommandPalette'
-import type { BigQueryConnection, Connection, Neo4jConnection, PostgresConnection, SnowflakeConnection } from '@shared/types'
+import { connectionLabel, engineAccent, engineColor } from '../../lib/connectionMeta'
+import type { Connection } from '@shared/types'
 
 interface TitleBarProps {
   onAddConnection: () => void
@@ -18,14 +19,6 @@ interface TitleBarProps {
   chatOpen?: boolean
   /** Receives the palette's imperative `focus()` so a global ⌘K can target it. */
   paletteRef?: RefObject<CommandPaletteHandle>
-}
-
-function connectionLabel(c: Connection): string {
-  const engine = c.engine ?? 'bigquery'
-  if (engine === 'bigquery') return (c as BigQueryConnection).projectId
-  if (engine === 'snowflake') return (c as SnowflakeConnection).account
-  if (engine === 'neo4j') return (c as Neo4jConnection).database || (c as Neo4jConnection).uri
-  return (c as PostgresConnection).database ?? (c as PostgresConnection).host
 }
 
 export default function TitleBar({ onAddConnection, onEditConnection, onOpenSettings, onShowShortcuts, onToggleChat, chatOpen, paletteRef }: TitleBarProps) {
@@ -98,13 +91,7 @@ export default function TitleBar({ onAddConnection, onEditConnection, onOpenSett
 
   // Engine label for the breadcrumb (e.g. "snowflake / prod_warehouse")
   const engineLabel = activeConn ? (activeConn.engine ?? 'bigquery') : null
-  // Per-engine accent — applied only to the engine name in the breadcrumb
-  const engineColor =
-    engineLabel === 'bigquery'  ? 'text-app-cat-blue' :
-    engineLabel === 'snowflake' ? 'text-app-accent-text' :   // Snowflake stays terracotta
-    engineLabel === 'postgres'  ? 'text-app-cat-purple' :
-    engineLabel === 'neo4j'     ? 'text-app-cat-teal' :
-                                  'text-app-text'
+  const engineColorClass = engineLabel ? engineColor(engineLabel) : 'text-app-text'
 
   return (
     <div
@@ -134,7 +121,7 @@ export default function TitleBar({ onAddConnection, onEditConnection, onOpenSett
             {activeConn && <StatusDot status={statuses[activeConn.id] ?? 'unknown'} />}
             {activeConn ? (
               <>
-                <span className={`font-semibold truncate ${engineColor}`}>{engineLabel}</span>
+                <span className={`font-semibold truncate ${engineColorClass}`}>{engineLabel}</span>
                 <span className="text-app-text-3">/</span>
                 <span className="text-app-text truncate">{activeConn.name}</span>
               </>
@@ -291,15 +278,6 @@ export default function TitleBar({ onAddConnection, onEditConnection, onOpenSett
       )}
     </div>
   )
-}
-
-// Per-engine accent — small categorical hint used in the dropdown row subtitle
-function engineAccent(engine: string): string {
-  if (engine === 'bigquery')  return 'text-app-cat-blue'
-  if (engine === 'snowflake') return 'text-app-accent-text'
-  if (engine === 'postgres')  return 'text-app-cat-purple'
-  if (engine === 'neo4j')     return 'text-app-cat-teal'
-  return 'text-app-text-3'
 }
 
 function StatusDot({ status }: { status: ConnectionStatus }) {
