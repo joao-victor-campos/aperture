@@ -5,18 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
-## [Unreleased]
+## [3.1.0] - 2026-06-22
 
 ### Added
 - **Catalog warm-up** — when you connect, Aperture pre-indexes every dataset in the background (`getDatasetColumns` bulk fetch + `CATALOG_DATASET_COLUMNS` IPC channel, concurrency-capped at 5). The sidebar "Search tables…" box now finds tables in unexpanded datasets immediately, and the SQL/Cypher editor offers table and column completions from the full catalog without needing to open a table first. An "Indexing catalog…" hint appears while warm-up is running; click the Refresh (↺) icon to force a re-index. Datasets that fail (permissions, regional restrictions) are silently skipped.
 - Multi-connection split view: the editor splits into two groups, each with its own connection. Drag tabs between groups; each tab carries its own connection and has a connection picker in its toolbar.
-- Copy query results to the clipboard as TSV (respects the current filters and sort), alongside the existing CSV/TSV/JSON file export.
 - Chart view for results: visualize any result as a bar, line, or scatter chart with X/Y axis selection and an optional aggregation (sum/avg/count/min/max) grouped by the X column.
-- AI inline autocomplete: opt-in Copilot-style ghost-text suggestions in the SQL/Cypher editor, powered by a fast model (Anthropic Haiku), schema- and dialect-aware. Tab to accept; toggle in Settings → AI or the editor toolbar.
-- AI chat companion: agentic assistant (Anthropic) that explores the active connection's catalog, drafts SQL into tabs, and runs queries with per-run confirmation. Multiple saved threads. Configure your API key + model in Settings → AI.
+- Copy query results to the clipboard as TSV (respects the current filters and sort), alongside the existing CSV/TSV/JSON file export.
 
 ### Changed
 - The editor split now spans two independent connections (replaces the previous same-connection two-pane split). The catalog sidebar follows whichever editor group is focused.
+
+---
+## [3.0.0] - 2026-06-19
+
+### Added
+- AI inline autocomplete: opt-in Copilot-style ghost-text suggestions in the SQL/Cypher editor, powered by a fast model (Anthropic Haiku), schema- and dialect-aware. Tab to accept; toggle in Settings → AI or the editor toolbar.
+- AI chat companion: agentic assistant (Anthropic) that explores the active connection's catalog, drafts SQL into tabs, and runs queries with per-run confirmation. Multiple saved threads. Configure your API key + model in Settings → AI.
 
 ---
 ## [2.4.0] - 2026-06-18
