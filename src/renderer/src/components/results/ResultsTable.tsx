@@ -6,6 +6,8 @@ import type { QueryResult } from '@shared/types'
 import { filterSortRows } from '../../lib/filterSortRows'
 import { paginate } from '../../lib/paginate'
 import { rowsToTsv } from '../../lib/rowsToTsv'
+import { formatCell } from '../../lib/formatCell'
+import { formatBytes } from '../../lib/formatBytes'
 import type { Neo4jGraphValue } from '@shared/types'
 import { isGraphElement } from '../../lib/formatGraphElement'
 import GraphElementChip from './GraphElementChip'
@@ -587,21 +589,3 @@ function ResultsTable({
 }
 
 export default memo(ResultsTable)
-
-// ── Cell formatter ───────────────────────────────────────────────────────────
-function formatCell(value: unknown): string {
-  if (value === null || value === undefined) return 'NULL'
-  if (typeof value === 'object') {
-    // BigQuery wraps DATE / DATETIME / TIMESTAMP / NUMERIC as { value: "..." }
-    const v = value as Record<string, unknown>
-    if ('value' in v && typeof v.value === 'string') return v.value
-    return JSON.stringify(value)
-  }
-  return String(value)
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1e6) return `${(bytes / 1e3).toFixed(1)} KB`
-  if (bytes < 1e9) return `${(bytes / 1e6).toFixed(1)} MB`
-  return `${(bytes / 1e9).toFixed(2)} GB`
-}
