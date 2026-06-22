@@ -91,6 +91,11 @@ export default function ResultsGrid({
           {columns.map((col) => (
             <col key={col} style={{ width: colWidths[col] ?? DEFAULT_COL_WIDTH }} />
           ))}
+          {/* Flexible spacer column: absorbs the panel's leftover width so the
+              real columns keep their exact pixel widths under table-layout:fixed
+              (otherwise minWidth:100% redistributes slack across columns and
+              resizing fights it). Collapses to 0 once columns overflow. */}
+          <col />
         </colgroup>
         <thead className="sticky top-0 bg-app-bg z-10">
           <tr>
@@ -127,6 +132,8 @@ export default function ResultsGrid({
                 </div>
               </th>
             ))}
+            {/* Spacer header cell for the flexible trailing column */}
+            <th aria-hidden="true" className="border-b border-app-border" />
           </tr>
         </thead>
         <tbody ref={tbodyRef}>
@@ -142,7 +149,7 @@ export default function ResultsGrid({
               <>
                 {paddingTop > 0 && (
                   <tr aria-hidden="true">
-                    <td colSpan={columns.length} style={{ height: paddingTop, padding: 0, border: 0 }} />
+                    <td colSpan={columns.length + 1} style={{ height: paddingTop, padding: 0, border: 0 }} />
                   </tr>
                 )}
                 {virtualItems.map((vi) => {
@@ -170,12 +177,14 @@ export default function ResultsGrid({
                           </td>
                         )
                       })}
+                      {/* Spacer body cell for the flexible trailing column */}
+                      <td aria-hidden="true" className="border-b border-app-border/40" />
                     </tr>
                   )
                 })}
                 {paddingBottom > 0 && (
                   <tr aria-hidden="true">
-                    <td colSpan={columns.length} style={{ height: paddingBottom, padding: 0, border: 0 }} />
+                    <td colSpan={columns.length + 1} style={{ height: paddingBottom, padding: 0, border: 0 }} />
                   </tr>
                 )}
               </>
