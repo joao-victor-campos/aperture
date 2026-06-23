@@ -148,6 +148,26 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-06-23] Refactor: Extract TableDetailPanel schema helpers + fix BigQuery preview formatting
+
+**Type:** Change
+**Context:** Third step of the "harden what exists" campaign (after #37 ConnectionModal extraction and #38 CodeMirror-helper coverage + `lib/**` gate widening). `TableDetailPanel.tsx` carried three pure module-level helpers inline and untested: `flattenFields` (recursive nested-RECORD flattening), `typeColor` (type → token mapping), and a local `formatCell` that **duplicated and diverged from** the shared `lib/formatCell.ts`.
+**Problem / Change:** The local `formatCell` did not unwrap BigQuery's `{ value: "..." }` wrappers, so the table preview rendered DATE/TIMESTAMP/NUMERIC cells as raw JSON (`{"value":"2024-01-01"}`) instead of their value. The recursive flattener and the type map were also untested.
+**Solution / Outcome:**
+- **`src/renderer/src/lib/flattenFields.ts`** (new, pure): `FlatField` + `flattenFields(fields, depth?)`, moved verbatim; depth-first, child-after-parent.
+- **`src/renderer/src/lib/schemaTypeColor.ts`** (new, pure): `typeColor(type)`, moved verbatim.
+- **`TableDetailPanel.tsx`**: imports the two new helpers and the shared `formatCell`; the four local definitions (incl. the buggy `formatCell`) removed. Swapping to the shared `formatCell` **fixes** the preview-rendering bug — DATE/TIMESTAMP/NUMERIC now render their unwrapped value.
+- **Tests** (new): `flattenFields.test.ts` (empty, flat, nested, multi-level, empty-fields-leaf) and `schemaTypeColor.test.ts` (each token group + unknown fallback + case-insensitivity). The `formatCell` fix is already pinned by the existing `lib/formatCell.test.ts` `{ value }`-unwrap test. `lib/**` is inside the coverage gate (since #38), so the new helpers are coverage-enforced.
+
+**Files affected:**
+- `src/renderer/src/lib/flattenFields.ts` — created
+- `src/renderer/src/lib/schemaTypeColor.ts` — created
+- `src/__tests__/renderer/lib/flattenFields.test.ts` — created
+- `src/__tests__/renderer/lib/schemaTypeColor.test.ts` — created
+- `src/renderer/src/components/catalog/TableDetailPanel.tsx` — delegate to helpers; drop the buggy local `formatCell`
+
+---
+
 ### [2026-06-22] Refactor: Extract ConnectionModal validation + payload into a tested pure helper
 
 **Type:** Change

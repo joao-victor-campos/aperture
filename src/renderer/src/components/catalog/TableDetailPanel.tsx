@@ -6,6 +6,9 @@ import { useCatalogStore } from '../../store/catalogStore'
 import { useConnectionStore } from '../../store/connectionStore'
 import { buildSelectQuery } from '../../lib/buildSelectQuery'
 import { buildLabelQuery, buildRelationshipTypeQuery } from '../../lib/buildCypherQuery'
+import { flattenFields } from '../../lib/flattenFields'
+import { typeColor } from '../../lib/schemaTypeColor'
+import { formatCell } from '../../lib/formatCell'
 
 interface TableDetailPanelProps {
   connectionId: string
@@ -287,35 +290,3 @@ function PreviewSection({ result, loading, error, onRetry }: { result: QueryResu
     </div>
   )
 }
-
-interface FlatField { field: TableField; depth: number }
-
-function flattenFields(fields: TableField[], depth = 0): FlatField[] {
-  const result: FlatField[] = []
-  for (const f of fields) {
-    result.push({ field: f, depth })
-    if (f.fields?.length) result.push(...flattenFields(f.fields, depth + 1))
-  }
-  return result
-}
-
-function typeColor(type: string): string {
-  // Use semantic categorical tokens — same mapping but theme-aware
-  switch (type.toUpperCase()) {
-    case 'STRING': case 'BYTES': return 'text-app-cat-green'
-    case 'INTEGER': case 'INT64': case 'FLOAT': case 'FLOAT64':
-    case 'NUMERIC': case 'BIGNUMERIC': return 'text-app-cat-blue'
-    case 'BOOLEAN': case 'BOOL': return 'text-app-warn'
-    case 'TIMESTAMP': case 'DATE': case 'TIME': case 'DATETIME': return 'text-app-cat-purple'
-    case 'RECORD': case 'STRUCT': return 'text-app-accent-text'
-    default: return 'text-app-text-2'
-  }
-}
-
-function formatCell(value: unknown): string {
-  if (value === null || value === undefined) return 'NULL'
-  if (typeof value === 'object') return JSON.stringify(value)
-  return String(value)
-}
-
-
