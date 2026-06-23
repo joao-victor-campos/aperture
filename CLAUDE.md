@@ -148,6 +148,25 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-06-23] Refactor: Consolidate formatBytes into one shared helper (+ fix RunConfirmCard units)
+
+**Type:** Change
+**Context:** Fourth step of the "harden what exists" campaign. `formatBytes` was defined four times: the canonical tested decimal version in `lib/formatBytes.ts`, byte-identical copies in `main/db/bigquery.ts` and `results/ExplainPanel.tsx`, and a **divergent** copy in `chat/RunConfirmCard.tsx` (1024-based `B/KB/MB/GB/TB` units + an `'unknown'` fallback). The chat run-confirmation card therefore showed a different byte figure than the rest of the app for the same scan.
+**Problem / Change:** 4× duplication with a real user-visible inconsistency in the AI run-confirm card.
+**Solution / Outcome:**
+- **`src/shared/formatBytes.ts`** (new): single source of truth, the canonical decimal formatter (`KB`/`MB`/`GB`, 1000-based). Lives in `shared/` because both the main and renderer processes use it. Renderer imports via `@shared/formatBytes`; `bigquery.ts` imports by relative path (`../../shared/formatBytes`), matching the main process's convention.
+- **Consumers repointed:** `ResultsToolbar.tsx` (import path swap), `ExplainPanel.tsx`, `RunConfirmCard.tsx`, and `bigquery.ts` (each drops its local copy and imports the shared one). `lib/formatBytes.ts` and its test deleted; the test relocated to `src/__tests__/shared/formatBytes.test.ts`.
+- **Behavior change (intended):** `RunConfirmCard` now uses the canonical decimal formatter — the "Est. … scanned" label switches from 1024-based units to decimal, and `0` bytes renders `"0.0 KB"` instead of `"unknown"`. All other call sites are unchanged (their copies were byte-identical).
+- **Coverage:** the helper moved out of the gated `lib/**` set into ungated `shared/**`, but stays fully covered by `src/__tests__/shared/formatBytes.test.ts`. `just ci` green.
+
+**Files affected:**
+- `src/shared/formatBytes.ts` — created
+- `src/__tests__/shared/formatBytes.test.ts` — created
+- `src/renderer/src/lib/formatBytes.ts`, `src/__tests__/renderer/lib/formatBytes.test.ts` — deleted
+- `src/renderer/src/components/results/{ResultsToolbar,ExplainPanel}.tsx`, `src/renderer/src/components/chat/RunConfirmCard.tsx`, `src/main/db/bigquery.ts` — import the shared helper; local copies removed
+
+---
+
 ### [2026-06-23] Refactor: Extract TableDetailPanel schema helpers + fix BigQuery preview formatting
 
 **Type:** Change

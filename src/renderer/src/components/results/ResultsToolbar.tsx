@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Download, Copy, Check, Pin, SlidersHorizontal } from 'lucide-react'
-import { formatBytes } from '../../lib/formatBytes'
+import { formatBytes } from '@shared/formatBytes'
 
 interface ResultsToolbarProps {
   displayTotal: number
