@@ -214,6 +214,27 @@ just tag-release
 - `CHANGELOG.md` — Unreleased "Changed" entry
 - `docs/superpowers/specs/2026-06-21-tech-debt-register-design.md`, `docs/superpowers/specs/2026-06-21-adapter-query-runtime-design.md`, `docs/superpowers/plans/2026-06-21-adapter-query-runtime.md` — created
 
+---
+
+### [2026-06-22] Testing: Coverage gate widened to `renderer/src/lib/**` — tests for the two untested editor-completion helpers
+
+**Type:** Change
+**Context:** Per ADR-0001 (`docs/adr/0001-testing-strategy-and-coverage-gate-scope.md`), the Vitest coverage gate is being widened to include `src/renderer/src/lib/**`. Every `lib/` helper already had a unit test except two CodeMirror-completion helpers — `src/renderer/src/lib/inlineCompletion.ts` (the Copilot-style ghost-text ViewPlugin) and `src/renderer/src/lib/sqlCompletion.ts` (lang-sql schema-aware completion + the custom CTE source). Adding them to the include set without tests would have dropped the group below the 70% threshold and turned the gate red.
+**Problem / Change:** Two pure-ish editor helpers were uncovered; the coverage `include` array did not measure `lib/**` at all.
+**Solution / Outcome:**
+- **`sqlCompletion.test.ts`** (8 tests) — drives `sqlSupport(engine, schema)` through a real `EditorState`: collects every autocomplete source via `state.languageDataAt('autocomplete', pos)` and runs them against a `CompletionContext`. Covers the extension shape, dialect mapping for all four engines + the `undefined` default, the custom CTE source (CTE names in table position, CTE columns after `alias.`, the replace-after-the-dot `from` offset, and no-CTE behavior), and lang-sql's schema table completion. `sqlCompletion.ts` lands at 100% statements.
+- **`inlineCompletion.test.ts`** (12 tests) — mounts a real `EditorView` in jsdom with `vi.useFakeTimers()` to drive the 400 ms debounce and an injected `request` mock (the helper's IPC caller is constructor-injected for exactly this). Covers: the three-extension return shape; request fires after debounce and renders `.cm-inline-ghost`; the document-derived schema snippet; disabled / no-engine / blank-doc guards; debounced coalescing of rapid edits; the prefix LRU cache (returning to a seen state skips the request); **Tab** accept (inserts + clears ghost); **Esc** dismiss (clears ghost, doc unchanged); empty-completion and provider-rejection both render no ghost. `inlineCompletion.ts` lands at 93.85% statements.
+- **`vitest.config.ts`** — added `src/renderer/src/lib/**/*.ts` to the coverage `include` set.
+- `just ci` green: 506 tests; the `renderer/src/lib` group sits at 96.77% statements / 90.41% branches, well above the 70% gate.
+- (Worktree note: `node_modules` was stale — `@anthropic-ai/sdk` and `recharts` were missing — so `npm install` was run before CI per the worktree dep-install gotcha.)
+
+**Files affected:**
+- `src/__tests__/renderer/lib/sqlCompletion.test.ts` — created (8 tests)
+- `src/__tests__/renderer/lib/inlineCompletion.test.ts` — created (12 tests)
+- `vitest.config.ts` — `src/renderer/src/lib/**/*.ts` added to coverage `include`
+
+---
+
 ### [2026-06-20] Feature: Catalog warm-up
 
 **Type:** Change
