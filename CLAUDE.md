@@ -148,6 +148,24 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-06-22] Refactor: Extract ConnectionModal validation + payload into a tested pure helper
+
+**Type:** Change
+**Context:** First step of the "harden what exists" campaign (see `docs/adr/0001-testing-strategy-and-coverage-gate-scope.md`). `ConnectionModal.tsx` carried two correctness-critical pure functions inline — an `isValid` per-engine required-field check and a `buildPayload` per-engine `ConnectionCreate` constructor — both untested (components sit outside the coverage gate).
+**Problem / Change:** A wrong payload silently produces a broken connection, yet none of the per-engine validation/payload logic had tests.
+**Solution / Outcome:**
+- **`src/renderer/src/lib/connectionForm.ts`** (new, pure): `ConnectionFormFields` (flat snapshot of all form fields), `isConnectionInputValid(fields)`, and `buildConnectionPayload(fields)`. Semantics copied verbatim from the component, preserving the deliberate asymmetries (Postgres/Neo4j passwords untrimmed; Snowflake password trimmed; BigQuery `serviceAccountPath` only set for `service-account`; blank optional Snowflake/Neo4j fields → `undefined`).
+- **`ConnectionModal.tsx`**: assembles a `ConnectionFormFields` object from its `useState` values and delegates to the two helpers; inline `isValid` IIFE and `buildPayload` closure removed; now-unused `ConnectionCreate` import dropped. No prop or render change.
+- **Tests** (new): `connectionForm.test.ts` covers all four engines for both functions, including the password trim/no-trim asymmetry and optional-field handling. `lib/**` is outside the coverage `include` set, so the 70% gate is unaffected.
+
+**Files affected:**
+- `src/renderer/src/lib/connectionForm.ts` — created
+- `src/__tests__/renderer/lib/connectionForm.test.ts` — created
+- `src/renderer/src/components/connections/ConnectionModal.tsx` — delegate to helpers
+- `docs/adr/0001-testing-strategy-and-coverage-gate-scope.md` — referenced (created alongside this work)
+
+---
+
 ### [2026-06-22] Refactor: Decompose TitleBar (TD-4)
 
 **Type:** Change
