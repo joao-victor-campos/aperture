@@ -4,11 +4,15 @@ import { useConnectionStore } from '../../store/connectionStore'
 import type {
   BigQueryConnection,
   Connection,
-  ConnectionCreate,
   Neo4jConnection,
   PostgresConnection,
   SnowflakeConnection,
 } from '@shared/types'
+import {
+  isConnectionInputValid,
+  buildConnectionPayload,
+  type ConnectionFormFields,
+} from '../../lib/connectionForm'
 
 type Engine = 'bigquery' | 'snowflake' | 'postgres' | 'neo4j'
 
@@ -72,78 +76,39 @@ export default function ConnectionModal({ onClose, initialConnection }: Connecti
   const [isSaving, setIsSaving] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
 
-  // ── Validation ────────────────────────────────────────────────────────────
-  const isValid =
-    Boolean(name.trim()) &&
-    (() => {
-      if (engine === 'bigquery') return Boolean(projectId.trim())
-      if (engine === 'postgres')
-        return Boolean(
-          host.trim() &&
-            pgDatabase.trim() &&
-            pgUser.trim() &&
-            pgPassword.trim() &&
-            Number.isFinite(Number(port)) &&
-            Number(port) > 0
-        )
-      if (engine === 'neo4j')
-        return Boolean(neoUri.trim() && neoUsername.trim() && neoPassword.trim())
-      // snowflake
-      return Boolean(sfAccount.trim() && sfUsername.trim() && sfPassword.trim() && sfWarehouse.trim())
-    })()
-
-  const buildPayload = (): ConnectionCreate => {
-    if (engine === 'bigquery') {
-      return {
-        engine: 'bigquery',
-        name: name.trim(),
-        projectId: projectId.trim(),
-        credentialType,
-        serviceAccountPath:
-          credentialType === 'service-account' ? serviceAccountPath.trim() : undefined,
-      }
-    }
-    if (engine === 'postgres') {
-      return {
-        engine: 'postgres',
-        name: name.trim(),
-        host: host.trim(),
-        port: Number(port),
-        database: pgDatabase.trim(),
-        user: pgUser.trim(),
-        password: pgPassword,
-      }
-    }
-    if (engine === 'neo4j') {
-      return {
-        engine: 'neo4j',
-        name: name.trim(),
-        uri: neoUri.trim(),
-        username: neoUsername.trim(),
-        password: neoPassword,
-        database: neoDatabase.trim() || undefined,
-      }
-    }
-    return {
-      engine: 'snowflake',
-      name: name.trim(),
-      account: sfAccount.trim(),
-      username: sfUsername.trim(),
-      password: sfPassword.trim(),
-      warehouse: sfWarehouse.trim(),
-      database: sfDatabase.trim() || undefined,
-      schema: sfSchema.trim() || undefined,
-      role: sfRole.trim() || undefined,
-    }
+  // ── Validation & payload (pure — see lib/connectionForm.ts) ───────────────
+  const fields: ConnectionFormFields = {
+    engine,
+    name,
+    projectId,
+    credentialType,
+    serviceAccountPath,
+    host,
+    port,
+    pgDatabase,
+    pgUser,
+    pgPassword,
+    sfAccount,
+    sfUsername,
+    sfPassword,
+    sfWarehouse,
+    sfDatabase,
+    sfSchema,
+    sfRole,
+    neoUri,
+    neoUsername,
+    neoPassword,
+    neoDatabase,
   }
+  const isValid = isConnectionInputValid(fields)
 
   const handleSave = async () => {
     if (!isValid) return
     setIsSaving(true)
     if (isEdit && initialConnection) {
-      await update({ ...initialConnection, ...buildPayload() } as Connection)
+      await update({ ...initialConnection, ...buildConnectionPayload(fields) } as Connection)
     } else {
-      await add(buildPayload())
+      await add(buildConnectionPayload(fields))
     }
     setIsSaving(false)
     onClose()
@@ -155,10 +120,10 @@ export default function ConnectionModal({ onClose, initialConnection }: Connecti
     setTestResult(null)
     let connId: string
     if (isEdit && initialConnection) {
-      await update({ ...initialConnection, ...buildPayload() } as Connection)
+      await update({ ...initialConnection, ...buildConnectionPayload(fields) } as Connection)
       connId = initialConnection.id
     } else {
-      const newConn = await add(buildPayload())
+      const newConn = await add(buildConnectionPayload(fields))
       connId = newConn.id
     }
     const result = await test(connId)
