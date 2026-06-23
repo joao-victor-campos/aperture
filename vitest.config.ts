@@ -31,7 +31,8 @@ export default defineConfig({
       include: [
         'src/main/db/**/*.ts',
         'src/main/ipc/**/*.ts',
-        'src/renderer/src/store/**/*.ts'
+        'src/renderer/src/store/**/*.ts',
+        'src/renderer/src/lib/**/*.ts'
       ],
       exclude: [
         'src/main/index.ts',
