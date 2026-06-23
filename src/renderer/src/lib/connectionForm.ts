@@ -1,0 +1,56 @@
+import type { BigQueryConnection, ConnectionEngine } from '@shared/types'
+
+/**
+ * Flat, engine-agnostic snapshot of every ConnectionModal form field.
+ * The component assembles this from its useState values and hands it to the
+ * pure helpers below. Keeping every field present (not a discriminated union)
+ * keeps the assembly site in the component trivial.
+ */
+export interface ConnectionFormFields {
+  engine: ConnectionEngine
+  name: string
+  // BigQuery
+  projectId: string
+  credentialType: BigQueryConnection['credentialType']
+  serviceAccountPath: string
+  // Postgres
+  host: string
+  port: string
+  pgDatabase: string
+  pgUser: string
+  pgPassword: string
+  // Snowflake
+  sfAccount: string
+  sfUsername: string
+  sfPassword: string
+  sfWarehouse: string
+  sfDatabase: string
+  sfSchema: string
+  sfRole: string
+  // Neo4j
+  neoUri: string
+  neoUsername: string
+  neoPassword: string
+  neoDatabase: string
+}
+
+/** True when the form holds the minimum required fields for its engine. */
+export function isConnectionInputValid(f: ConnectionFormFields): boolean {
+  if (!f.name.trim()) return false
+  if (f.engine === 'bigquery') return Boolean(f.projectId.trim())
+  if (f.engine === 'postgres')
+    return Boolean(
+      f.host.trim() &&
+        f.pgDatabase.trim() &&
+        f.pgUser.trim() &&
+        f.pgPassword.trim() &&
+        Number.isFinite(Number(f.port)) &&
+        Number(f.port) > 0
+    )
+  if (f.engine === 'neo4j')
+    return Boolean(f.neoUri.trim() && f.neoUsername.trim() && f.neoPassword.trim())
+  // snowflake
+  return Boolean(
+    f.sfAccount.trim() && f.sfUsername.trim() && f.sfPassword.trim() && f.sfWarehouse.trim()
+  )
+}
