@@ -1,4 +1,4 @@
-import type { BigQueryConnection, ConnectionEngine } from '@shared/types'
+import type { BigQueryConnection, ConnectionCreate, ConnectionEngine } from '@shared/types'
 
 /**
  * Flat, engine-agnostic snapshot of every ConnectionModal form field.
@@ -53,4 +53,50 @@ export function isConnectionInputValid(f: ConnectionFormFields): boolean {
   return Boolean(
     f.sfAccount.trim() && f.sfUsername.trim() && f.sfPassword.trim() && f.sfWarehouse.trim()
   )
+}
+
+/** Construct the engine-specific ConnectionCreate payload from the form fields. */
+export function buildConnectionPayload(f: ConnectionFormFields): ConnectionCreate {
+  if (f.engine === 'bigquery') {
+    return {
+      engine: 'bigquery',
+      name: f.name.trim(),
+      projectId: f.projectId.trim(),
+      credentialType: f.credentialType,
+      serviceAccountPath:
+        f.credentialType === 'service-account' ? f.serviceAccountPath.trim() : undefined,
+    }
+  }
+  if (f.engine === 'postgres') {
+    return {
+      engine: 'postgres',
+      name: f.name.trim(),
+      host: f.host.trim(),
+      port: Number(f.port),
+      database: f.pgDatabase.trim(),
+      user: f.pgUser.trim(),
+      password: f.pgPassword,
+    }
+  }
+  if (f.engine === 'neo4j') {
+    return {
+      engine: 'neo4j',
+      name: f.name.trim(),
+      uri: f.neoUri.trim(),
+      username: f.neoUsername.trim(),
+      password: f.neoPassword,
+      database: f.neoDatabase.trim() || undefined,
+    }
+  }
+  return {
+    engine: 'snowflake',
+    name: f.name.trim(),
+    account: f.sfAccount.trim(),
+    username: f.sfUsername.trim(),
+    password: f.sfPassword.trim(),
+    warehouse: f.sfWarehouse.trim(),
+    database: f.sfDatabase.trim() || undefined,
+    schema: f.sfSchema.trim() || undefined,
+    role: f.sfRole.trim() || undefined,
+  }
 }

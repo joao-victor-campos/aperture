@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   isConnectionInputValid,
+  buildConnectionPayload,
   type ConnectionFormFields,
 } from '../../../renderer/src/lib/connectionForm'
 
@@ -89,6 +90,110 @@ describe('isConnectionInputValid', () => {
           makeFields({ engine: 'snowflake', sfDatabase: '', sfSchema: '', sfRole: '' })
         )
       ).toBe(true)
+    })
+  })
+})
+
+describe('buildConnectionPayload', () => {
+  it('bigquery (adc): trims name/projectId and omits serviceAccountPath', () => {
+    const p = buildConnectionPayload(
+      makeFields({
+        engine: 'bigquery',
+        name: '  My Conn  ',
+        projectId: '  my-project  ',
+        credentialType: 'adc',
+        serviceAccountPath: '/some/path.json',
+      })
+    )
+    expect(p).toEqual({
+      engine: 'bigquery',
+      name: 'My Conn',
+      projectId: 'my-project',
+      credentialType: 'adc',
+      serviceAccountPath: undefined,
+    })
+  })
+
+  it('bigquery (service-account): includes the trimmed key path', () => {
+    const p = buildConnectionPayload(
+      makeFields({
+        engine: 'bigquery',
+        credentialType: 'service-account',
+        serviceAccountPath: '  /keys/sa.json  ',
+      })
+    )
+    expect(p).toMatchObject({
+      engine: 'bigquery',
+      credentialType: 'service-account',
+      serviceAccountPath: '/keys/sa.json',
+    })
+  })
+
+  it('postgres: coerces port to a number, trims fields, but preserves the password verbatim', () => {
+    const p = buildConnectionPayload(
+      makeFields({
+        engine: 'postgres',
+        host: '  db.example.com  ',
+        port: '5433',
+        pgDatabase: '  analytics  ',
+        pgUser: '  reader  ',
+        pgPassword: '  s3cret  ',
+      })
+    )
+    expect(p).toEqual({
+      engine: 'postgres',
+      name: 'My Conn',
+      host: 'db.example.com',
+      port: 5433,
+      database: 'analytics',
+      user: 'reader',
+      password: '  s3cret  ',
+    })
+  })
+
+  it('neo4j: maps a blank database to undefined and preserves the password verbatim', () => {
+    const p = buildConnectionPayload(
+      makeFields({
+        engine: 'neo4j',
+        neoUri: '  neo4j://localhost:7687  ',
+        neoUsername: '  neo4j  ',
+        neoPassword: '  p@ss  ',
+        neoDatabase: '   ',
+      })
+    )
+    expect(p).toEqual({
+      engine: 'neo4j',
+      name: 'My Conn',
+      uri: 'neo4j://localhost:7687',
+      username: 'neo4j',
+      password: '  p@ss  ',
+      database: undefined,
+    })
+  })
+
+  it('snowflake: trims the password and maps blank optional fields to undefined', () => {
+    const p = buildConnectionPayload(
+      makeFields({
+        engine: 'snowflake',
+        sfAccount: '  xy12345  ',
+        sfUsername: '  USER  ',
+        sfPassword: '  pw  ',
+        sfWarehouse: '  COMPUTE_WH  ',
+        sfDatabase: '   ',
+        sfSchema: '',
+        sfRole: '  SYSADMIN  ',
+      })
+    )
+    expect(p).toEqual({
+      engine: 'snowflake',
+      name: 'My Conn',
+      account: 'xy12345',
+      username: 'USER',
+      password: 'pw',
+      warehouse: 'COMPUTE_WH',
+      database: undefined,
+      schema: undefined,
+      role: 'SYSADMIN',
     })
   })
 })
