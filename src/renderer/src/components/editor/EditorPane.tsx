@@ -7,6 +7,13 @@ import QueryEditor from './QueryEditor'
 import LimitWarningBanner from './LimitWarningBanner'
 import ParamsPanel from './ParamsPanel'
 import type { CypherSchema } from '../../lib/cypherLanguage'
+import type { QueryParam } from '@shared/types'
+
+// Stable empty-array reference for the params fallback. Returning a fresh `[]`
+// from the useShallow selector below would make Object.is fail every render
+// (new array each call) → infinite re-render loop. A module-level constant keeps
+// the fallback referentially stable.
+const EMPTY_PARAMS: QueryParam[] = []
 
 interface EditorPaneProps {
   tabId: string
@@ -32,7 +39,7 @@ function EditorPane({ tabId, sqlSchema, cypherSchema, isSplit, onSplit, onSave }
         isExplaining: t?.isExplaining,
         savedQueryId: t?.savedQueryId,
         connectionId: t?.connectionId,
-        params: t?.params ?? [],
+        params: t?.params ?? EMPTY_PARAMS,
       }
     }),
   )
