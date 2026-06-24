@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { CHANNELS } from '@shared/ipc'
-import type { ConnectionEngine, QueryTab, QueryResult, ChartConfig } from '@shared/types'
+import type { ConnectionEngine, QueryTab, QueryResult, ChartConfig, QueryParam } from '@shared/types'
+import { extractParams } from '../lib/extractParams'
+import { substituteParams } from '../lib/substituteParams'
 
 export type GroupId = 'left' | 'right'
 
@@ -24,6 +26,8 @@ interface QueryState {
   closeTab: (id: string) => void
   setActiveTab: (id: string) => void
   updateTabSql: (id: string, sql: string) => void
+  setTabParams: (id: string, params: QueryParam[]) => void
+  syncTabParams: (id: string) => void
   runQuery: (id: string) => Promise<void>
   cancelQuery: (id: string) => Promise<void>
   explainQuery: (id: string) => Promise<void>
@@ -78,6 +82,12 @@ function normalizeGroups(
   if (!t.some((x) => x.groupId === fg)) fg = 'left'
 
   return { tabs: t, focusedGroup: fg, activeByGroup: nextAbg, activeTabId: nextAbg[fg] }
+}
+
+/** Recompute a tab's params from its SQL, preserving existing {type,value} by name. */
+function reconcileParams(sql: string, existing: QueryParam[] | undefined): QueryParam[] {
+  const prev = new Map((existing ?? []).map((p) => [p.name, p]))
+  return extractParams(sql).map((name) => prev.get(name) ?? { name, type: 'text', value: '' })
 }
 
 export const useQueryStore = create<QueryState>((set, get) => ({
@@ -205,12 +215,38 @@ export const useQueryStore = create<QueryState>((set, get) => ({
   },
 
   updateTabSql: (id, sql) => {
-    set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, sql } : t)) }))
+    set((s) => ({
+      tabs: s.tabs.map((t) =>
+        t.id === id ? { ...t, sql, params: reconcileParams(sql, t.params) } : t,
+      ),
+    }))
+  },
+
+  setTabParams: (id, params) => {
+    set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, params } : t)) }))
+  },
+
+  syncTabParams: (id) => {
+    set((s) => ({
+      tabs: s.tabs.map((t) =>
+        t.id === id ? { ...t, params: reconcileParams(t.sql, t.params) } : t,
+      ),
+    }))
   },
 
   runQuery: async (id) => {
     const tab = get().tabs.find((t) => t.id === id)
     if (!tab || !tab.connectionId || !tab.sql.trim()) return
+
+    const sub = substituteParams(tab.sql, tab.params ?? [])
+    if ('error' in sub) {
+      set((s) => ({
+        tabs: s.tabs.map((t) =>
+          t.id === id ? { ...t, error: sub.error, result: undefined, cancelled: false } : t,
+        ),
+      }))
+      return
+    }
 
     set((s) => ({
       tabs: s.tabs.map((t) =>
@@ -222,7 +258,7 @@ export const useQueryStore = create<QueryState>((set, get) => ({
 
     try {
       const result: QueryResult = await window.api.invoke(CHANNELS.QUERY_EXECUTE, {
-        connectionId: tab.connectionId, sql: tab.sql, tabId: id,
+        connectionId: tab.connectionId, sql: sub.sql, tabId: id,
       })
       set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, isRunning: false, result } : t)) }))
     } catch (err) {
@@ -248,13 +284,21 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     const tab = get().tabs.find((t) => t.id === id)
     if (!tab || !tab.connectionId || !tab.sql.trim()) return
 
+    const sub = substituteParams(tab.sql, tab.params ?? [])
+    if ('error' in sub) {
+      set((s) => ({
+        tabs: s.tabs.map((t) => (t.id === id ? { ...t, error: sub.error, isExplaining: false } : t)),
+      }))
+      return
+    }
+
     set((s) => ({
       tabs: s.tabs.map((t) => (t.id === id ? { ...t, isExplaining: true, explainResult: undefined } : t))
     }))
 
     try {
       const result = await window.api.invoke(CHANNELS.QUERY_DRY_RUN, {
-        connectionId: tab.connectionId, sql: tab.sql,
+        connectionId: tab.connectionId, sql: sub.sql,
       })
       set((s) => ({
         tabs: s.tabs.map((t) => (t.id === id ? { ...t, isExplaining: false, explainResult: result } : t))

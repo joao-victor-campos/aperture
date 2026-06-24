@@ -575,3 +575,97 @@ describe('queryStore', () => {
     })
   })
 })
+
+describe('query params', () => {
+  it('updateTabSql adds detected params with text default', () => {
+    const id = useQueryStore.getState().openTab({ connectionId: 'c1' })
+    useQueryStore.getState().updateTabSql(id, 'SELECT * WHERE a = {{country}}')
+    const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+    expect(tab.params).toEqual([{ name: 'country', type: 'text', value: '' }])
+  })
+
+  it('updateTabSql preserves existing value/type by name and drops removed', () => {
+    const id = useQueryStore.getState().openTab({ connectionId: 'c1' })
+    useQueryStore.getState().updateTabSql(id, 'WHERE a = {{a}} AND b = {{b}}')
+    useQueryStore.getState().setTabParams(id, [
+      { name: 'a', type: 'number', value: '5' },
+      { name: 'b', type: 'text', value: 'x' },
+    ])
+    useQueryStore.getState().updateTabSql(id, 'WHERE a = {{a}}')
+    const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+    expect(tab.params).toEqual([{ name: 'a', type: 'number', value: '5' }])
+  })
+
+  it('setTabParams replaces the param array for the tab', () => {
+    const id = useQueryStore.getState().openTab({ connectionId: 'c1' })
+    useQueryStore.getState().updateTabSql(id, 'WHERE a = {{a}}')
+    useQueryStore.getState().setTabParams(id, [{ name: 'a', type: 'boolean', value: 'true' }])
+    const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+    expect(tab.params).toEqual([{ name: 'a', type: 'boolean', value: 'true' }])
+  })
+
+  it('syncTabParams reconciles params from current sql, preserving seeded values', () => {
+    const id = useQueryStore.getState().openTab({
+      connectionId: 'c1',
+      sql: 'WHERE a = {{a}} AND b = {{b}}',
+      params: [{ name: 'a', type: 'number', value: '9' }],
+    })
+    useQueryStore.getState().syncTabParams(id)
+    const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+    expect(tab.params).toEqual([
+      { name: 'a', type: 'number', value: '9' },
+      { name: 'b', type: 'text', value: '' },
+    ])
+  })
+
+  it('runQuery sends substituted SQL through QUERY_EXECUTE', async () => {
+    const invokeMock = vi.mocked(window.api.invoke)
+    invokeMock.mockResolvedValue({ columns: [], rows: [] } as never)
+    const id = useQueryStore.getState().openTab({ connectionId: 'c1' })
+    useQueryStore.getState().updateTabSql(id, 'SELECT * WHERE c = {{c}}')
+    useQueryStore.getState().setTabParams(id, [{ name: 'c', type: 'text', value: 'US' }])
+    await useQueryStore.getState().runQuery(id)
+    expect(invokeMock).toHaveBeenCalledWith(
+      CHANNELS.QUERY_EXECUTE,
+      expect.objectContaining({ sql: "SELECT * WHERE c = 'US'", connectionId: 'c1', tabId: id }),
+    )
+  })
+
+  it('runQuery blocks (sets error, no IPC) when a value is missing', async () => {
+    const invokeMock = vi.mocked(window.api.invoke)
+    invokeMock.mockClear()
+    const id = useQueryStore.getState().openTab({ connectionId: 'c1' })
+    useQueryStore.getState().updateTabSql(id, 'SELECT * WHERE c = {{c}}')
+    await useQueryStore.getState().runQuery(id)
+    const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+    expect(tab.error).toBe('Fill in {{c}} before running.')
+    expect(invokeMock).not.toHaveBeenCalled()
+  })
+
+  it('explainQuery sends substituted SQL through QUERY_DRY_RUN', async () => {
+    const invokeMock = vi.mocked(window.api.invoke)
+    invokeMock.mockResolvedValue({ bytesProcessed: 0 } as never)
+    const id = useQueryStore.getState().openTab({ connectionId: 'c1' })
+    useQueryStore.getState().updateTabSql(id, 'SELECT {{n}}')
+    useQueryStore.getState().setTabParams(id, [{ name: 'n', type: 'number', value: '7' }])
+    await useQueryStore.getState().explainQuery(id)
+    expect(invokeMock).toHaveBeenCalledWith(
+      CHANNELS.QUERY_DRY_RUN,
+      expect.objectContaining({ sql: 'SELECT 7', connectionId: 'c1' }),
+    )
+  })
+
+  it('opening a tab with seeded params + sql reconciles via syncTabParams', () => {
+    const id = useQueryStore.getState().openTab({
+      connectionId: 'c1',
+      sql: 'WHERE a = {{a}} AND b = {{b}}',
+      params: [{ name: 'a', type: 'number', value: '3' }],
+    })
+    useQueryStore.getState().syncTabParams(id)
+    const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+    expect(tab.params).toEqual([
+      { name: 'a', type: 'number', value: '3' },
+      { name: 'b', type: 'text', value: '' },
+    ])
+  })
+})

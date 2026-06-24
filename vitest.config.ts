@@ -2,6 +2,10 @@ import { defineConfig } from 'vitest/config'
 import { resolve } from 'path'
 
 export default defineConfig({
+  // Use React's automatic JSX runtime so component tests (.tsx) don't need a
+  // `React` import; mirrors how the renderer itself is built.
+  esbuild: { jsx: 'automatic', jsxImportSource: 'react' },
+
   test: {
     globals: true,
     clearMocks: true, // auto-clear mock call history between tests (keeps implementations)

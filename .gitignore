@@ -10,3 +10,4 @@ coverage/
 CLAUDE.md
 .env.example
 .superpowers/
+docs/superpowers/

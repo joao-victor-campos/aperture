@@ -180,6 +180,13 @@ export interface ChartConfig {
   aggregate: ChartAggregate
 }
 
+/** A query parameter ({{name}}) and its current value/type for client-side substitution. */
+export interface QueryParam {
+  name: string
+  type: 'text' | 'number' | 'boolean' | 'raw'
+  value: string
+}
+
 export interface QueryTab {
   id: string
   /** Which editor group this tab belongs to. Defaults to 'left'. */
@@ -188,6 +195,8 @@ export interface QueryTab {
   type?: 'query' | 'table' | 'result'
   title: string
   sql: string
+  /** Detected {{name}} params for this tab, kept in sync with `sql`. */
+  params?: QueryParam[]
   connectionId?: string
   /** Populated when type === 'table' */
   tableRef?: { engine: ConnectionEngine; projectId: string; datasetId: string; tableId: string }
@@ -213,6 +222,8 @@ export interface SavedQuery {
   folderId: string | null
   title: string
   sql: string
+  /** Persisted param types + default values, restored when the query is reopened. */
+  params?: QueryParam[]
   connectionId?: string
   createdAt: string
   updatedAt: string
