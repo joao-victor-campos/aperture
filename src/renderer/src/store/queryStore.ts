@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { CHANNELS } from '@shared/ipc'
 import type { ConnectionEngine, QueryTab, QueryResult, ChartConfig, QueryParam } from '@shared/types'
 import { extractParams } from '../lib/extractParams'
+import { substituteParams } from '../lib/substituteParams'
 
 export type GroupId = 'left' | 'right'
 
@@ -237,6 +238,16 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     const tab = get().tabs.find((t) => t.id === id)
     if (!tab || !tab.connectionId || !tab.sql.trim()) return
 
+    const sub = substituteParams(tab.sql, tab.params ?? [])
+    if ('error' in sub) {
+      set((s) => ({
+        tabs: s.tabs.map((t) =>
+          t.id === id ? { ...t, error: sub.error, result: undefined, cancelled: false } : t,
+        ),
+      }))
+      return
+    }
+
     set((s) => ({
       tabs: s.tabs.map((t) =>
         t.id === id
@@ -247,7 +258,7 @@ export const useQueryStore = create<QueryState>((set, get) => ({
 
     try {
       const result: QueryResult = await window.api.invoke(CHANNELS.QUERY_EXECUTE, {
-        connectionId: tab.connectionId, sql: tab.sql, tabId: id,
+        connectionId: tab.connectionId, sql: sub.sql, tabId: id,
       })
       set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, isRunning: false, result } : t)) }))
     } catch (err) {
@@ -273,13 +284,21 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     const tab = get().tabs.find((t) => t.id === id)
     if (!tab || !tab.connectionId || !tab.sql.trim()) return
 
+    const sub = substituteParams(tab.sql, tab.params ?? [])
+    if ('error' in sub) {
+      set((s) => ({
+        tabs: s.tabs.map((t) => (t.id === id ? { ...t, error: sub.error, isExplaining: false } : t)),
+      }))
+      return
+    }
+
     set((s) => ({
       tabs: s.tabs.map((t) => (t.id === id ? { ...t, isExplaining: true, explainResult: undefined } : t))
     }))
 
     try {
       const result = await window.api.invoke(CHANNELS.QUERY_DRY_RUN, {
-        connectionId: tab.connectionId, sql: tab.sql,
+        connectionId: tab.connectionId, sql: sub.sql,
       })
       set((s) => ({
         tabs: s.tabs.map((t) => (t.id === id ? { ...t, isExplaining: false, explainResult: result } : t))

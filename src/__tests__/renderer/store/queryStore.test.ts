@@ -617,4 +617,41 @@ describe('query params', () => {
       { name: 'b', type: 'text', value: '' },
     ])
   })
+
+  it('runQuery sends substituted SQL through QUERY_EXECUTE', async () => {
+    const invokeMock = vi.mocked(window.api.invoke)
+    invokeMock.mockResolvedValue({ columns: [], rows: [] } as never)
+    const id = useQueryStore.getState().openTab({ connectionId: 'c1' })
+    useQueryStore.getState().updateTabSql(id, 'SELECT * WHERE c = {{c}}')
+    useQueryStore.getState().setTabParams(id, [{ name: 'c', type: 'text', value: 'US' }])
+    await useQueryStore.getState().runQuery(id)
+    expect(invokeMock).toHaveBeenCalledWith(
+      CHANNELS.QUERY_EXECUTE,
+      expect.objectContaining({ sql: "SELECT * WHERE c = 'US'", connectionId: 'c1', tabId: id }),
+    )
+  })
+
+  it('runQuery blocks (sets error, no IPC) when a value is missing', async () => {
+    const invokeMock = vi.mocked(window.api.invoke)
+    invokeMock.mockClear()
+    const id = useQueryStore.getState().openTab({ connectionId: 'c1' })
+    useQueryStore.getState().updateTabSql(id, 'SELECT * WHERE c = {{c}}')
+    await useQueryStore.getState().runQuery(id)
+    const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+    expect(tab.error).toBe('Fill in {{c}} before running.')
+    expect(invokeMock).not.toHaveBeenCalled()
+  })
+
+  it('explainQuery sends substituted SQL through QUERY_DRY_RUN', async () => {
+    const invokeMock = vi.mocked(window.api.invoke)
+    invokeMock.mockResolvedValue({ bytesProcessed: 0 } as never)
+    const id = useQueryStore.getState().openTab({ connectionId: 'c1' })
+    useQueryStore.getState().updateTabSql(id, 'SELECT {{n}}')
+    useQueryStore.getState().setTabParams(id, [{ name: 'n', type: 'number', value: '7' }])
+    await useQueryStore.getState().explainQuery(id)
+    expect(invokeMock).toHaveBeenCalledWith(
+      CHANNELS.QUERY_DRY_RUN,
+      expect.objectContaining({ sql: 'SELECT 7', connectionId: 'c1' }),
+    )
+  })
 })
