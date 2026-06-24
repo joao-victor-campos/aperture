@@ -5,6 +5,7 @@ import { useConnectionStore } from '../../store/connectionStore'
 import { detectMissingLimit } from '../../lib/detectMissingLimit'
 import QueryEditor from './QueryEditor'
 import LimitWarningBanner from './LimitWarningBanner'
+import ParamsPanel from './ParamsPanel'
 import type { CypherSchema } from '../../lib/cypherLanguage'
 
 interface EditorPaneProps {
@@ -22,7 +23,7 @@ interface EditorPaneProps {
  * engines each get the right language/dialect.
  */
 function EditorPane({ tabId, sqlSchema, cypherSchema, isSplit, onSplit, onSave }: EditorPaneProps) {
-  const { sql, isRunning, isExplaining, savedQueryId, connectionId } = useQueryStore(
+  const { sql, isRunning, isExplaining, savedQueryId, connectionId, params } = useQueryStore(
     useShallow((s) => {
       const t = s.tabs.find((x) => x.id === tabId)
       return {
@@ -31,6 +32,7 @@ function EditorPane({ tabId, sqlSchema, cypherSchema, isSplit, onSplit, onSave }
         isExplaining: t?.isExplaining,
         savedQueryId: t?.savedQueryId,
         connectionId: t?.connectionId,
+        params: t?.params ?? [],
       }
     }),
   )
@@ -40,6 +42,7 @@ function EditorPane({ tabId, sqlSchema, cypherSchema, isSplit, onSplit, onSave }
   const explainQuery = useQueryStore((s) => s.explainQuery)
   const clearExplain = useQueryStore((s) => s.clearExplain)
   const setTabConnection = useQueryStore((s) => s.setTabConnection)
+  const setTabParams = useQueryStore((s) => s.setTabParams)
 
   const connections = useConnectionStore((s) => s.connections)
   const pickerConnections = useMemo(
@@ -99,6 +102,9 @@ function EditorPane({ tabId, sqlSchema, cypherSchema, isSplit, onSplit, onSave }
         connectionId={connectionId}
         onConnectionChange={handleConnectionChange}
       />
+      {params.length > 0 && (
+        <ParamsPanel params={params} onChange={(next) => setTabParams(tabId, next)} />
+      )}
       {showLimitWarning && (
         <LimitWarningBanner
           onRunAnyway={handleRunAnyway}
