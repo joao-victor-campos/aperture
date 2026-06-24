@@ -26,7 +26,10 @@ export default function ParamsPanel({ params, onChange }: ParamsPanelProps) {
             </code>
             <select
               value={p.type}
-              onChange={(e) => update(p.name, { type: e.target.value as QueryParam['type'] })}
+              onChange={(e) => {
+                const type = e.target.value as QueryParam['type']
+                update(p.name, type === 'boolean' && p.value.trim() === '' ? { type, value: 'true' } : { type })
+              }}
               className="text-xs px-1.5 py-1 rounded border border-app-border bg-app-surface text-app-text-2 focus:ring-1 focus:ring-app-accent/30 outline-none"
             >
               {TYPES.map((t) => (
