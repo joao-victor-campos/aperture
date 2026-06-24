@@ -7,10 +7,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ---
 ## [Unreleased]
 
+---
+## [3.2.0] - 2026-06-24
+
 ### Added
 - Query parameters: write `{{name}}` placeholders, fill values in an inputs panel (Text /
   Number / Boolean / Raw), and run with type-aware substitution. Types and values persist
-  with saved queries.
+  with saved queries. Missing or invalid parameter values are now flagged inline at the
+  input (and Run/Explain is blocked) instead of surfacing as a query error in the results
+  panel.
 
 ### Changed
 - Internal: de-duplicated the database adapter query lifecycle (heartbeat, 180s timeout, cancellation, concurrency) into a shared `queryRuntime` module. No user-facing behavior change except a unified "still running" progress label across all four engines.
