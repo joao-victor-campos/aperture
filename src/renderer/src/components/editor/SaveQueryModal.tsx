@@ -32,6 +32,7 @@ export default function SaveQueryModal({ tabId, onClose }: SaveQueryModalProps) 
         sql: tab.sql,
         connectionId: tab.connectionId,
         folderId,
+        params: tab.params,
       })
       // Update the tab with the saved query info
       useQueryStore.setState((s) => ({

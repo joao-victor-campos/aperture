@@ -10,7 +10,7 @@ import type { SavedQuery, Folder as FolderType } from '@shared/types'
 export default function SavedQueriesPanel() {
   const { queries, folders, load, createFolder, renameFolder, deleteFolder, deleteQuery } =
     useSavedQueryStore()
-  const { openTab } = useQueryStore()
+  const { openTab, syncTabParams } = useQueryStore()
   const [search, setSearch] = useState('')
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null)
@@ -33,7 +33,14 @@ export default function SavedQueriesPanel() {
   }
 
   const handleOpenQuery = (sq: SavedQuery) => {
-    openTab({ title: sq.title, sql: sq.sql, connectionId: sq.connectionId, savedQueryId: sq.id })
+    const id = openTab({
+      title: sq.title,
+      sql: sq.sql,
+      connectionId: sq.connectionId,
+      savedQueryId: sq.id,
+      params: sq.params,
+    })
+    syncTabParams(id)
   }
 
   const handleCreateFolder = async () => {

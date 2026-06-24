@@ -654,4 +654,18 @@ describe('query params', () => {
       expect.objectContaining({ sql: 'SELECT 7', connectionId: 'c1' }),
     )
   })
+
+  it('opening a tab with seeded params + sql reconciles via syncTabParams', () => {
+    const id = useQueryStore.getState().openTab({
+      connectionId: 'c1',
+      sql: 'WHERE a = {{a}} AND b = {{b}}',
+      params: [{ name: 'a', type: 'number', value: '3' }],
+    })
+    useQueryStore.getState().syncTabParams(id)
+    const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+    expect(tab.params).toEqual([
+      { name: 'a', type: 'number', value: '3' },
+      { name: 'b', type: 'text', value: '' },
+    ])
+  })
 })
