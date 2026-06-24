@@ -1,18 +1,11 @@
 import { Play, X } from 'lucide-react'
+import { formatBytes } from '@shared/formatBytes'
 
 interface Props {
   sql: string
   bytesProcessed: number
   onApprove: () => void
   onReject: () => void
-}
-
-function formatBytes(n: number): string {
-  if (!n) return 'unknown'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  let v = n, i = 0
-  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++ }
-  return `${v.toFixed(1)} ${units[i]}`
 }
 
 export default function RunConfirmCard({ sql, bytesProcessed, onApprove, onReject }: Props) {
