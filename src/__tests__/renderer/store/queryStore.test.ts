@@ -575,3 +575,46 @@ describe('queryStore', () => {
     })
   })
 })
+
+describe('query params', () => {
+  it('updateTabSql adds detected params with text default', () => {
+    const id = useQueryStore.getState().openTab({ connectionId: 'c1' })
+    useQueryStore.getState().updateTabSql(id, 'SELECT * WHERE a = {{country}}')
+    const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+    expect(tab.params).toEqual([{ name: 'country', type: 'text', value: '' }])
+  })
+
+  it('updateTabSql preserves existing value/type by name and drops removed', () => {
+    const id = useQueryStore.getState().openTab({ connectionId: 'c1' })
+    useQueryStore.getState().updateTabSql(id, 'WHERE a = {{a}} AND b = {{b}}')
+    useQueryStore.getState().setTabParams(id, [
+      { name: 'a', type: 'number', value: '5' },
+      { name: 'b', type: 'text', value: 'x' },
+    ])
+    useQueryStore.getState().updateTabSql(id, 'WHERE a = {{a}}')
+    const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+    expect(tab.params).toEqual([{ name: 'a', type: 'number', value: '5' }])
+  })
+
+  it('setTabParams replaces the param array for the tab', () => {
+    const id = useQueryStore.getState().openTab({ connectionId: 'c1' })
+    useQueryStore.getState().updateTabSql(id, 'WHERE a = {{a}}')
+    useQueryStore.getState().setTabParams(id, [{ name: 'a', type: 'boolean', value: 'true' }])
+    const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+    expect(tab.params).toEqual([{ name: 'a', type: 'boolean', value: 'true' }])
+  })
+
+  it('syncTabParams reconciles params from current sql, preserving seeded values', () => {
+    const id = useQueryStore.getState().openTab({
+      connectionId: 'c1',
+      sql: 'WHERE a = {{a}} AND b = {{b}}',
+      params: [{ name: 'a', type: 'number', value: '9' }],
+    })
+    useQueryStore.getState().syncTabParams(id)
+    const tab = useQueryStore.getState().tabs.find((t) => t.id === id)!
+    expect(tab.params).toEqual([
+      { name: 'a', type: 'number', value: '9' },
+      { name: 'b', type: 'text', value: '' },
+    ])
+  })
+})
