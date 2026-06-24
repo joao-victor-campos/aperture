@@ -17,6 +17,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
   input (and Run/Explain is blocked) instead of surfacing as a query error in the results
   panel.
 
+### Fixed
+- The editor's **Unsplit** button now actually merges the two groups back into one. It
+  previously re-ran the split action, spawning another empty tab in the right group instead
+  of collapsing the split.
+
 ### Changed
 - Internal: de-duplicated the database adapter query lifecycle (heartbeat, 180s timeout, cancellation, concurrency) into a shared `queryRuntime` module. No user-facing behavior change except a unified "still running" progress label across all four engines.
 - Internal: decomposed the 607-line `ResultsTable` into focused units (toolbar, filter/sort bar, virtualized grid, pagination, state views) plus `formatCell`/`formatBytes` helpers. No behavior change.

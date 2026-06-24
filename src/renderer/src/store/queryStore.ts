@@ -40,6 +40,7 @@ interface QueryState {
   focusGroup: (group: GroupId) => void
   moveTabToGroup: (tabId: string, target: GroupId, beforeId?: string) => void
   splitGroup: () => void
+  unsplitGroups: () => void
   setTabConnection: (tabId: string, connectionId: string) => void
 }
 
@@ -207,6 +208,17 @@ export const useQueryStore = create<QueryState>((set, get) => ({
         groupId: 'right', connectionId: inheritConn,
       }
       return normalizeGroups([...s.tabs, tab], 'right', { ...s.activeByGroup, right: id })
+    })
+  },
+  unsplitGroups: () => {
+    set((s) => {
+      // Merge the right group back into the left. Preserve the currently
+      // focused tab as the active one so the user keeps looking at the same tab.
+      const focusedActive = s.activeByGroup[s.focusedGroup]
+      const tabs = s.tabs.map((t) =>
+        t.groupId === 'right' ? { ...t, groupId: 'left' as GroupId } : t,
+      )
+      return normalizeGroups(tabs, 'left', { left: focusedActive, right: null })
     })
   },
 

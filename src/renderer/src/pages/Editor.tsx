@@ -22,6 +22,7 @@ export default function Editor() {
   const focusGroup = useQueryStore((s) => s.focusGroup)
   const moveTabToGroup = useQueryStore((s) => s.moveTabToGroup)
   const splitGroup = useQueryStore((s) => s.splitGroup)
+  const unsplitGroups = useQueryStore((s) => s.unsplitGroups)
 
   const dragTabId = useRef<string | null>(null)
   const { connections, activeConnectionId, setActive } = useConnectionStore()
@@ -260,7 +261,7 @@ export default function Editor() {
                   sqlSchema={sqlSchema}
                   cypherSchema={cypherSchema}
                   isSplit={rightExists}
-                  onSplit={splitGroup}
+                  onSplit={rightExists ? unsplitGroups : splitGroup}
                   onSave={handleSave}
                 />
               </div>
