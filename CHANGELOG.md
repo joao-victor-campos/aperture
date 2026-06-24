@@ -8,6 +8,9 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Query parameters: write `{{name}}` placeholders, fill values in an inputs panel (Text /
+  Number / Boolean / Raw), and run with type-aware substitution. Types and values persist
+  with saved queries.
 - **Catalog warm-up** — when you connect, Aperture pre-indexes every dataset in the background (`getDatasetColumns` bulk fetch + `CATALOG_DATASET_COLUMNS` IPC channel, concurrency-capped at 5). The sidebar "Search tables…" box now finds tables in unexpanded datasets immediately, and the SQL/Cypher editor offers table and column completions from the full catalog without needing to open a table first. An "Indexing catalog…" hint appears while warm-up is running; click the Refresh (↺) icon to force a re-index. Datasets that fail (permissions, regional restrictions) are silently skipped.
 - Multi-connection split view: the editor splits into two groups, each with its own connection. Drag tabs between groups; each tab carries its own connection and has a connection picker in its toolbar.
 - Copy query results to the clipboard as TSV (respects the current filters and sort), alongside the existing CSV/TSV/JSON file export.

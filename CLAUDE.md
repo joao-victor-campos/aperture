@@ -148,6 +148,35 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-06-24] Feature: Query parameters (`{{name}}`)
+
+**Type:** Change
+**Context:** Users writing reusable queries had to manually substitute literal values for each run, with no structured way to parameterize SQL. The spec (`docs/superpowers/specs/`) and plan called for a client-side substitution approach that required no IPC or main-process changes — adapters receive the already-substituted SQL string, and `SAVED_QUERY_SAVE`/`UPDATE` handlers spread `...req` so `params` persists with no main-process edit.
+**Problem / Change:** No way to express reusable `{{name}}` placeholders in SQL, fill typed values in the UI, or persist those values with a saved query.
+**Solution / Outcome:**
+- **`extractParams.ts`** (new, pure): scans SQL text for `{{name}}` placeholders, ignoring comments (`--`, `/* */`) and string literals, returning a deduped ordered array of names. 9 unit tests.
+- **`substituteParams.ts`** (new, pure): takes a SQL string + `QueryParam[]`, substitutes each placeholder with a type-aware formatted value — Text: single-quoted and escaped; Number: verbatim (blocks on non-numeric input); Boolean: lowercased `true`/`false` (blocks on non-boolean); Raw: verbatim (empty allowed). Returns `{ sql }` on success or `{ error }` on missing value, invalid number, or invalid boolean. 11 unit tests.
+- **`queryStore`**: module-level `reconcileParams(existing, detected)` preserves known params by name (retaining type/value) and adds new ones (type `'text'`, value `''`). `updateTabSql` runs `extractParams` + `reconcileParams` on every SQL edit so `tab.params` stays live in sync. New `setTabParams(id, params)` and `syncTabParams(id, params)` actions. `runQuery` and `explainQuery` call `substituteParams` before sending to IPC; on substitution error they set `tab.error` and abort without making any IPC call. 8 new tests in a `query params` block.
+- **`ParamsPanel.tsx`** (new): renders an input row per parameter with a name label, a type select (Text / Number / Boolean / Raw), and a value input (boolean uses a true/false select). Boolean default normalizes to `'true'` on type switch. Wired into `EditorPane` above the limit-warning banner; shown only when `tab.params.length > 0`.
+- **Persistence**: `QueryParam[]` added to `QueryTab` and `SavedQuery` in `src/shared/types.ts`. `SaveQueryModal` passes `tab.params` on save; `Editor.tsx` passes `tab.params` on update-save. `SavedQueriesPanel` seeds `params` from the saved query and calls `syncTabParams` to reconcile against the current SQL on open.
+
+**Files affected:**
+- `src/shared/types.ts` — `QueryParam` type + `params` on `QueryTab`/`SavedQuery`
+- `src/renderer/src/lib/extractParams.ts` — created
+- `src/renderer/src/lib/substituteParams.ts` — created
+- `src/renderer/src/store/queryStore.ts` — `reconcileParams`, `setTabParams`/`syncTabParams`, `updateTabSql` sync, `runQuery`/`explainQuery` substitution + block-on-error
+- `src/renderer/src/components/editor/ParamsPanel.tsx` — created
+- `src/renderer/src/components/editor/EditorPane.tsx` — render `ParamsPanel`
+- `src/renderer/src/components/editor/SaveQueryModal.tsx` — persist `params` on save
+- `src/renderer/src/pages/Editor.tsx` — persist `params` on update-save
+- `src/renderer/src/components/saved/SavedQueriesPanel.tsx` — seed + sync `params` on open
+- `src/__tests__/renderer/lib/extractParams.test.ts` — created (9 tests)
+- `src/__tests__/renderer/lib/substituteParams.test.ts` — created (11 tests)
+- `src/__tests__/renderer/store/queryStore.test.ts` — extended (`query params` block, 8 tests)
+- `README.md`, `CHANGELOG.md` — docs
+
+---
+
 ### [2026-06-23] Refactor: Extract TableDetailPanel schema helpers + fix BigQuery preview formatting
 
 **Type:** Change

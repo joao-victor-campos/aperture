@@ -223,6 +223,18 @@ catalog still loads.
 
 ---
 
+## Query editor
+
+### Query parameters
+
+Write `{{name}}` anywhere in a query to turn it into a reusable parameter. An inputs
+panel appears above the results with one row per parameter — pick a type (Text, Number,
+Boolean, or Raw) and enter a value. Values are substituted into the SQL when you Run or
+Explain. Text values are quoted and escaped; Raw is inserted verbatim (for identifiers or
+`IN (...)` lists). Saving a query remembers each parameter's type and last value.
+
+---
+
 ## Installation
 
 ### Download from GitHub Releases (recommended)
