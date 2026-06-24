@@ -93,7 +93,7 @@ const CommandPalette = forwardRef<CommandPaletteHandle, CommandPaletteProps>(fun
   const { connections, activeConnectionId, setActive } = useConnectionStore()
   const { queries: savedQueries } = useSavedQueryStore()
   const { entries: historyEntries } = useHistoryStore()
-  const { tabs, activeTabId, openTab, openTableTab, runQuery, cancelQuery } = useQueryStore()
+  const { tabs, activeTabId, openTab, openTableTab, runQuery, cancelQuery, syncTabParams } = useQueryStore()
   const { datasetsByConnection, tablesByDataset } = useCatalogStore()
 
   const activeConn = connections.find((c) => c.id === activeConnectionId)
@@ -221,12 +221,14 @@ const CommandPalette = forwardRef<CommandPaletteHandle, CommandPaletteProps>(fun
           searchText: `${s.title} ${s.sql}`.toLowerCase(),
           icon: 'bookmark',
           action: () => {
-            openTab({
+            const id = openTab({
               sql: s.sql,
               connectionId: s.connectionId ?? activeConnectionId ?? undefined,
               title: s.title,
               savedQueryId: s.id,
+              params: s.params,
             })
+            syncTabParams(id)
           },
         })
       }

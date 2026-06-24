@@ -107,7 +107,7 @@ export default function Editor() {
       const { queries } = useSavedQueryStore.getState()
       const existing = queries.find((q) => q.id === tab.savedQueryId)
       if (existing) {
-        await updateQuery({ ...existing, sql: tab.sql, params: tab.params })
+        await updateQuery({ ...existing, sql: tab.sql, params: tab.params ?? existing.params })
         setSavedFlash(true)
         if (savedFlashTimerRef.current) clearTimeout(savedFlashTimerRef.current)
         savedFlashTimerRef.current = setTimeout(() => setSavedFlash(false), 1500)
