@@ -7,25 +7,47 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ---
 ## [Unreleased]
 
+---
+## [3.2.0] - 2026-06-24
+
 ### Added
 - Query parameters: write `{{name}}` placeholders, fill values in an inputs panel (Text /
   Number / Boolean / Raw), and run with type-aware substitution. Types and values persist
-  with saved queries.
-- **Catalog warm-up** — when you connect, Aperture pre-indexes every dataset in the background (`getDatasetColumns` bulk fetch + `CATALOG_DATASET_COLUMNS` IPC channel, concurrency-capped at 5). The sidebar "Search tables…" box now finds tables in unexpanded datasets immediately, and the SQL/Cypher editor offers table and column completions from the full catalog without needing to open a table first. An "Indexing catalog…" hint appears while warm-up is running; click the Refresh (↺) icon to force a re-index. Datasets that fail (permissions, regional restrictions) are silently skipped.
-- Multi-connection split view: the editor splits into two groups, each with its own connection. Drag tabs between groups; each tab carries its own connection and has a connection picker in its toolbar.
-- Copy query results to the clipboard as TSV (respects the current filters and sort), alongside the existing CSV/TSV/JSON file export.
-- Chart view for results: visualize any result as a bar, line, or scatter chart with X/Y axis selection and an optional aggregation (sum/avg/count/min/max) grouped by the X column.
-- AI inline autocomplete: opt-in Copilot-style ghost-text suggestions in the SQL/Cypher editor, powered by a fast model (Anthropic Haiku), schema- and dialect-aware. Tab to accept; toggle in Settings → AI or the editor toolbar.
-- AI chat companion: agentic assistant (Anthropic) that explores the active connection's catalog, drafts SQL into tabs, and runs queries with per-run confirmation. Multiple saved threads. Configure your API key + model in Settings → AI.
+  with saved queries. Missing or invalid parameter values are now flagged inline at the
+  input (and Run/Explain is blocked) instead of surfacing as a query error in the results
+  panel.
+
+### Fixed
+- The editor's **Unsplit** button now actually merges the two groups back into one. It
+  previously re-ran the split action, spawning another empty tab in the right group instead
+  of collapsing the split.
 
 ### Changed
-- The editor split now spans two independent connections (replaces the previous same-connection two-pane split). The catalog sidebar follows whichever editor group is focused.
 - Internal: de-duplicated the database adapter query lifecycle (heartbeat, 180s timeout, cancellation, concurrency) into a shared `queryRuntime` module. No user-facing behavior change except a unified "still running" progress label across all four engines.
 - Internal: decomposed the 607-line `ResultsTable` into focused units (toolbar, filter/sort bar, virtualized grid, pagination, state views) plus `formatCell`/`formatBytes` helpers. No behavior change.
 - Internal: decomposed the most-churned `TitleBar` into focused units (`ConnectionMenu`, `TitleBarActions`, `StatusDot`) plus `connectionMeta` helpers. No behavior change.
 
 ### Fixed
 - Results table column resize now works correctly when the columns are narrower than the panel. Previously the table's `min-width: 100%` made `table-layout: fixed` redistribute the leftover space across all columns, so dragging a column border fought the redistribution (the column wouldn't shrink, and adjacent columns appeared to drift apart). A flexible trailing spacer column now absorbs the leftover width, so each column honors its exact dragged width while the table still fills the panel.
+
+---
+## [3.1.0] - 2026-06-22
+
+### Added
+- **Catalog warm-up** — when you connect, Aperture pre-indexes every dataset in the background (`getDatasetColumns` bulk fetch + `CATALOG_DATASET_COLUMNS` IPC channel, concurrency-capped at 5). The sidebar "Search tables…" box now finds tables in unexpanded datasets immediately, and the SQL/Cypher editor offers table and column completions from the full catalog without needing to open a table first. An "Indexing catalog…" hint appears while warm-up is running; click the Refresh (↺) icon to force a re-index. Datasets that fail (permissions, regional restrictions) are silently skipped.
+- Multi-connection split view: the editor splits into two groups, each with its own connection. Drag tabs between groups; each tab carries its own connection and has a connection picker in its toolbar.
+- Chart view for results: visualize any result as a bar, line, or scatter chart with X/Y axis selection and an optional aggregation (sum/avg/count/min/max) grouped by the X column.
+- Copy query results to the clipboard as TSV (respects the current filters and sort), alongside the existing CSV/TSV/JSON file export.
+
+### Changed
+- The editor split now spans two independent connections (replaces the previous same-connection two-pane split). The catalog sidebar follows whichever editor group is focused.
+
+---
+## [3.0.0] - 2026-06-19
+
+### Added
+- AI inline autocomplete: opt-in Copilot-style ghost-text suggestions in the SQL/Cypher editor, powered by a fast model (Anthropic Haiku), schema- and dialect-aware. Tab to accept; toggle in Settings → AI or the editor toolbar.
+- AI chat companion: agentic assistant (Anthropic) that explores the active connection's catalog, drafts SQL into tabs, and runs queries with per-run confirmation. Multiple saved threads. Configure your API key + model in Settings → AI.
 
 ---
 ## [2.4.0] - 2026-06-18

@@ -1,4 +1,5 @@
 import { memo, useCallback, useMemo, useState } from 'react'
+import { validateParams } from '../../lib/validateParams'
 import { useShallow } from 'zustand/react/shallow'
 import { useQueryStore } from '../../store/queryStore'
 import { useConnectionStore } from '../../store/connectionStore'
@@ -62,19 +63,45 @@ function EditorPane({ tabId, sqlSchema, cypherSchema, isSplit, onSplit, onSave }
   )
 
   const [showLimitWarning, setShowLimitWarning] = useState(false)
+  const [showParamErrors, setShowParamErrors] = useState(false)
 
   const handleChange = useCallback((next: string) => updateTabSql(tabId, next), [updateTabSql, tabId])
   const handleConnectionChange = useCallback((id: string) => setTabConnection(tabId, id), [setTabConnection, tabId])
 
+  const focusFirstParamError = useCallback(() => {
+    // Defer to next frame so ParamsPanel has rendered the error rows.
+    requestAnimationFrame(() => {
+      const el = document.querySelector<HTMLElement>('[data-error="true"]')
+      el?.focus()
+    })
+  }, [])
+
   const handleRun = useCallback(() => {
+    const current = useQueryStore.getState().tabs.find((t) => t.id === tabId)
+    const paramErrors = validateParams(current?.params ?? [])
+    if (paramErrors.length > 0) {
+      setShowParamErrors(true)
+      focusFirstParamError()
+      return
+    }
+    setShowParamErrors(false)
     clearExplain(tabId)
-    const current = useQueryStore.getState().tabs.find((t) => t.id === tabId)?.sql ?? ''
-    if (detectMissingLimit(current)) setShowLimitWarning(true)
+    if (detectMissingLimit(current?.sql ?? '')) setShowLimitWarning(true)
     else runQuery(tabId)
-  }, [clearExplain, runQuery, tabId])
+  }, [clearExplain, runQuery, tabId, focusFirstParamError])
 
   const handleCancel = useCallback(() => cancelQuery(tabId), [cancelQuery, tabId])
-  const handleExplain = useCallback(() => explainQuery(tabId), [explainQuery, tabId])
+  const handleExplain = useCallback(() => {
+    const current = useQueryStore.getState().tabs.find((t) => t.id === tabId)
+    const paramErrors = validateParams(current?.params ?? [])
+    if (paramErrors.length > 0) {
+      setShowParamErrors(true)
+      focusFirstParamError()
+      return
+    }
+    setShowParamErrors(false)
+    explainQuery(tabId)
+  }, [explainQuery, tabId, focusFirstParamError])
 
   const handleRunAnyway = useCallback(() => {
     setShowLimitWarning(false)
@@ -87,6 +114,14 @@ function EditorPane({ tabId, sqlSchema, cypherSchema, isSplit, onSplit, onSave }
     runQuery(tabId)
     setShowLimitWarning(false)
   }, [updateTabSql, runQuery, tabId])
+
+  const paramErrorMap = useMemo(
+    () =>
+      showParamErrors
+        ? Object.fromEntries(validateParams(params).map((e) => [e.name, e.message]))
+        : {},
+    [showParamErrors, params],
+  )
 
   return (
     <>
@@ -110,7 +145,7 @@ function EditorPane({ tabId, sqlSchema, cypherSchema, isSplit, onSplit, onSave }
         onConnectionChange={handleConnectionChange}
       />
       {params.length > 0 && (
-        <ParamsPanel params={params} onChange={(next) => setTabParams(tabId, next)} />
+        <ParamsPanel params={params} errors={paramErrorMap} onChange={(next) => setTabParams(tabId, next)} />
       )}
       {showLimitWarning && (
         <LimitWarningBanner

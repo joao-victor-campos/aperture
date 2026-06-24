@@ -1,4 +1,5 @@
 import type { QueryParam } from '@shared/types'
+import { validateParam } from './validateParams'
 
 /**
  * Replace every known {{name}} occurrence in `sql` with its type-rendered value.
@@ -28,19 +29,16 @@ export function substituteParams(
 }
 
 function renderValue(p: QueryParam): { value: string } | { error: string } {
-  if (p.type === 'raw') return { value: p.value } // empty allowed
-  if (p.value.trim() === '') return { error: `Fill in {{${p.name}}} before running.` }
+  const error = validateParam(p)
+  if (error) return { error }
+  if (p.type === 'raw') return { value: p.value }
   switch (p.type) {
     case 'text':
       return { value: `'${p.value.replace(/'/g, "''")}'` }
-    case 'number': {
-      if (!Number.isFinite(Number(p.value))) return { error: `{{${p.name}}} is not a valid number.` }
+    case 'number':
       return { value: p.value.trim() }
-    }
-    case 'boolean': {
-      const low = p.value.trim().toLowerCase()
-      if (low !== 'true' && low !== 'false') return { error: `{{${p.name}}} must be true or false.` }
-      return { value: low }
-    }
+    case 'boolean':
+      return { value: p.value.trim().toLowerCase() }
   }
+  return { value: '' } // unreachable; satisfies the type checker
 }

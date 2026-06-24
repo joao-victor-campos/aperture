@@ -231,7 +231,9 @@ Write `{{name}}` anywhere in a query to turn it into a reusable parameter. An in
 panel appears above the results with one row per parameter — pick a type (Text, Number,
 Boolean, or Raw) and enter a value. Values are substituted into the SQL when you Run or
 Explain. Text values are quoted and escaped; Raw is inserted verbatim (for identifiers or
-`IN (...)` lists). Saving a query remembers each parameter's type and last value.
+`IN (...)` lists). Saving a query remembers each parameter's type and last value. If a
+required value is missing or invalid when you Run or Explain, the offending input is
+flagged inline and execution is blocked until you fix it.
 
 ---
 
