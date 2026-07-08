@@ -148,6 +148,35 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-06-24] Release: 3.2.0 — param validation at the input + changelog reconciliation
+
+**Type:** Change
+**Context:** Post-hardening "polish & ship" pass. A discovery pass against `origin/master` established that v3.0.0 (AI) and v3.1.0 (warm-up/split/charts/clipboard) had already shipped, leaving **query parameters (#41)** as the only genuinely-unreleased feature — so the next release is a focused **3.2.0**. Per spec `docs/superpowers/specs/2026-06-24-release-3.2.0-polish-design.md` and plan `docs/superpowers/plans/2026-06-24-release-3.2.0-polish.md` (subagent-driven execution).
+**Problem / Change:** (1) `CHANGELOG.md` was broken — no `[3.0.0]`/`[3.1.0]` sections and an `[Unreleased]` block still listing already-shipped features, which the in-app update notifier surfaces. (2) Invalid `{{name}}` param values surfaced as a red error in the **results panel** ("Fill in {{foo}} before running."), far from the input that needed fixing, and the validation rules were duplicated inside `substituteParams`.
+**Solution / Outcome:**
+- **`src/renderer/src/lib/validateParams.ts`** (new, pure): `validateParam(p): string | null` + `validateParams(params): { name; message }[]`, encoding the existing rules (text/number/boolean require non-empty + type-valid; number finite; boolean true/false case-insensitive; raw may be empty). Messages match `substituteParams` verbatim. Unit-tested (inside the `lib/**` coverage gate).
+- **`substituteParams.ts`** now delegates its validation branch to `validateParam` (single source of truth; value production/escaping stays local). Behavior + messages unchanged; existing tests green.
+- **`ParamsPanel.tsx`** gains an `errors?: Record<string,string>` prop — errored rows get a `ring-app-err` ring + `text-app-err` message line, and the value input is marked `data-error="true"` for focus targeting.
+- **`EditorPane.tsx`** guards **both** `handleRun` and `handleExplain`: the param check runs **before** the existing `detectMissingLimit` banner; invalid params set a local `showParamErrors`, focus the first errored input, and **block execution** (no `runQuery`/`explainQuery`). Valid runs reset the flag and preserve the limit-warning flow. The store-side substitute-error backstop is retained (now unreachable from the UI) as defense.
+- **`CHANGELOG.md`** reconciled: added `[3.0.0] - 2026-06-19` and `[3.1.0] - 2026-06-22` (verbatim from the GitHub release notes), shrank `[Unreleased]` to query parameters + the invisible internal refactors, then promoted to `[3.2.0] - 2026-06-24`. `package.json` bumped `2.4.0` → `3.2.0`. README query-parameters section notes the new inline-validation behavior.
+- A plan-test bug was caught during execution: the "valid run executes" test used `SELECT {{n}}` (no LIMIT), which trips `detectMissingLimit`; corrected to `SELECT {{n}} LIMIT 10` so it actually exercises the param path.
+- **Tests:** `validateParams.test.ts` (new), `ParamsPanel.test.tsx` (new), `EditorPane.params.test.tsx` (new); `substituteParams` + `queryStore` suites stay green.
+
+**Files affected:**
+- `src/renderer/src/lib/validateParams.ts` — created
+- `src/renderer/src/lib/substituteParams.ts` — delegate validation to `validateParam`
+- `src/renderer/src/components/editor/ParamsPanel.tsx` — `errors` prop + inline error rendering
+- `src/renderer/src/components/editor/EditorPane.tsx` — Run/Explain param guard (block + highlight)
+- `src/__tests__/renderer/lib/validateParams.test.ts` — created
+- `src/__tests__/renderer/components/editor/ParamsPanel.test.tsx` — created
+- `src/__tests__/renderer/components/editor/EditorPane.params.test.tsx` — created
+- `CHANGELOG.md` — reconciled with published releases + 3.2.0 section
+- `package.json` — version 3.2.0
+- `README.md` — query-parameter validation note
+- `docs/superpowers/specs/2026-06-24-release-3.2.0-polish-design.md`, `docs/superpowers/plans/2026-06-24-release-3.2.0-polish.md` — created
+
+---
+
 ### [2026-06-24] Feature: Query parameters (`{{name}}`)
 
 **Type:** Change

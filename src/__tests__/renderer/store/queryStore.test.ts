@@ -416,6 +416,26 @@ describe('queryStore', () => {
       expect(s.focusedGroup).toBe('left')
     })
 
+    it('unsplitGroups merges the right group back into left without creating a tab', () => {
+      const left = useQueryStore.getState().openTab({ connectionId: 'c1' })
+      useQueryStore.getState().splitGroup()
+      const right = useQueryStore.getState().activeByGroup.right!
+      expect(useQueryStore.getState().tabs.length).toBe(2)
+
+      useQueryStore.getState().unsplitGroups()
+
+      const s = useQueryStore.getState()
+      // No new tab was created and the right group is gone.
+      expect(s.tabs.length).toBe(2)
+      expect(s.tabs.some((t) => t.groupId === 'right')).toBe(false)
+      expect(s.tabs.every((t) => t.groupId === 'left')).toBe(true)
+      expect(s.focusedGroup).toBe('left')
+      expect(s.activeByGroup.right).toBeNull()
+      // Both original tabs survive; the focused (right) tab stays active after the merge.
+      expect(s.tabs.some((t) => t.id === left)).toBe(true)
+      expect(s.activeTabId).toBe(right)
+    })
+
     it('focusGroup switches the focused group and updates activeTabId', () => {
       const left = useQueryStore.getState().openTab({ connectionId: 'c1' })
       useQueryStore.getState().splitGroup()
