@@ -76,7 +76,7 @@ export default function ShortcutCheatsheet({ open, onClose }: ShortcutCheatsheet
       <div className="absolute inset-0 bg-black/40" />
 
       {/* Card */}
-      <div className="relative max-w-[440px] w-full mx-4 bg-app-surface border border-app-border rounded-xl shadow-app-card overflow-hidden">
+      <div className="relative max-w-[440px] w-full mx-4 bg-app-surface border border-app-border rounded-xl shadow-app-card overflow-hidden animate-modal-in">
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <h2 className="text-sm font-semibold text-app-text">Keyboard Shortcuts</h2>
