@@ -99,4 +99,13 @@ describe('TabStrip', () => {
     expect(document.querySelector('[data-drop-target="true"]')).toBeNull()
     expect(dragRef.current).toBeNull()
   })
+
+  it('tabs carry data-flip-id for the FLIP settle animation', () => {
+    const idA = openTab('Tab A')
+    render(<TabStrip group="left" dragTabIdRef={{ current: null }} />)
+    const flipEl = screen.getByText('Tab A').closest('[data-flip-id]') as HTMLElement
+    expect(flipEl).toBeTruthy()
+    expect(flipEl.dataset.flipId).toBe(idA)
+    expect(flipEl.getAttribute('draggable')).toBe('true') // same element that drags
+  })
 })

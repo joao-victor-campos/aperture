@@ -1,7 +1,8 @@
-import { useState, type MutableRefObject } from 'react'
+import { useRef, useState, type MutableRefObject } from 'react'
 import { Plus, X, Table2, Pin, Bookmark } from 'lucide-react'
 import { useQueryStore, type GroupId } from '../../store/queryStore'
 import { useConnectionStore } from '../../store/connectionStore'
+import { useFlipAnimation } from '../../hooks/useFlipAnimation'
 
 interface TabStripProps {
   group: GroupId
@@ -25,8 +26,13 @@ export default function TabStrip({ group, dragTabIdRef }: TabStripProps) {
   // Drop indicator: tab id ⇒ insert before that tab; 'end' ⇒ append to group.
   const [dropTarget, setDropTarget] = useState<string | 'end' | null>(null)
 
+  const stripRef = useRef<HTMLDivElement>(null)
+  // Settle-after-drop: animates tabs into place whenever the group order changes.
+  useFlipAnimation(stripRef, groupTabs.map((t) => t.id))
+
   return (
     <div
+      ref={stripRef}
       className="flex items-center gap-1 px-2 h-10 border-b border-app-border bg-app-bg shrink-0 overflow-x-auto"
       onDragOver={(e) => {
         e.preventDefault()
@@ -50,6 +56,7 @@ export default function TabStrip({ group, dragTabIdRef }: TabStripProps) {
           <div
             key={tab.id}
             draggable
+            data-flip-id={tab.id}
             data-drop-target={dropTarget === tab.id || undefined}
             onDragStart={(e) => { dragTabIdRef.current = tab.id; e.dataTransfer.effectAllowed = 'move' }}
             onDragOver={(e) => {
