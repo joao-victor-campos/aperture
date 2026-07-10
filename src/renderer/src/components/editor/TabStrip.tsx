@@ -1,4 +1,4 @@
-import { type MutableRefObject } from 'react'
+import { useState, type MutableRefObject } from 'react'
 import { Plus, X, Table2, Pin, Bookmark } from 'lucide-react'
 import { useQueryStore, type GroupId } from '../../store/queryStore'
 import { useConnectionStore } from '../../store/connectionStore'
@@ -22,14 +22,26 @@ export default function TabStrip({ group, dragTabIdRef }: TabStripProps) {
   const groupTabs = tabs.filter((t) => (t.groupId ?? 'left') === group)
   const activeId = activeByGroup[group]
 
+  // Drop indicator: tab id ⇒ insert before that tab; 'end' ⇒ append to group.
+  const [dropTarget, setDropTarget] = useState<string | 'end' | null>(null)
+
   return (
     <div
       className="flex items-center gap-1 px-2 h-10 border-b border-app-border bg-app-bg shrink-0 overflow-x-auto"
-      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+      onDragOver={(e) => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        if (dragTabIdRef.current) setDropTarget('end')
+      }}
+      onDragLeave={(e) => {
+        // Clear only when the drag leaves the strip, not when moving between children.
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null)
+      }}
       onDrop={(e) => {
         e.preventDefault()
         if (dragTabIdRef.current) moveTabToGroup(dragTabIdRef.current, group)
         dragTabIdRef.current = null
+        setDropTarget(null)
       }}
     >
       {groupTabs.map((tab) => {
@@ -38,8 +50,14 @@ export default function TabStrip({ group, dragTabIdRef }: TabStripProps) {
           <div
             key={tab.id}
             draggable
+            data-drop-target={dropTarget === tab.id || undefined}
             onDragStart={(e) => { dragTabIdRef.current = tab.id; e.dataTransfer.effectAllowed = 'move' }}
-            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+            onDragOver={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              e.dataTransfer.dropEffect = 'move'
+              if (dragTabIdRef.current && dragTabIdRef.current !== tab.id) setDropTarget(tab.id)
+            }}
             onDrop={(e) => {
               e.preventDefault()
               e.stopPropagation()
@@ -47,8 +65,9 @@ export default function TabStrip({ group, dragTabIdRef }: TabStripProps) {
                 moveTabToGroup(dragTabIdRef.current, group, tab.id)
               }
               dragTabIdRef.current = null
+              setDropTarget(null)
             }}
-            onDragEnd={() => { dragTabIdRef.current = null }}
+            onDragEnd={() => { dragTabIdRef.current = null; setDropTarget(null) }}
             onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-ui-sm cursor-grab active:cursor-grabbing transition-all shrink-0 ${
               isActive
@@ -75,6 +94,7 @@ export default function TabStrip({ group, dragTabIdRef }: TabStripProps) {
         )
       })}
       <button
+        data-drop-target={dropTarget === 'end' || undefined}
         onClick={() => { focusGroup(group); openTab({ connectionId: activeConnectionId ?? undefined }) }}
         title="New query tab"
         className="p-1.5 rounded-md text-app-text-3 hover:text-app-text hover:bg-app-elevated transition-colors shrink-0"

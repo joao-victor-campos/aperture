@@ -33,4 +33,70 @@ describe('TabStrip', () => {
     fireEvent.click(screen.getByText('Tab A'))
     expect(useQueryStore.getState().activeByGroup.left).toBe(idA)
   })
+
+  // jsdom has no real DataTransfer; a plain object is enough for our handlers.
+  const dataTransfer = { dropEffect: 'none', effectAllowed: 'all' }
+  const tabEl = (title: string) =>
+    screen.getByText(title).closest('[draggable="true"]') as HTMLElement
+
+  it('shows the drop indicator on the hovered tab during a drag', () => {
+    openTab('Tab A')
+    const idB = openTab('Tab B')
+    const dragRef = { current: null as string | null }
+    render(<TabStrip group="left" dragTabIdRef={dragRef} />)
+    dragRef.current = idB
+    fireEvent.dragOver(tabEl('Tab A'), { dataTransfer })
+    expect(tabEl('Tab A').getAttribute('data-drop-target')).toBe('true')
+    expect(tabEl('Tab B').getAttribute('data-drop-target')).toBeNull()
+  })
+
+  it('does not mark the dragged tab itself as a drop target', () => {
+    const idA = openTab('Tab A')
+    openTab('Tab B')
+    const dragRef = { current: null as string | null }
+    render(<TabStrip group="left" dragTabIdRef={dragRef} />)
+    dragRef.current = idA
+    fireEvent.dragOver(tabEl('Tab A'), { dataTransfer })
+    expect(document.querySelector('[data-drop-target="true"]')).toBeNull()
+  })
+
+  it('dropping on a tab moves the dragged tab before it and clears the indicator', () => {
+    const idA = openTab('Tab A')
+    const idB = openTab('Tab B')
+    const dragRef = { current: null as string | null }
+    render(<TabStrip group="left" dragTabIdRef={dragRef} />)
+    dragRef.current = idB
+    fireEvent.dragOver(tabEl('Tab A'), { dataTransfer })
+    fireEvent.drop(tabEl('Tab A'), { dataTransfer })
+    const leftIds = useQueryStore
+      .getState()
+      .tabs.filter((t) => (t.groupId ?? 'left') === 'left')
+      .map((t) => t.id)
+    expect(leftIds).toEqual([idB, idA])
+    expect(document.querySelector('[data-drop-target="true"]')).toBeNull()
+    expect(dragRef.current).toBeNull()
+  })
+
+  it('dragging over the strip blank area marks the new-tab button as the end target', () => {
+    const idA = openTab('Tab A')
+    openTab('Tab B')
+    const dragRef = { current: null as string | null }
+    render(<TabStrip group="left" dragTabIdRef={dragRef} />)
+    dragRef.current = idA
+    const strip = screen.getByTitle('New query tab').parentElement as HTMLElement
+    fireEvent.dragOver(strip, { dataTransfer })
+    expect(screen.getByTitle('New query tab').getAttribute('data-drop-target')).toBe('true')
+  })
+
+  it('dragend clears the indicator without reordering', () => {
+    openTab('Tab A')
+    const idB = openTab('Tab B')
+    const dragRef = { current: null as string | null }
+    render(<TabStrip group="left" dragTabIdRef={dragRef} />)
+    dragRef.current = idB
+    fireEvent.dragOver(tabEl('Tab A'), { dataTransfer })
+    fireEvent.dragEnd(tabEl('Tab A'))
+    expect(document.querySelector('[data-drop-target="true"]')).toBeNull()
+    expect(dragRef.current).toBeNull()
+  })
 })

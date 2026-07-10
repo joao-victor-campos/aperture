@@ -210,4 +210,11 @@
     background-color: transparent;
     box-shadow: none;
   }
+
+  /* Tab-strip drop indicator — a 2px insertion line on the element's left
+     edge. Drawn with box-shadow so layout never shifts mid-drag; !important
+     so it wins over shadow-app-pill on the active tab. */
+  [data-drop-target="true"] {
+    box-shadow: -2px 0 0 0 rgb(var(--c-accent)) !important;
+  }
 }
