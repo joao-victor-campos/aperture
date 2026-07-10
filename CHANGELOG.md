@@ -7,6 +7,20 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ---
 ## [Unreleased]
 
+### Added
+
+- Subtle UI animations: the ⌘K palette popover and all modals fade/scale in,
+  the sidebar's Catalog/Saved/History pill slides between sections with a
+  quick content transition, and query tabs show a drop indicator while
+  dragging and settle smoothly into place after a reorder.
+- `prefers-reduced-motion` support: all animations and transitions are
+  disabled when the OS "Reduce Motion" setting is on.
+
+### Fixed
+
+- The "✓ Query updated" toast's fade-in animation was a no-op (the keyframes
+  were never defined); it now actually fades in.
+
 ---
 ## [3.2.0] - 2026-06-24
 
