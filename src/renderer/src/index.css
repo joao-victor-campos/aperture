@@ -128,6 +128,16 @@
   .results-area:hover::-webkit-scrollbar:horizontal { height: 14px; }
   .results-area::-webkit-scrollbar:vertical          { width: 8px; }
   .results-area:hover::-webkit-scrollbar:vertical    { width: 14px; }
+
+  /* Accessibility: honor the OS "Reduce Motion" preference. The !important
+     also neutralizes inline transitions (e.g. the tab-strip FLIP settle). */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
 
 /* ──────────────────────────────────────────────────────────────────────────

@@ -80,6 +80,32 @@ const config: Config = {
         'caps': '0.10em',  // small-caps section labels
         'tight-ui': '-0.005em',
       },
+      keyframes: {
+        'fade-in': {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        },
+        'palette-in': {
+          from: { opacity: '0', transform: 'scale(0.98) translateY(-4px)' },
+          to: { opacity: '1', transform: 'scale(1) translateY(0)' },
+        },
+        'panel-in': {
+          from: { opacity: '0', transform: 'translateY(4px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+        'modal-in': {
+          from: { opacity: '0', transform: 'scale(0.96)' },
+          to: { opacity: '1', transform: 'scale(1)' },
+        },
+      },
+      animation: {
+        // `animate-fade-in` was referenced by the "✓ Query updated" toast
+        // (Editor.tsx) but never defined — this makes it real.
+        'fade-in': 'fade-in 150ms ease-out',
+        'palette-in': 'palette-in 140ms cubic-bezier(0.16, 1, 0.3, 1)',
+        'panel-in': 'panel-in 160ms ease-out',
+        'modal-in': 'modal-in 150ms cubic-bezier(0.16, 1, 0.3, 1)',
+      },
     },
   },
   plugins: [],
