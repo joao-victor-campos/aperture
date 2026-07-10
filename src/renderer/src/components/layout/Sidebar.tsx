@@ -12,6 +12,8 @@ interface SidebarProps {
 
 type Tab = 'catalog' | 'saved' | 'history'
 
+const TABS: Tab[] = ['catalog', 'saved', 'history']
+
 export default function Sidebar({ onAddConnection }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<Tab>('catalog')
 
@@ -34,9 +36,15 @@ export default function Sidebar({ onAddConnection }: SidebarProps) {
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
       >
         <div
-          className="app-segmented"
+          className="app-segmented app-segmented--animated"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
+          {/* Sliding active-pill background — one segment wide */}
+          <div
+            aria-hidden="true"
+            className="app-segmented-indicator"
+            style={{ transform: `translateX(${TABS.indexOf(activeTab) * 100}%)` }}
+          />
           <button
             data-active={activeTab === 'catalog' || undefined}
             onClick={() => setActiveTab('catalog')}
@@ -64,7 +72,9 @@ export default function Sidebar({ onAddConnection }: SidebarProps) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto min-h-0">
+      {/* key remounts the container on section change: replays the entrance
+          animation and resets scroll to the top of the new section. */}
+      <div key={activeTab} className="flex-1 overflow-y-auto min-h-0 animate-panel-in">
         {activeTab === 'catalog' && <CatalogTree onAddConnection={onAddConnection} />}
         {activeTab === 'saved' && <SavedQueriesPanel />}
         {activeTab === 'history' && <HistoryPanel />}
