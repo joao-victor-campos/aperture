@@ -4,8 +4,7 @@ import { useCatalogStore } from '../../store/catalogStore'
 import { useConnectionStore } from '../../store/connectionStore'
 import { useQueryStore } from '../../store/queryStore'
 import type { Table } from '@shared/types'
-import { buildSelectQuery } from '../../lib/buildSelectQuery'
-import { buildLabelQuery, buildRelationshipTypeQuery } from '../../lib/buildCypherQuery'
+import { buildTableQuery } from '../../lib/buildTableQuery'
 import { byName } from '../../lib/sortByName'
 
 interface CatalogTreeProps {
@@ -173,12 +172,13 @@ export default function CatalogTree({ onAddConnection }: CatalogTreeProps) {
                     )
                   }
                   onQueryTable={() => {
-                    const sql =
-                      activeEngine === 'neo4j'
-                        ? table.type === 'RELATIONSHIP_TYPE'
-                          ? buildRelationshipTypeQuery(table.id)
-                          : buildLabelQuery(table.id)
-                        : buildSelectQuery(activeEngine, projectContextId, dataset.id, table.id)
+                    const sql = buildTableQuery(
+                      activeEngine,
+                      projectContextId,
+                      dataset.id,
+                      table.id,
+                      table.type,
+                    )
                     openTab({ sql, connectionId: activeConnectionId, title: table.name })
                   }}
                 />
