@@ -44,7 +44,7 @@ export default function App() {
   }, [load, loadSavedQueries, loadHistory, loadThemes, loadThreads, loadAiSettings])
 
   // Global ⌘K (or Ctrl+K on Linux) — focuses the palette input
-  // Global ⌘/ — toggles shortcut cheatsheet
+  // Global ⌘? — toggles shortcut cheatsheet
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
@@ -52,7 +52,7 @@ export default function App() {
         paletteRef.current?.focus()
         return
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === '/') {
+      if ((e.metaKey || e.ctrlKey) && e.key === '?') {
         e.preventDefault()
         setCheatsheetOpen((v) => !v)
       }
