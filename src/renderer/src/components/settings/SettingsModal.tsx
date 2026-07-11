@@ -91,7 +91,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={`settings-modal-title-${section}`}
-        className="bg-app-surface border border-app-border rounded-xl shadow-app-card w-[640px] max-h-[80vh] flex overflow-hidden"
+        className="bg-app-surface border border-app-border rounded-xl shadow-app-card w-[640px] max-h-[80vh] flex overflow-hidden animate-modal-in"
       >
         {/* Left nav */}
         <div className="w-[140px] bg-app-sidebar border-r border-app-border p-3 shrink-0">

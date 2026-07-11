@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Plus, X, Table2, Pin, Bookmark } from 'lucide-react'
 import EditorPane from '../components/editor/EditorPane'
 import ResultsTable from '../components/results/ResultsTable'
 import ResultsRegion from '../components/results/ResultsRegion'
 import TableDetailPanel from '../components/catalog/TableDetailPanel'
 import SaveQueryModal from '../components/editor/SaveQueryModal'
+import TabStrip from '../components/editor/TabStrip'
 import { useQueryStore, type GroupId } from '../store/queryStore'
 import { useConnectionStore } from '../store/connectionStore'
 import { useCatalogStore } from '../store/catalogStore'
@@ -17,10 +17,7 @@ export default function Editor() {
   const focusedGroup = useQueryStore((s) => s.focusedGroup)
   const activeByGroup = useQueryStore((s) => s.activeByGroup)
   const openTab = useQueryStore((s) => s.openTab)
-  const closeTab = useQueryStore((s) => s.closeTab)
-  const setActiveTab = useQueryStore((s) => s.setActiveTab)
   const focusGroup = useQueryStore((s) => s.focusGroup)
-  const moveTabToGroup = useQueryStore((s) => s.moveTabToGroup)
   const splitGroup = useQueryStore((s) => s.splitGroup)
   const unsplitGroups = useQueryStore((s) => s.unsplitGroups)
 
@@ -154,73 +151,6 @@ export default function Editor() {
     window.addEventListener('mouseup', onUp)
   }, [])
 
-  // ── Tab strip (one per group) ──────────────────────────────────────────────
-  const renderTabStrip = (group: GroupId) => {
-    const groupTabs = tabs.filter((t) => (t.groupId ?? 'left') === group)
-    const activeId = activeByGroup[group]
-    return (
-      <div
-        className="flex items-center gap-1 px-2 h-10 border-b border-app-border bg-app-bg shrink-0 overflow-x-auto"
-        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
-        onDrop={(e) => {
-          e.preventDefault()
-          if (dragTabId.current) moveTabToGroup(dragTabId.current, group)
-          dragTabId.current = null
-        }}
-      >
-        {groupTabs.map((tab) => {
-          const isActive = activeId === tab.id
-          return (
-            <div
-              key={tab.id}
-              draggable
-              onDragStart={(e) => { dragTabId.current = tab.id; e.dataTransfer.effectAllowed = 'move' }}
-              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
-              onDrop={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                if (dragTabId.current && dragTabId.current !== tab.id) {
-                  moveTabToGroup(dragTabId.current, group, tab.id)
-                }
-                dragTabId.current = null
-              }}
-              onDragEnd={() => { dragTabId.current = null }}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-ui-sm cursor-grab active:cursor-grabbing transition-all shrink-0 ${
-                isActive
-                  ? 'bg-app-surface text-app-text shadow-app-pill'
-                  : 'text-app-text-2 hover:text-app-text hover:bg-app-elevated/60'
-              }`}
-            >
-              {tab.type === 'table' && <Table2 size={11} className="text-app-cat-green shrink-0" />}
-              {tab.type === 'result' && <Pin size={11} className="text-app-accent shrink-0" />}
-              {tab.savedQueryId && tab.type !== 'table' && tab.type !== 'result' && (
-                <Bookmark size={11} className="text-app-accent shrink-0" />
-              )}
-              {!tab.type && tab.isRunning && (
-                <span className="app-dot shrink-0 animate-pulse" style={{ backgroundColor: 'rgb(var(--c-accent))' }} />
-              )}
-              <span className="max-w-[140px] truncate">{tab.title}</span>
-              <button
-                onClick={(e) => { e.stopPropagation(); closeTab(tab.id) }}
-                className="text-app-text-3 hover:text-app-text transition-colors ml-0.5"
-              >
-                <X size={10} />
-              </button>
-            </div>
-          )
-        })}
-        <button
-          onClick={() => { focusGroup(group); openTab({ connectionId: activeConnectionId ?? undefined }) }}
-          title="New query tab"
-          className="p-1.5 rounded-md text-app-text-3 hover:text-app-text hover:bg-app-elevated transition-colors shrink-0"
-        >
-          <Plus size={13} />
-        </button>
-      </div>
-    )
-  }
-
   // ── One group's content (tab strip + editor/results for its active tab) ─────
   const renderGroup = (group: GroupId) => {
     const activeTab: QueryTab | undefined = tabs.find((t) => t.id === activeByGroup[group])
@@ -229,7 +159,7 @@ export default function Editor() {
         className="flex flex-col flex-1 min-w-0 overflow-hidden"
         onMouseDownCapture={() => { if (focusedGroup !== group) focusGroup(group) }}
       >
-        {renderTabStrip(group)}
+        <TabStrip group={group} dragTabIdRef={dragTabId} />
         <div className="flex-1 flex flex-col overflow-hidden min-h-0">
           {!activeTab && (
             <div className="h-full flex items-center justify-center text-app-text-3 text-sm">

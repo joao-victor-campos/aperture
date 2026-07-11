@@ -140,7 +140,7 @@ export default function ConnectionModal({ onClose, initialConnection }: Connecti
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-      <div className="bg-app-surface rounded-xl shadow-app-card w-[520px] border border-app-border">
+      <div className="bg-app-surface rounded-xl shadow-app-card w-[520px] border border-app-border animate-modal-in">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-app-border">
           <div className="flex flex-col gap-0.5">

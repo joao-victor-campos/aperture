@@ -406,7 +406,7 @@ const CommandPalette = forwardRef<CommandPaletteHandle, CommandPaletteProps>(fun
       {open && createPortal(
         <div
           ref={popoverRef}
-          className="fixed z-[9999] w-[480px] max-h-[440px] overflow-y-auto bg-app-surface border border-app-border rounded-xl shadow-app-card"
+          className="fixed z-[9999] w-[480px] max-h-[440px] overflow-y-auto bg-app-surface border border-app-border rounded-xl shadow-app-card animate-palette-in origin-top"
           style={{ top: popoverStyle.top, left: popoverStyle.left }}
         >
           {displayItems.length === 0 ? (

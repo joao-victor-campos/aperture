@@ -148,6 +148,31 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-07-10] Feature: UI micro-animations
+
+**Type:** Change
+**Context:** The UI swapped state instantly everywhere (palette popover, sidebar sections, tab reorder, modals) and had no `prefers-reduced-motion` support. Per spec `docs/superpowers/specs/2026-07-10-ui-micro-animations-design.md` and plan `docs/superpowers/plans/2026-07-10-ui-micro-animations.md`.
+**Problem / Change:** Slight, fast animations (140–180ms, transform/opacity only, CSS-only + one small FLIP hook, zero new dependencies) in four places; the `animate-fade-in` class on the save toast was a silent no-op (keyframes never defined).
+**Solution / Outcome:**
+- **Motion foundation:** `fade-in` / `palette-in` / `panel-in` / `modal-in` keyframes + `animation` entries in `tailwind.config.ts`; global `prefers-reduced-motion` rule in `index.css` (the `!important` also neutralizes the FLIP hook's inline transitions).
+- **Palette + modals:** `animate-palette-in origin-top` on the ⌘K popover; `animate-modal-in` on the Settings/Connection/SaveQuery/ShortcutCheatsheet panels. Open only; close stays instant.
+- **Sidebar:** opt-in `.app-segmented--animated` variant (sliding `.app-segmented-indicator`, active button's own bg suppressed; base primitive untouched for ConnectionModal/TableDetailPanel); content container keyed by section with `animate-panel-in` (also resets scroll on switch).
+- **Query tabs:** `renderTabStrip` extracted from `Editor.tsx` into `TabStrip.tsx` (shared `dragTabIdRef` prop keeps cross-group drags working). Drop indicator via `data-drop-target` + box-shadow insertion line. Settle-after-drop via `useFlipAnimation` (order-change-triggered, live-rect measurement for graceful interruption) with pure math in `lib/flipDeltas.ts` (`computeFlipDeltas`, coverage-gated). Only moves animate — tab open/close and the losing strip of a cross-group move stay instant.
+- **Tests:** `flipDeltas.test.ts` (5), `TabStrip.test.tsx` (8), `Sidebar.test.tsx` (4). `just ci` green, coverage gate holds.
+
+**Files affected:**
+- `tailwind.config.ts` — keyframes + animation entries
+- `src/renderer/src/index.css` — reduced-motion rule, `.app-segmented--animated`, drop-indicator rule
+- `src/renderer/src/components/command/CommandPalette.tsx`, `src/renderer/src/components/settings/SettingsModal.tsx`, `src/renderer/src/components/connections/ConnectionModal.tsx`, `src/renderer/src/components/editor/SaveQueryModal.tsx`, `src/renderer/src/components/command/ShortcutCheatsheet.tsx` — entrance classes
+- `src/renderer/src/components/layout/Sidebar.tsx` — sliding pill + keyed content
+- `src/renderer/src/pages/Editor.tsx` — strip extraction
+- `src/renderer/src/components/editor/TabStrip.tsx` — created
+- `src/renderer/src/lib/flipDeltas.ts`, `src/renderer/src/hooks/useFlipAnimation.ts` — created
+- `src/__tests__/renderer/lib/flipDeltas.test.ts`, `src/__tests__/renderer/components/editor/TabStrip.test.tsx`, `src/__tests__/renderer/components/layout/Sidebar.test.tsx` — created
+- `CHANGELOG.md` — Unreleased entry
+
+---
+
 ### [2026-06-24] Release: 3.2.0 — param validation at the input + changelog reconciliation
 
 **Type:** Change

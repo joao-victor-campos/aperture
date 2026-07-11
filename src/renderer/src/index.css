@@ -128,6 +128,16 @@
   .results-area:hover::-webkit-scrollbar:horizontal { height: 14px; }
   .results-area::-webkit-scrollbar:vertical          { width: 8px; }
   .results-area:hover::-webkit-scrollbar:vertical    { width: 14px; }
+
+  /* Accessibility: honor the OS "Reduce Motion" preference. The !important
+     also neutralizes inline transitions (e.g. the tab-strip FLIP settle). */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -177,5 +187,34 @@
     color: rgb(var(--c-text));
     box-shadow: inset 0 0 0 1px rgb(var(--c-border));
     font-weight: 600;
+  }
+
+  /* Animated variant — the active-segment background lives on a separate
+     sliding indicator instead of the button itself. Opt-in: base
+     .app-segmented consumers (ConnectionModal, TableDetailPanel) are
+     unaffected. Assumes three equal-width (flex-1) segments. */
+  .app-segmented--animated { position: relative; }
+  .app-segmented--animated > .app-segmented-indicator {
+    position: absolute;
+    top: 2px; bottom: 2px; left: 2px;               /* mirrors the p-0.5 padding */
+    width: calc((100% - 4px) / 3);
+    border-radius: 6px;                              /* mirrors the buttons' rounded-md */
+    background-color: rgb(var(--c-bg));
+    box-shadow: inset 0 0 0 1px rgb(var(--c-border));
+    transition: transform 150ms ease-out;
+    pointer-events: none;
+  }
+  /* Buttons paint above the indicator; the active one drops its own bg. */
+  .app-segmented--animated > button { position: relative; }
+  .app-segmented--animated > button[data-active="true"] {
+    background-color: transparent;
+    box-shadow: none;
+  }
+
+  /* Tab-strip drop indicator — a 2px insertion line on the element's left
+     edge. Drawn with box-shadow so layout never shifts mid-drag; !important
+     so it wins over shadow-app-pill on the active tab. */
+  [data-drop-target="true"] {
+    box-shadow: -2px 0 0 0 rgb(var(--c-accent)) !important;
   }
 }
