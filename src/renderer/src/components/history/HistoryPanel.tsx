@@ -1,13 +1,16 @@
-import { useEffect, useState } from 'react'
-import { Trash2, Clock } from 'lucide-react'
+import { useEffect, useState, useMemo } from 'react'
+import { Trash2, Clock, Search, X } from 'lucide-react'
 import type { HistoryEntry } from '@shared/types'
 import { useQueryStore } from '../../store/queryStore'
 import { useConnectionStore } from '../../store/connectionStore'
 import { useHistoryStore } from '../../store/historyStore'
+import { filterHistory } from '../../lib/filterHistory'
 
 export default function HistoryPanel() {
   const { entries, loaded, reload, clearAll } = useHistoryStore()
   const [clearing, setClearing] = useState(false)
+  const [search, setSearch] = useState('')
+  const visible = useMemo(() => filterHistory(entries, search), [entries, search])
   const { openTab } = useQueryStore()
   const { activeConnectionId } = useConnectionStore()
 
@@ -39,7 +42,11 @@ export default function HistoryPanel() {
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-app-border shrink-0">
         <span className="app-section-label">
-          {entries.length > 0 ? `${entries.length} queries` : 'No history yet'}
+          {entries.length === 0
+            ? 'No history yet'
+            : search.trim()
+              ? `${visible.length} / ${entries.length} queries`
+              : `${entries.length} queries`}
         </span>
         {entries.length > 0 && (
           <button
@@ -53,14 +60,39 @@ export default function HistoryPanel() {
         )}
       </div>
 
+      {/* Search */}
+      {entries.length > 0 && (
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-app-border shrink-0">
+          <Search size={12} className="text-app-text-3 shrink-0" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search history…"
+            className="flex-1 bg-transparent text-xs text-app-text placeholder-app-text-3 focus:outline-none"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              className="text-app-text-3 hover:text-app-text transition-colors"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Entry list */}
       <div className="flex-1 overflow-y-auto">
         {entries.length === 0 ? (
           <div className="p-4 text-xs text-app-text-3 text-center">
             Queries you run will appear here
           </div>
+        ) : visible.length === 0 ? (
+          <div className="p-4 text-xs text-app-text-3 text-center">
+            No queries match.
+          </div>
         ) : (
-          entries.map((entry) => (
+          visible.map((entry) => (
             <button
               key={entry.id}
               onClick={() => handleOpen(entry)}
