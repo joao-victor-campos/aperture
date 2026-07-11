@@ -1,4 +1,4 @@
-import type { ConnectionEngine } from '@shared/types'
+import type { ConnectionEngine, Table } from '@shared/types'
 import { buildSelectQuery } from './buildSelectQuery'
 import { buildLabelQuery, buildRelationshipTypeQuery } from './buildCypherQuery'
 
@@ -12,7 +12,7 @@ export function buildTableQuery(
   projectId: string,
   datasetId: string,
   tableId: string,
-  tableType?: string,
+  tableType?: Table['type'],
 ): string {
   if (engine === 'neo4j') {
     return tableType === 'RELATIONSHIP_TYPE'

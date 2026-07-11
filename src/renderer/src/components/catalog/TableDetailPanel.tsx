@@ -5,9 +5,7 @@ import type { TableField, QueryResult, ConnectionEngine } from '@shared/types'
 import { useCatalogStore } from '../../store/catalogStore'
 import { useConnectionStore } from '../../store/connectionStore'
 import { useQueryStore } from '../../store/queryStore'
-import { buildSelectQuery } from '../../lib/buildSelectQuery'
 import { buildTableQuery } from '../../lib/buildTableQuery'
-import { buildLabelQuery, buildRelationshipTypeQuery } from '../../lib/buildCypherQuery'
 import { flattenFields } from '../../lib/flattenFields'
 import { typeColor } from '../../lib/schemaTypeColor'
 import { formatCell } from '../../lib/formatCell'
@@ -56,12 +54,7 @@ export default function TableDetailPanel({
 
   // Engine-specific preview Cypher / SQL. We strip the builder's default LIMIT
   // and use 50 instead — preview is meant to be a quick peek, not a page.
-  const previewRef = engine === 'neo4j'
-    ? (tableType === 'RELATIONSHIP_TYPE'
-        ? buildRelationshipTypeQuery(tableId)
-        : buildLabelQuery(tableId)
-      ).replace(' LIMIT 100', ' LIMIT 50')
-    : buildSelectQuery(engine, projectId, datasetId, tableId).replace(' LIMIT 100', ' LIMIT 50')
+  const previewRef = buildTableQuery(engine, projectId, datasetId, tableId, tableType).replace(' LIMIT 100', ' LIMIT 50')
 
   useEffect(() => {
     setSchema(null)
