@@ -205,6 +205,13 @@ running. To force a re-index (e.g. after adding new tables), click the
 due to permissions or regional issues are silently skipped so the rest of the
 catalog still loads.
 
+Open a table from the catalog to see its schema and a data preview. The table
+detail page's **Query** button opens a `SELECT * … LIMIT 100` draft in a new
+editor tab (Cypher's equivalent for Neo4j labels/relationship types); the same
+action is available from the catalog tree's row context menu as **Query
+table**. The **History** panel has a search box to filter past queries by SQL
+text or connection name.
+
 ---
 
 ## Working with results
@@ -234,6 +241,17 @@ Explain. Text values are quoted and escaped; Raw is inserted verbatim (for ident
 `IN (...)` lists). Saving a query remembers each parameter's type and last value. If a
 required value is missing or invalid when you Run or Explain, the offending input is
 flagged inline and execution is blocked until you fix it.
+
+### Query safety
+
+Before running a `SELECT`/`WITH` query that lacks a top-level `LIMIT`, Aperture warns
+you and offers to add one. This guard is on by default; turn it off in **Settings →
+Editor → Query safety** if you don't want the warning.
+
+### Keyboard shortcuts
+
+Press `⌘?` anywhere in the app to open the keyboard-shortcut cheatsheet. `⌘/` toggles
+line comments in the SQL/Cypher editor.
 
 ---
 

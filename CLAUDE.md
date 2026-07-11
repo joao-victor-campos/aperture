@@ -148,6 +148,40 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-07-11] Feature: Small adjustments — table-page Query button, LIMIT-guard toggle, ⌘? cheatsheet rebind, history search
+
+**Type:** Change
+**Context:** Four small, independent renderer adjustments requested together: a faster way to start querying a table from its detail page, a way to turn off the LIMIT-safety warning for users who find it noisy, a keyboard-shortcut collision between the cheatsheet and the editor's native comment-toggle, and a way to find a specific past query in a growing history list.
+**Problem / Change:**
+- The table detail page had no quick "run a starter query" action — only the catalog tree's row context menu offered "Query table"; the two entry points also risked drifting since `buildSelectQuery`/Cypher query construction lived in one place but wasn't shared with the panel.
+- The "warn before running a SELECT without LIMIT" guard was always on with no way to disable it, even though it's just a soft warning users can already dismiss per-query with "Run anyway."
+- `⌘/` was bound globally to toggle the keyboard-shortcut cheatsheet, which meant it fired instead of (or in addition to) CodeMirror's native `⌘/` comment-toggle binding inside the editor.
+- The query-history panel listed every past query with no way to filter it, making it hard to find a specific query once history grew long.
+**Solution / Outcome:**
+- **`buildTableQuery.ts`** (new, pure): `buildTableQuery(engine, projectId, datasetId, tableId, tableType?)` — the shared "Query table" starter-query builder used by both entry points. SQL engines get `buildSelectQuery`'s `SELECT * … LIMIT 100`; Neo4j gets `buildLabelQuery`/`buildRelationshipTypeQuery` based on `tableType`. `TableDetailPanel.tsx` gained a **Query** button (Play icon, accent-filled, next to the existing copy-reference button) that calls it and opens the result via `queryStore.openTab`. `CatalogTree.tsx`'s existing row-menu "Query table" action now goes through the same helper (previously used `buildSelectQuery` directly for SQL engines only in that path).
+- **`preferencesStore.ts`** (new, Zustand): `limitGuardEnabled: boolean` (default `true`) + `setLimitGuardEnabled`, persisted to `localStorage` under `aperture-prefs` (mirrors the `aperture-theme-css` pattern — read on init with a try/catch fallback to defaults on missing/corrupt data, written on every change). `SettingsModal.tsx` gains a fourth section, **Editor** (`SlidersHorizontal` icon in the left nav), with a single "Query safety" row (label + description + an `role="switch"` pill toggle) wired to the store. `EditorPane.tsx`'s `handleRun` now only shows the `LimitWarningBanner` when `limitGuardEnabled` is true; when the guard is off, a missing-`LIMIT` query runs immediately (matching the existing "Run anyway" behavior, just without the interstitial).
+- **`filterHistory.ts`** (new, pure): case-insensitive substring filter over `HistoryEntry[]` matching SQL text or connection name. `HistoryPanel.tsx` gained a search input (shown once there is at least one history entry) wired via `useMemo(() => filterHistory(entries, search), [entries, search])`; the header count switches to a `n / total` format while a search is active, and a "No queries match." empty state renders when the filter yields zero rows.
+- **Shortcut rebind:** `App.tsx`'s global keydown handler now checks `e.key === '?'` (was `'/'`) to toggle the cheatsheet; `ShortcutCheatsheet.tsx`'s "Keyboard shortcuts" row now displays `⌘?`. `⌘/` is no longer intercepted at the window level, so CodeMirror's native comment-toggle binding fires normally when the editor is focused.
+- **Tests:** `buildTableQuery.test.ts` and `filterHistory.test.ts` (new, pure-unit) and `preferencesStore.test.ts` (new — default value, `setLimitGuardEnabled`, persistence round-trip via `localStorage`, corrupt-value fallback). No IPC or shared-type changes; all four changes are renderer-only.
+
+**Files affected:**
+- `src/renderer/src/lib/buildTableQuery.ts` — created
+- `src/__tests__/renderer/lib/buildTableQuery.test.ts` — created
+- `src/renderer/src/lib/filterHistory.ts` — created
+- `src/__tests__/renderer/lib/filterHistory.test.ts` — created
+- `src/renderer/src/store/preferencesStore.ts` — created
+- `src/__tests__/renderer/store/preferencesStore.test.ts` — created
+- `src/renderer/src/components/catalog/TableDetailPanel.tsx` — Query button
+- `src/renderer/src/components/catalog/CatalogTree.tsx` — row-menu action delegates to `buildTableQuery`
+- `src/renderer/src/components/editor/EditorPane.tsx` — gate `LimitWarningBanner` on `limitGuardEnabled`
+- `src/renderer/src/components/settings/SettingsModal.tsx` — new Editor section + Query safety toggle
+- `src/renderer/src/components/history/HistoryPanel.tsx` — search box + filtered empty state
+- `src/renderer/src/App.tsx` — `⌘/` → `⌘?` global handler rebind
+- `src/renderer/src/components/command/ShortcutCheatsheet.tsx` — display `⌘?`
+- `README.md`, `CHANGELOG.md` — docs
+
+---
+
 ### [2026-07-10] Feature: UI micro-animations
 
 **Type:** Change

@@ -15,6 +15,19 @@ Versions follow [Semantic Versioning](https://semver.org/).
   dragging and settle smoothly into place after a reorder.
 - `prefers-reduced-motion` support: all animations and transitions are
   disabled when the OS "Reduce Motion" setting is on.
+- A **Query** button on the table detail page opens a `SELECT * … LIMIT 100`
+  draft in a new editor tab, alongside the existing catalog context-menu
+  "Query table" action.
+- **Settings → Editor** now has a "Query safety" toggle to enable or disable
+  the warning shown before running a `SELECT`/`WITH` without a `LIMIT`. On by
+  default; the choice is persisted in `localStorage`.
+- A search box on the query-history panel, filtering entries by SQL text or
+  connection name.
+
+### Changed
+
+- The keyboard-shortcut cheatsheet moved from `⌘/` to `⌘?`, so `⌘/` now
+  toggles editor comments without also popping the cheatsheet.
 
 ### Fixed
 
