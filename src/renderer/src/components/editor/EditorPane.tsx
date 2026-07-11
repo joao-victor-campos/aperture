@@ -3,6 +3,7 @@ import { validateParams } from '../../lib/validateParams'
 import { useShallow } from 'zustand/react/shallow'
 import { useQueryStore } from '../../store/queryStore'
 import { useConnectionStore } from '../../store/connectionStore'
+import { usePreferencesStore } from '../../store/preferencesStore'
 import { detectMissingLimit } from '../../lib/detectMissingLimit'
 import QueryEditor from './QueryEditor'
 import LimitWarningBanner from './LimitWarningBanner'
@@ -61,6 +62,7 @@ function EditorPane({ tabId, sqlSchema, cypherSchema, isSplit, onSplit, onSave }
     () => connections.find((c) => c.id === connectionId)?.engine,
     [connections, connectionId],
   )
+  const limitGuardEnabled = usePreferencesStore((s) => s.limitGuardEnabled)
 
   const [showLimitWarning, setShowLimitWarning] = useState(false)
   const [showParamErrors, setShowParamErrors] = useState(false)
@@ -86,9 +88,9 @@ function EditorPane({ tabId, sqlSchema, cypherSchema, isSplit, onSplit, onSave }
     }
     setShowParamErrors(false)
     clearExplain(tabId)
-    if (detectMissingLimit(current?.sql ?? '')) setShowLimitWarning(true)
+    if (limitGuardEnabled && detectMissingLimit(current?.sql ?? '')) setShowLimitWarning(true)
     else runQuery(tabId)
-  }, [clearExplain, runQuery, tabId, focusFirstParamError])
+  }, [clearExplain, runQuery, tabId, focusFirstParamError, limitGuardEnabled])
 
   const handleCancel = useCallback(() => cancelQuery(tabId), [cancelQuery, tabId])
   const handleExplain = useCallback(() => {
