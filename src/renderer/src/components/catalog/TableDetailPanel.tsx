@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Copy, Check, Search, X } from 'lucide-react'
+import { Copy, Check, Search, X, Play } from 'lucide-react'
 import { CHANNELS } from '@shared/ipc'
 import type { TableField, QueryResult, ConnectionEngine } from '@shared/types'
 import { useCatalogStore } from '../../store/catalogStore'
 import { useConnectionStore } from '../../store/connectionStore'
-import { buildSelectQuery } from '../../lib/buildSelectQuery'
-import { buildLabelQuery, buildRelationshipTypeQuery } from '../../lib/buildCypherQuery'
+import { useQueryStore } from '../../store/queryStore'
+import { buildTableQuery } from '../../lib/buildTableQuery'
 import { flattenFields } from '../../lib/flattenFields'
 import { typeColor } from '../../lib/schemaTypeColor'
 import { formatCell } from '../../lib/formatCell'
@@ -37,7 +37,13 @@ export default function TableDetailPanel({
 
   const { loadSchema, tablesByDataset } = useCatalogStore()
   const { connections } = useConnectionStore()
+  const openTab = useQueryStore((s) => s.openTab)
   const engine = connections.find((c) => c.id === connectionId)?.engine ?? 'bigquery'
+
+  const handleQueryTable = () => {
+    const sql = buildTableQuery(engine, projectId, datasetId, tableId, tableType)
+    openTab({ sql, connectionId, title: tableName })
+  }
 
   const previewTabId = useMemo(() => crypto.randomUUID(), [connectionId, projectId, datasetId, tableId])
 
@@ -48,12 +54,7 @@ export default function TableDetailPanel({
 
   // Engine-specific preview Cypher / SQL. We strip the builder's default LIMIT
   // and use 50 instead — preview is meant to be a quick peek, not a page.
-  const previewRef = engine === 'neo4j'
-    ? (tableType === 'RELATIONSHIP_TYPE'
-        ? buildRelationshipTypeQuery(tableId)
-        : buildLabelQuery(tableId)
-      ).replace(' LIMIT 100', ' LIMIT 50')
-    : buildSelectQuery(engine, projectId, datasetId, tableId).replace(' LIMIT 100', ' LIMIT 50')
+  const previewRef = buildTableQuery(engine, projectId, datasetId, tableId, tableType).replace(' LIMIT 100', ' LIMIT 50')
 
   useEffect(() => {
     setSchema(null)
@@ -105,17 +106,27 @@ export default function TableDetailPanel({
           <span className="text-app-text font-semibold text-[15px]">{tableName}</span>
           <span className="text-[10px] text-app-text-3 font-mono">{tableRef}</span>
         </div>
-        <button
-          onClick={handleCopy}
-          title={engine === 'postgres' ? 'Copy schema.table reference' : 'Copy dataset.table reference'}
-          className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md bg-app-elevated hover:bg-app-border/40 text-app-text-2 hover:text-app-text transition-colors border border-app-border"
-        >
-          {copied ? (
-            <><Check size={12} className="text-app-ok" /><span className="text-app-ok">Copied</span></>
-          ) : (
-            <><Copy size={12} /><span className="font-tabular">{tableRef}</span></>
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleQueryTable}
+            title="Open a query for this table"
+            className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md bg-app-accent hover:bg-app-accent-hover text-white transition-colors"
+          >
+            <Play size={12} />
+            <span>Query</span>
+          </button>
+          <button
+            onClick={handleCopy}
+            title={engine === 'postgres' ? 'Copy schema.table reference' : 'Copy dataset.table reference'}
+            className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md bg-app-elevated hover:bg-app-border/40 text-app-text-2 hover:text-app-text transition-colors border border-app-border"
+          >
+            {copied ? (
+              <><Check size={12} className="text-app-ok" /><span className="text-app-ok">Copied</span></>
+            ) : (
+              <><Copy size={12} /><span className="font-tabular">{tableRef}</span></>
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="px-4 py-2 border-b border-app-border bg-app-surface shrink-0">

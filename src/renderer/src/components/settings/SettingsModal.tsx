@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Plus, Trash2, Palette, Download, RefreshCw, Check, Sparkles } from 'lucide-react'
+import { X, Plus, Trash2, Palette, Download, RefreshCw, Check, Sparkles, SlidersHorizontal } from 'lucide-react'
 import { CHANNELS } from '@shared/ipc'
 import { useThemeStore } from '../../store/themeStore'
 import { useUpdateStore } from '../../store/updateStore'
 import { useAiSettingsStore } from '../../store/aiSettingsStore'
+import { usePreferencesStore } from '../../store/preferencesStore'
 
 interface SettingsModalProps {
   open: boolean
   onClose: () => void
 }
 
-type Section = 'themes' | 'updates' | 'ai'
+type Section = 'themes' | 'editor' | 'updates' | 'ai'
 
 export default function SettingsModal({ open, onClose }: SettingsModalProps) {
   const { themes, activeThemeId, importFromFile, remove, setActive } = useThemeStore()
@@ -99,6 +100,10 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
           <button onClick={() => setSection('themes')} className={navItemClass(section === 'themes')}>
             <Palette size={13} />
             Themes
+          </button>
+          <button onClick={() => setSection('editor')} className={`mt-1 ${navItemClass(section === 'editor')}`}>
+            <SlidersHorizontal size={13} />
+            Editor
           </button>
           <button onClick={() => setSection('updates')} className={`mt-1 ${navItemClass(section === 'updates')}`}>
             <Download size={13} />
@@ -194,6 +199,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
             </>
           )}
 
+          {section === 'editor' && <EditorSection onClose={onClose} />}
           {section === 'updates' && <UpdatesSection onClose={onClose} />}
           {section === 'ai' && <AiSection onClose={onClose} />}
         </div>
@@ -328,6 +334,49 @@ function UpdatesSection({ onClose }: { onClose: () => void }) {
             </div>
           </div>
         )}
+      </div>
+    </>
+  )
+}
+
+function EditorSection({ onClose }: { onClose: () => void }) {
+  const limitGuardEnabled = usePreferencesStore((s) => s.limitGuardEnabled)
+  const setLimitGuardEnabled = usePreferencesStore((s) => s.setLimitGuardEnabled)
+
+  return (
+    <>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-app-border">
+        <div id="settings-modal-title-editor" className="text-ui-md font-semibold text-app-text">Editor</div>
+        <button type="button" onClick={onClose} aria-label="Close settings"
+          className="p-1.5 rounded-md text-app-text-3 hover:text-app-text hover:bg-app-elevated transition-colors">
+          <X size={14} />
+        </button>
+      </div>
+
+      <div className="p-4 overflow-y-auto flex flex-col gap-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col">
+            <label className="app-section-label">Query safety</label>
+            <p className="text-ui-xs text-app-text-3">
+              Warn before running a SELECT without a LIMIT.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={limitGuardEnabled}
+            onClick={() => setLimitGuardEnabled(!limitGuardEnabled)}
+            className={`mt-0.5 shrink-0 w-9 h-5 rounded-full transition-colors ${
+              limitGuardEnabled ? 'bg-app-accent' : 'bg-app-border'
+            }`}
+          >
+            <span
+              className={`block w-4 h-4 bg-white rounded-full transition-transform ${
+                limitGuardEnabled ? 'translate-x-4' : 'translate-x-0.5'
+              }`}
+            />
+          </button>
+        </div>
       </div>
     </>
   )

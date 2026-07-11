@@ -35,7 +35,7 @@ const SECTIONS: ShortcutSection[] = [
     title: 'Navigation',
     shortcuts: [
       { description: 'Command palette', keys: [[mod, 'K']] },
-      { description: 'Keyboard shortcuts', keys: [[mod, '/']] },
+      { description: 'Keyboard shortcuts', keys: [[mod, '?']] },
     ],
   },
   {
