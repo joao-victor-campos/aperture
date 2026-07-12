@@ -20,3 +20,19 @@ services:
       - ..:/app
       - /app/node_modules
     command: npm run typecheck
+
+  postgres-e2e:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: aperture
+      POSTGRES_PASSWORD: aperture
+      POSTGRES_DB: aperture_e2e
+    ports:
+      - '54329:5432'
+    volumes:
+      - ./e2e-seed.sql:/docker-entrypoint-initdb.d/seed.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U aperture -d aperture_e2e']
+      interval: 2s
+      timeout: 2s
+      retries: 15
