@@ -9,6 +9,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- End-to-end test suite (Playwright, Electron mode): six smoke specs launch the real
+  built app against a seeded dockerized Postgres — boot, add-connection, catalog
+  browse, query run, save/reopen query, and relaunch persistence. Runs in CI on
+  every PR (`just e2e` locally).
 - Subtle UI animations: the ⌘K palette popover and all modals fade/scale in,
   the sidebar's Catalog/Saved/History pill slides between sections with a
   quick content transition, and query tabs show a drop indicator while

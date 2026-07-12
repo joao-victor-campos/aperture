@@ -148,6 +148,39 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-07-12] Feature: E2E regression suite (Playwright, Electron mode) + Postgres fixture + CI job
+
+**Type:** Change
+**Context:** Aperture had unit/store coverage (Vitest, 70% gate) but nothing exercising the real built app end-to-end — no proof that boot, connecting, catalog browsing, running a query, saving/reopening a query, or surviving a relaunch actually work together through real UI + real IPC + a real database. Sub-project 1 of the maturity campaign per spec `docs/superpowers/specs/2026-07-11-maturity-campaign-e2e-credentials-design.md`; sub-project 2 (credential encryption) starts only after this plan is merged, and its migration lands under the protection of the new `persistence.spec.ts` safety net.
+**Problem / Change:** No E2E harness, no seeded fixture database, no specs, and no CI coverage for the full app lifecycle.
+**Solution / Outcome:**
+- **Playwright harness.** `playwright.config.ts` (serial, single worker — Electron instances are heavyweight and the suite shares one build; CI retries once); `tsconfig.e2e.json` (chained into `npm run typecheck` as `typecheck:e2e`). `e2e/helpers/app.ts`'s `launchApp()` launches the **built** app (`out/main/index.js`) with an isolated `userData` dir per test (fresh `mkdtemp` by default, or a reused dir for relaunch scenarios) via a new `APERTURE_USER_DATA` env hook read in `src/main/index.ts` (`app.setPath('userData', ...)` before anything else runs) — tests never touch a real profile. `launchApp` also optionally seeds `aperture-store.json` with connections before first launch (relies on `store.get()`'s per-key defaults, so a partial store file is valid). `captureOnFailure()` attaches a screenshot to the Playwright report on test failure. `npm run e2e` (`playwright test`) added; `test`/`test:watch`/`test:coverage` gained `--exclude 'e2e/**'` since Vitest's default glob was otherwise picking up the Playwright specs (`vitest.config.ts` itself intentionally untouched).
+- **Postgres fixture.** `postgres-e2e` service in `docker/docker-compose.yml` (port 54329, healthcheck, seeded via a mounted `docker/e2e-seed.sql` — 100 deterministic `customers` rows named `Customer 1`..`Customer 100` + 250 `orders` rows). `just e2e` (start Postgres → build → run suite → stop Postgres via `trap ... EXIT`) and `just e2e-ui` (same, opens Playwright's UI mode, leaves Postgres running) recipes in `justfile`.
+- **Six specs in `e2e/specs/`** (all via `e2e/helpers/postgres.ts`'s `seededPgConnection()`/`PG_CONNECTION_NAME`, `connectionModal.ts`'s `addPostgresConnection()`, and `editor.ts`'s `bindTabToConnection()`/`typeSql()`/`saveCurrentQuery()`): `boot.spec.ts` (empty-workspace chrome), `connect.spec.ts` (adds a Postgres connection through the real "Test & Save" modal flow, asserts a green health dot), `catalog.spec.ts` (browses the seeded `public` schema, opens the `customers` table detail panel), `query.spec.ts` (types SQL, clicks Run, asserts row count + a known cell), `saved-queries.spec.ts` (saves a query, reopens it from the Saved panel), `persistence.spec.ts` (the sub-project-2 safety net: add connection + save query → full app process restart against the same `userData` dir → asserts both survived).
+- **One renderer change:** `data-testid="save-query-modal"` on `SaveQueryModal.tsx` — the plan's only testid, needed because the modal has no other reliable selector for `saveCurrentQuery()`'s helper.
+- **Spec-writing deviations found during execution** (worth noting since they reflect real app behavior, not test bugs): connection-name assertions use `getByRole('button', { name: 'postgres / ...' })` scoped to the title-bar breadcrumb rather than a bare `getByText`, because the per-tab connection picker also renders the same name as an `<option>` and trips Playwright's strict-mode duplicate-match check; `saved-queries.spec.ts` asserts the saved query's title appears **3 times** after reopening (original tab + newly-opened tab + sidebar row) because `SavedQueriesPanel.handleOpenQuery` always calls `openTab` with no dedup against an already-open tab for the same `savedQueryId` — pre-existing behavior, not something this task changed.
+- **CI.** New `e2e` job in `.github/workflows/ci.yml`: `postgres:16-alpine` service container (since service containers have no volume mounts, the seed is applied via `psql -f docker/e2e-seed.sql` rather than the compose file's mount), `xvfb-run` (headless Ubuntu has no display server), plain `npm ci` (no `--ignore-scripts` — Electron's own install script must run to fetch its binary), build, `playwright test`, and a failure-only artifact upload (`test-results/`, `playwright-report/`). Green on run 29211569211 alongside the existing unit/coverage job.
+
+**Files affected:**
+- `playwright.config.ts`, `tsconfig.e2e.json` — created
+- `e2e/helpers/app.ts` — created (`launchApp`, `captureOnFailure`)
+- `e2e/helpers/postgres.ts` — created (`PG`, `PG_CONNECTION_NAME`, `seededPgConnection`)
+- `e2e/helpers/connectionModal.ts` — created (`addPostgresConnection`)
+- `e2e/helpers/editor.ts` — created (`bindTabToConnection`, `typeSql`, `saveCurrentQuery`)
+- `e2e/specs/boot.spec.ts`, `e2e/specs/connect.spec.ts`, `e2e/specs/catalog.spec.ts`, `e2e/specs/query.spec.ts`, `e2e/specs/saved-queries.spec.ts`, `e2e/specs/persistence.spec.ts` — created
+- `src/main/index.ts` — `APERTURE_USER_DATA` env hook
+- `src/renderer/src/components/editor/SaveQueryModal.tsx` — `data-testid="save-query-modal"`
+- `docker/docker-compose.yml` — `postgres-e2e` service
+- `docker/e2e-seed.sql` — created (deterministic customers/orders seed)
+- `justfile` — `e2e`, `e2e-ui` recipes
+- `package.json`, `package-lock.json` — `@playwright/test` + `playwright` devDeps; `e2e`/`typecheck:e2e` scripts; `--exclude 'e2e/**'` on the Vitest scripts
+- `.gitignore` — `test-results/`, `playwright-report/`
+- `.github/workflows/ci.yml` — new `e2e` job (Postgres service container, xvfb, failure artifacts)
+- `README.md`, `CHANGELOG.md` — docs
+- `docs/superpowers/specs/2026-07-11-maturity-campaign-e2e-credentials-design.md` — spec (referenced)
+
+---
+
 ### [2026-07-11] Feature: Small adjustments — table-page Query button, LIMIT-guard toggle, ⌘? cheatsheet rebind, history search
 
 **Type:** Change

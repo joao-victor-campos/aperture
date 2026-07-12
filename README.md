@@ -460,7 +460,7 @@ just coverage-open # open the HTML report in the browser after `just coverage`
 
 #### Coverage scope
 
-Coverage is measured only over the core logic files (`src/main/db/**`, `src/main/ipc/**`, `src/renderer/src/store/**`). UI components and Electron bootstrap are excluded — they are tested via E2E tests (Playwright, planned).
+Coverage is measured only over the core logic files (`src/main/db/**`, `src/main/ipc/**`, `src/renderer/src/store/**`). UI components and Electron bootstrap are excluded — they are tested via E2E tests (Playwright).
 
 #### Mocking strategy
 
@@ -468,13 +468,29 @@ Coverage is measured only over the core logic files (`src/main/db/**`, `src/main
 - **`@google-cloud/bigquery`** / **`pg`** / **`snowflake-sdk`** — fully mocked; no real network calls in tests.
 - **`window.api`** — stubbed in `src/__tests__/setup.ts` for renderer store tests.
 
+### End-to-end tests (Playwright)
+
+The E2E suite launches the **built** Electron app with Playwright and runs it against a
+seeded dockerized Postgres — covering boot, connecting, catalog browsing, query
+execution, saved queries, and relaunch persistence.
+
+```bash
+just e2e      # start seeded Postgres → build → run suite → stop Postgres
+just e2e-ui   # same, but opens Playwright's UI mode for debugging
+```
+
+Requirements: Docker running. Tests are isolated — each launch uses a fresh temp
+`userData` dir (via the `APERTURE_USER_DATA` env hook), never your real profile.
+CI runs the suite on every PR (ubuntu + xvfb + a Postgres service container).
+
 ---
 
 ### CI / CD
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | Push to `main` or PR | Typecheck (main + renderer) + Vitest unit tests — runs on Ubuntu |
+| `ci.yml` | Push to `main` or PR | Typecheck (main + renderer + e2e) + Vitest unit tests — runs on Ubuntu |
+| `ci.yml` (`e2e` job) | Push to `main` or PR | Playwright E2E suite against a Postgres service container (xvfb) — runs on Ubuntu |
 | `release.yml` | Push a `v*.*.*` tag | Builds macOS DMG (arm64 + x64) on `macos-14`, creates a GitHub Release with DMG artifacts |
 
 #### Publishing a release
