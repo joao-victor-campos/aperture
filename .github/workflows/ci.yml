@@ -47,3 +47,63 @@ jobs:
           name: coverage-report
           path: coverage/
           retention-days: 14
+
+  e2e:
+    name: E2E (Playwright + Electron)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: aperture
+          POSTGRES_PASSWORD: aperture
+          POSTGRES_DB: aperture_e2e
+        ports:
+          - 54329:5432
+        options: >-
+          --health-cmd "pg_isready -U aperture -d aperture_e2e"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        # Plain `npm ci` is correct here: the repo no longer has a postinstall hook
+        # (DuckDB is gone), and Electron's own install script — which downloads the
+        # binary this job needs — runs as part of a normal install. Do NOT add
+        # --ignore-scripts; that would skip the Electron binary.
+        run: npm ci
+
+      - name: Install xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Seed E2E database
+        # Service containers have no volume mounts — apply the same seed via psql
+        run: psql "postgresql://aperture:aperture@localhost:54329/aperture_e2e" -f docker/e2e-seed.sql
+
+      - name: Build app
+        run: npm run build
+
+      - name: Run Playwright E2E suite
+        run: xvfb-run --auto-servernum -- npx playwright test
+
+      - name: Upload E2E artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 14
