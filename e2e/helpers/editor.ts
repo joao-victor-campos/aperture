@@ -19,3 +19,13 @@ export async function typeSql(page: Page, sql: string): Promise<void> {
   // Dismiss any autocomplete popup the typing triggered
   await page.keyboard.press('Escape')
 }
+
+/** Save the focused tab's SQL as a named query via the Save Query modal. */
+export async function saveCurrentQuery(page: Page, name: string): Promise<void> {
+  await page.getByTitle('Save query (⌘S)').click()
+  const modal = page.getByTestId('save-query-modal')
+  await expect(modal).toBeVisible()
+  await modal.getByPlaceholder('Query name…').fill(name)
+  await modal.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(modal).toBeHidden()
+}
