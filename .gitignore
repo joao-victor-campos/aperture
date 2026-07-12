@@ -11,3 +11,5 @@ CLAUDE.md
 .env.example
 .superpowers/
 docs/superpowers/
+test-results/
+playwright-report/

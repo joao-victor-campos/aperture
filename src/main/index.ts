@@ -6,6 +6,12 @@ import { pushUpdateStatus } from './ipc/updates'
 // Set the app name early — in dev mode Electron defaults to "Electron"
 app.setName('Aperture')
 
+// E2E isolation hook: Playwright launches the app with APERTURE_USER_DATA set to a
+// fresh temp dir so tests never read or pollute the real user profile.
+if (process.env['APERTURE_USER_DATA']) {
+  app.setPath('userData', process.env['APERTURE_USER_DATA'])
+}
+
 // Handle Windows squirrel install events
 if (process.platform === 'win32') {
   app.setAppUserModelId('Aperture')
