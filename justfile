@@ -50,6 +50,21 @@ ci:
     @just coverage
     @echo "✓ All CI checks passed"
 
+# Run the Playwright E2E suite (starts the seeded Postgres, builds, runs, stops it)
+e2e:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    trap 'docker compose -f docker/docker-compose.yml stop postgres-e2e' EXIT
+    docker compose -f docker/docker-compose.yml up -d --wait postgres-e2e
+    npm run build
+    npx playwright test
+
+# Debug the E2E suite in Playwright's UI mode (leaves Postgres running)
+e2e-ui:
+    docker compose -f docker/docker-compose.yml up -d --wait postgres-e2e
+    npm run build
+    npx playwright test --ui
+
 # ── Build & Release ───────────────────────────────────────────────────────────
 
 # Compile main + preload + renderer (outputs to out/)

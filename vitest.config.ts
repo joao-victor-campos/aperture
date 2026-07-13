@@ -11,7 +11,8 @@ export default defineConfig({
     clearMocks: true, // auto-clear mock call history between tests (keeps implementations)
 
     // Exclude git worktrees — they live inside the repo but should not be tested here
-    exclude: ['node_modules/**', '.claude/worktrees/**'],
+    // Exclude e2e tests — Playwright specs, not Vitest unit tests
+    exclude: ['node_modules/**', '.claude/worktrees/**', 'e2e/**'],
 
     // jsdom for renderer tests (window / DOM APIs); node is the default for everything else
     environmentMatchGlobs: [['src/__tests__/renderer/**', 'jsdom']],

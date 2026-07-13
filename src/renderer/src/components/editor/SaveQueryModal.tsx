@@ -62,6 +62,7 @@ export default function SaveQueryModal({ tabId, onClose }: SaveQueryModalProps) 
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
+        data-testid="save-query-modal"
         className="bg-app-surface border border-app-border rounded-lg shadow-2xl w-[400px] p-5 animate-modal-in"
         onKeyDown={handleKeyDown}
       >
