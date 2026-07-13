@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
+import { existsSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { launchApp, captureOnFailure } from '../helpers/app'
@@ -94,5 +95,6 @@ test('migrates a legacy plaintext store on first boot', async () => {
   } else {
     // Encryption unavailable: migration is skipped by design; no .bak, plaintext stays.
     expect(password).toBe(PG.password)
+    expect(existsSync(join(userDataDir, 'aperture-store.json.bak'))).toBe(false)
   }
 })
