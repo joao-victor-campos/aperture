@@ -192,6 +192,9 @@ Connection passwords and the Anthropic API key are encrypted at rest using the
 OS keychain (Electron `safeStorage`) and stored as `enc:v1:…` values inside
 `aperture-store.json`. Existing plaintext stores are migrated automatically on
 first launch; the pre-migration file is kept once as `aperture-store.json.bak`.
+That backup file contains your **pre-migration plaintext secrets** — once
+you've confirmed your connections still work after the upgrade, it's safe to
+delete it.
 If OS-level encryption is unavailable, Aperture keeps working and logs a
 warning — secrets then remain in plaintext. If a secret can no longer be
 decrypted (e.g. the store was copied to another machine), only that secret is
