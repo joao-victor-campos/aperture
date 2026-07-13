@@ -1,7 +1,8 @@
-import { app } from 'electron'
+import { app, safeStorage } from 'electron'
 import { join } from 'path'
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync } from 'fs'
 import type { Connection, SavedQuery, Folder, HistoryEntry, Theme, ChatThread } from '../../shared/types'
+import { encryptSecrets, decryptSecrets, hasPlaintextSecrets, type SecretCipher } from './secureFields'
 
 interface StoreData {
   connections: Connection[]
@@ -25,6 +26,31 @@ const DEFAULTS: StoreData = {
   aiConfig: { apiKey: null, model: 'claude-sonnet-4-6', inlineCompletionEnabled: false },
 }
 
+// safeStorage behind the injectable-cipher seam. The availability probe is
+// defensive: if safeStorage is missing or throws (bare test mocks, exotic
+// runtimes), we degrade to plaintext instead of crashing.
+const cipher: SecretCipher = {
+  isEncryptionAvailable: () => {
+    try {
+      return safeStorage.isEncryptionAvailable()
+    } catch {
+      return false
+    }
+  },
+  encryptString: (s) => safeStorage.encryptString(s),
+  decryptString: (b) => safeStorage.decryptString(b),
+}
+
+let warnedUnavailable = false
+/** One-time warning, only when there are actual secrets we cannot protect. */
+function warnIfUnprotected(data: StoreData): void {
+  if (warnedUnavailable || cipher.isEncryptionAvailable()) return
+  if (hasPlaintextSecrets(data)) {
+    warnedUnavailable = true
+    console.warn('store: OS keychain encryption unavailable — secrets are stored in plaintext')
+  }
+}
+
 let data: StoreData | null = null
 
 function getStorePath(): string {
@@ -35,7 +61,17 @@ function load(): StoreData {
   const path = getStorePath()
   if (!existsSync(path)) return { ...DEFAULTS }
   try {
-    return JSON.parse(readFileSync(path, 'utf-8')) as StoreData
+    const raw = JSON.parse(readFileSync(path, 'utf-8')) as StoreData
+    const needsMigration = hasPlaintextSecrets(raw) && cipher.isEncryptionAvailable()
+    const loaded = decryptSecrets(raw, cipher)
+    if (needsMigration) {
+      // One-time backup of the pre-encryption file, then re-persist encrypted.
+      const bak = `${path}.bak`
+      if (!existsSync(bak)) copyFileSync(path, bak)
+      persist(loaded)
+    }
+    warnIfUnprotected(loaded)
+    return loaded
   } catch {
     return { ...DEFAULTS }
   }
@@ -45,7 +81,8 @@ function persist(d: StoreData): void {
   const path = getStorePath()
   const dir = path.substring(0, path.lastIndexOf('/'))
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-  writeFileSync(path, JSON.stringify(d, null, 2), 'utf-8')
+  warnIfUnprotected(d)
+  writeFileSync(path, JSON.stringify(encryptSecrets(d, cipher), null, 2), 'utf-8')
 }
 
 export const store = {
