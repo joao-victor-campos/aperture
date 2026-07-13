@@ -28,6 +28,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - A search box on the query-history panel, filtering entries by SQL text or
   connection name.
 
+### Security
+
+- Connection passwords and the Anthropic API key are now encrypted at rest
+  (OS-keychain-backed via Electron safeStorage, stored as `enc:v1:` values).
+  Existing stores migrate transparently on first launch with a one-time
+  `aperture-store.json.bak` backup. If encryption is unavailable the app keeps
+  working in plaintext with a logged warning; undecryptable values reset to
+  empty instead of breaking the store.
+
 ### Changed
 
 - The keyboard-shortcut cheatsheet moved from `⌘/` to `⌘?`, so `⌘/` now

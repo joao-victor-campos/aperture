@@ -148,6 +148,30 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-07-12] Feature: Credential encryption at rest
+
+**Type:** Change
+**Context:** Sub-project 2 of the maturity campaign per spec `docs/superpowers/specs/2026-07-11-maturity-campaign-e2e-credentials-design.md`, executed on `claude/credential-encryption` stacked on PR #45 (the E2E suite above). That suite's `persistence.spec.ts` served as the safety net this migration lands under, per the plan.
+**Problem / Change:** Connection passwords and the Anthropic API key were stored in plaintext inside `aperture-store.json`. Anyone with filesystem access to the userData directory (or a copy of it, e.g. in a backup or a support bundle) could read every saved credential.
+**Solution / Outcome:**
+- **`src/main/db/secureFields.ts`** (new, pure) — the `enc:v1:` envelope: `isEncrypted`/`hasPlaintextSecrets`/`encryptSecrets`/`decryptSecrets` over an injectable `SecretCipher` interface (`isEncryptionAvailable`/`encryptString`/`decryptString`), so the module is unit-testable without a real Electron runtime. `encryptSecrets` walks `connections[].password` and `aiConfig.apiKey`, base64-wrapping each with the `enc:v1:` prefix; `decryptSecrets` reverses it. Both fallbacks never brick the store: an encrypt failure logs a warning and keeps the value plaintext; a decrypt failure (keychain reset, store copied to another machine) logs a warning and resets that one value to `''` rather than throwing. 15 unit tests, 100% coverage.
+- **`store.ts` boundary integration.** A module-level `cipher: SecretCipher` wraps Electron's real `safeStorage`, with `isEncryptionAvailable()` itself wrapped in a try/catch (defensive against missing/throwing `safeStorage` in exotic runtimes or bare test mocks) — falls back to `false` rather than crashing. `persist()` now calls `encryptSecrets` before every write; `load()` calls `decryptSecrets` after every read. **One-time legacy migration**: on load, if the raw file has any plaintext secret (`hasPlaintextSecrets`) and encryption is available, the pre-migration file is copied to `aperture-store.json.bak` (only if that `.bak` doesn't already exist — never overwritten on subsequent boots) and the decrypted-then-re-encrypted data is immediately re-persisted. A one-time `warnIfUnprotected` guard logs a single console warning (not per-write) when encryption is unavailable and the store actually holds plaintext secrets — and, since migration requires availability, the unavailable path skips migration/backup entirely and just keeps working in plaintext. 8 new tests in a `store — secret encryption at rest` describe block (encrypt-on-write, decrypt round-trip across a module reload, migration + `.bak` creation, `.bak` not overwritten on a second boot, unavailable-encryption skip path). A real bug surfaced while writing these: the plan's verbatim scaffolding appended this describe block without its own per-test `mkdtempSync`/`vi.resetModules()`, so state leaked across tests in the block via the module-level `data` cache and shared temp dir — fixed by giving the block its own `beforeEach`/`afterEach` (no test-body changes). Full suite: 664/664, all coverage gates ≥70%.
+- **E2E additions** to `e2e/specs/persistence.spec.ts` (no new spec files): the existing relaunch test gained an at-rest assertion — reads `aperture-store.json` directly off disk after the relaunch and asserts the connection password is either `enc:v1:`-prefixed (encryption available) or unchanged plaintext (unavailable), branching on a live availability probe. A new `migrates a legacy plaintext store on first boot` test seeds a plaintext store file via `launchApp({ seedConnections: [...] })`, boots against it, and asserts: the connection loads and its green health dot proves the password decrypted back to a working credential; the on-disk file is now `enc:v1:`-encrypted; the `.bak` file holds the original plaintext. A follow-up commit added the encryption-unavailable branch's missing assertion that **no** `.bak` file is written (the plan's code had only a comment claiming this, not a real assertion — caught in review). **Documented deviation from the spec**: availability is probed live via `electronApp.evaluate(({ safeStorage }) => safeStorage.isEncryptionAvailable())` inside the running main process, rather than the spec's proposed mechanism of scraping a stdout log line — simpler and doesn't depend on log-format stability. Full E2E suite: 7 passed.
+- No IPC, shared-type, or renderer changes anywhere; the `store.get`/`store.set` API is unchanged — encryption is entirely transparent at the persistence boundary.
+- **Docs**: README gained a "Credential storage" section (Authentication area, after the Neo4j subsection) describing the `enc:v1:` scheme, automatic migration + `.bak`, the unavailable-encryption fallback, and per-secret reset-on-undecryptable behavior. CHANGELOG gained a `### Security` entry under `[Unreleased]`.
+
+**Files affected:**
+- `src/main/db/secureFields.ts` — created
+- `src/__tests__/main/db/secureFields.test.ts` — created (15 tests)
+- `src/main/db/store.ts` — `cipher`, `warnIfUnprotected`, encrypt-on-persist / decrypt-on-load, one-time `.bak` migration
+- `src/__tests__/main/db/store.test.ts` — extended (`store — secret encryption at rest` block, 8 tests; scaffolding isolation fix)
+- `e2e/specs/persistence.spec.ts` — at-rest assertions on the relaunch test + new legacy-migration test + `.bak`-absence assertion
+- `README.md` — "Credential storage" section
+- `CHANGELOG.md` — `[Unreleased]` → `### Security` entry
+- `docs/superpowers/specs/2026-07-11-maturity-campaign-e2e-credentials-design.md` — spec (referenced)
+
+---
+
 ### [2026-07-12] Feature: E2E regression suite (Playwright, Electron mode) + Postgres fixture + CI job
 
 **Type:** Change
