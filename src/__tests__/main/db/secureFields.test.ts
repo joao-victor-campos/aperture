@@ -165,6 +165,24 @@ describe('encryptSecrets / decryptSecrets round-trip', () => {
     expect(encryptSecrets({}, cipher)).toEqual({})
     expect(decryptSecrets({ connections: [pgConn()] }, cipher).aiConfig).toBeUndefined()
   })
+
+  it('passes a non-string password through untouched instead of throwing', () => {
+    const cipher = makeCipher()
+    const corrupt = { ...pgConn(), password: null } as unknown as Connection
+    const enc = encryptSecrets({ connections: [corrupt] }, cipher)
+    expect((enc.connections![0] as { password: unknown }).password).toBeNull()
+    const dec = decryptSecrets({ connections: [corrupt] }, cipher)
+    expect((dec.connections![0] as { password: unknown }).password).toBeNull()
+  })
+
+  it('passes a non-string apiKey through untouched instead of throwing', () => {
+    const cipher = makeCipher()
+    const corrupt = { ...aiConfig, apiKey: 42 as unknown as string }
+    const enc = encryptSecrets({ aiConfig: corrupt }, cipher)
+    expect(enc.aiConfig!.apiKey).toBe(42)
+    const dec = decryptSecrets({ aiConfig: corrupt }, cipher)
+    expect(dec.aiConfig!.apiKey).toBe(42)
+  })
 })
 
 describe('hasPlaintextSecrets', () => {
@@ -183,5 +201,11 @@ describe('hasPlaintextSecrets', () => {
     expect(hasPlaintextSecrets({ connections: [pgConn('')], aiConfig: { ...aiConfig, apiKey: null } })).toBe(false)
     expect(hasPlaintextSecrets({ connections: [bqConn()] })).toBe(false)
     expect(hasPlaintextSecrets({})).toBe(false)
+  })
+
+  it('is false for a non-string password instead of throwing', () => {
+    const corrupt = { ...pgConn(), password: null } as unknown as Connection
+    expect(() => hasPlaintextSecrets({ connections: [corrupt] })).not.toThrow()
+    expect(hasPlaintextSecrets({ connections: [corrupt] })).toBe(false)
   })
 })

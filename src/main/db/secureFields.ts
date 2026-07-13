@@ -1,6 +1,13 @@
 import type { Connection } from '../../shared/types'
 
-/** Prefix marking an encrypted secret value on disk. */
+/**
+ * Prefix marking an encrypted secret value on disk.
+ *
+ * Tradeoff: the encrypted-or-not check is in-band (a value is "encrypted"
+ * iff it starts with this prefix). A genuine secret that itself happens to
+ * start with `enc:v1:` cannot be round-tripped — the write path treats it
+ * as already encrypted and stores it verbatim.
+ */
 export const ENC_PREFIX = 'enc:v1:'
 
 /**
@@ -29,7 +36,11 @@ export function isEncrypted(value: string): boolean {
 /** True when at least one secret is stored in plaintext (i.e. needs migration). */
 export function hasPlaintextSecrets(data: SecretStoreShape): boolean {
   const plainConnection = (data.connections ?? []).some(
-    (c) => 'password' in c && c.password !== '' && !isEncrypted(c.password),
+    (c) =>
+      'password' in c &&
+      typeof c.password === 'string' &&
+      c.password !== '' &&
+      !isEncrypted(c.password),
   )
   const apiKey = data.aiConfig?.apiKey
   const plainApiKey = typeof apiKey === 'string' && apiKey !== '' && !isEncrypted(apiKey)
@@ -63,12 +74,15 @@ function mapSecrets<T extends SecretStoreShape>(data: T, fn: (value: string) => 
   const out: T = { ...data }
   if (data.connections) {
     out.connections = data.connections.map((c) =>
-      'password' in c ? { ...c, password: fn(c.password) } : c,
+      // A hand-edited or corrupted store file can carry a non-string
+      // password (e.g. `null`); pass it through untouched rather than
+      // calling fn (and isEncrypted, transitively) on a non-string value.
+      'password' in c && typeof c.password === 'string' ? { ...c, password: fn(c.password) } : c,
     )
   }
   if (data.aiConfig) {
     const { apiKey } = data.aiConfig
-    out.aiConfig = { ...data.aiConfig, apiKey: apiKey === null ? null : fn(apiKey) }
+    out.aiConfig = { ...data.aiConfig, apiKey: typeof apiKey === 'string' ? fn(apiKey) : apiKey }
   }
   return out
 }
