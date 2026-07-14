@@ -6,6 +6,7 @@ import { useQueryStore } from '../../store/queryStore'
 import type { Table } from '@shared/types'
 import { buildTableQuery } from '../../lib/buildTableQuery'
 import { byName } from '../../lib/sortByName'
+import { formatIndexStatus } from '../../lib/formatIndexStatus'
 
 interface CatalogTreeProps {
   onAddConnection: () => void
@@ -21,6 +22,7 @@ export default function CatalogTree({ onAddConnection }: CatalogTreeProps) {
     loadTables,
     toggleDataset,
     warmCatalog,
+    retryFailedDatasets,
     warmState,
   } = useCatalogStore()
   const { openTableTab, openTab, tabs, activeTabId } = useQueryStore()
@@ -103,9 +105,35 @@ export default function CatalogTree({ onAddConnection }: CatalogTreeProps) {
         </div>
       </div>
 
-      {warmState[activeConnectionId] === 'warming' && (
-        <div className="px-3 pb-1 text-[10px] text-app-text-3 animate-pulse">Indexing catalog…</div>
-      )}
+      {(() => {
+        // Indexed state — the always-honest answer to "can I trust search right now?"
+        const status = warmState[activeConnectionId]
+        const statusLine = formatIndexStatus(status)
+        if (!statusLine) return null
+        const failed = status?.phase === 'failed'
+        const partial = status?.phase === 'warmed' && status.failedDatasets.length > 0
+        return (
+          <div
+            className={`px-3 pb-1 text-[10px] flex items-center gap-1.5 ${
+              failed ? 'text-app-err' : partial ? 'text-app-warn' : 'text-app-text-3'
+            } ${status?.phase === 'warming' ? 'animate-pulse' : ''}`}
+          >
+            <span>{statusLine}</span>
+            {(failed || partial) && (
+              <button
+                onClick={() =>
+                  failed
+                    ? warmCatalog(activeConnectionId, { force: true })
+                    : retryFailedDatasets(activeConnectionId)
+                }
+                className="underline underline-offset-2 hover:opacity-80 transition-opacity"
+              >
+                Retry
+              </button>
+            )}
+          </div>
+        )
+      })()}
 
       {isLoadingDatasets && datasets.length === 0 && (
         <div className="px-3 py-2 text-xs text-app-text-3 animate-pulse">Loading datasets…</div>

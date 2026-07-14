@@ -148,6 +148,31 @@ just tag-release
 
 <!-- Entries go below this line, newest first -->
 
+### [2026-07-14] Feature: Catalog warm-up hardening — visible indexed state, failure tracking, retry
+
+**Type:** Change
+**Context:** Workstream 1 of the "beat the console" phase (ADR-0002), governed by ADR-0003 (harden per-session warm-up; no persistent index). Spec: GitHub issue #47 (`ready-for-agent`), produced by a grilling → to-spec session; implemented via strict TDD at the two pre-agreed seams (catalogStore through mocked IPC; a new pure `lib/` formatter). Phase docs (`docs/adr/0002`, `docs/adr/0003`, `docs/glossary.md`) land with this change.
+**Problem / Change:** `warmCatalog` failed invisibly: per-dataset errors were silently skipped (the direct cause of the "columns/tables missing" completion-trust failure — a search/autocomplete miss was indistinguishable from a non-existent table), and two latent defects meant a datasets-list failure both stamped the connection `'warmed'` anyway (the `finally` bug) and escaped `void warmCatalog(...)` as an unhandled renderer rejection.
+**Solution / Outcome:**
+- **`WarmStatus`/`FailedDataset` in `shared/types.ts`** — `warmState` reshaped from `'idle' | 'warming' | 'warmed'` strings to a per-connection discriminated status: `warming {datasetsDone, datasetsTotal}` (progress bumped inside the existing one-merged-commit-per-dataset write, capped at total), `warmed {indexedAt, datasetCount, tableCount, failedDatasets[]}` (counts cover successfully indexed datasets only), `failed {error}` (datasets-list unreachable). Absence = idle. Single consumer (CatalogTree), so the reshape was contained.
+- **`catalogStore` restructure** — the `create` callback now defines shared helpers (`bumpProgress`, `warmDataset` returning `FailedDataset | null`, `runPass`, `commitWarmedSummary`) used by both `warmCatalog` and the new **`retryFailedDatasets(connectionId)`** action. `warmCatalog`: try/catch (no more `finally`-stamps-warmed), one automatic retry pass over first-pass failures, never rejects. `retryFailedDatasets`: no-op unless `warmed` with failures; re-runs the pipeline for failed datasets only (no `CATALOG_DATASETS` re-list), recomputes the summary. Renderer-only — zero IPC/main/adapter changes.
+- **`lib/formatIndexStatus.ts`** (new, pure) — status → sidebar text: `"Indexing catalog…"` (total unknown) / `"Indexing catalog… 12/42"` / `"Indexed 42 datasets · 730 tables · 09:41"` (singular-aware, local HH:MM) / `"· 2 failed"` suffix / `"Catalog indexing failed"`; `null` for idle.
+- **`CatalogTree`** — the old warming-only pulse hint replaced by the formatter-driven status line for all phases (warn tone for partial failures, err tone for total failure, pulse only while warming) plus a **Retry** link: scoped `retryFailedDatasets` for partial failures, full `warmCatalog({force})` for total failure. Refresh-button semantics unchanged.
+- **Tests (TDD, red→green per slice):** 9 new/reworked store tests (warmed summary shape, live progress via a gated promise + `vi.waitFor`, persistent-failure capture, transient-failure auto-heal, failed-state-without-throwing — whose red run reproduced the unhandled-rejection defect verbatim — scoped manual retry, retry-fails-again, retry no-op guard, force-re-warm reset) + 7 formatter tests. Two pre-existing tests updated to the new contract (string → `.phase`). Full suite 683/683; coverage gate holds (92.69% overall).
+- **Docs:** README "Catalog" section rewritten around the indexed state (silently-skipped wording removed); CHANGELOG Added + Fixed entries.
+
+**Files affected:**
+- `src/shared/types.ts` — `WarmStatus`, `FailedDataset`
+- `src/renderer/src/store/catalogStore.ts` — status reshape, shared warm pipeline, auto-retry pass, `retryFailedDatasets`, failed-phase catch
+- `src/renderer/src/lib/formatIndexStatus.ts` — created
+- `src/renderer/src/components/catalog/CatalogTree.tsx` — status line + Retry affordance
+- `src/__tests__/renderer/store/catalogStore.test.ts` — extended (9 new tests, 2 updated to new contract)
+- `src/__tests__/renderer/lib/formatIndexStatus.test.ts` — created (7 tests)
+- `docs/adr/0002-next-phase-beat-the-console.md`, `docs/adr/0003-catalog-search-warmup-hardening-over-persistent-index.md`, `docs/glossary.md` — created (phase docs)
+- `README.md`, `CHANGELOG.md` — docs
+
+---
+
 ### [2026-07-12] Feature: Credential encryption at rest
 
 **Type:** Change

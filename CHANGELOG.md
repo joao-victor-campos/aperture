@@ -9,6 +9,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Catalog warm-up hardening: the sidebar now shows a live indexed state —
+  progress while indexing ("Indexing catalog… 12/42"), then a summary with
+  dataset/table counts and the completion time. Datasets that fail to index
+  are retried once automatically, then surfaced ("· 2 failed") with a
+  **Retry** link that re-attempts only the failed datasets, instead of being
+  silently skipped. A total failure to list the catalog now shows "Catalog
+  indexing failed" with a retry.
+
 - End-to-end test suite (Playwright, Electron mode): six smoke specs launch the real
   built app against a seeded dockerized Postgres — boot, add-connection, catalog
   browse, query run, save/reopen query, and relaunch persistence. Runs in CI on
@@ -46,6 +54,9 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 - The "✓ Query updated" toast's fade-in animation was a no-op (the keyframes
   were never defined); it now actually fades in.
+- A failure to fetch the dataset list during catalog warm-up no longer marks
+  the connection as fully indexed, and no longer leaks an unhandled promise
+  rejection in the renderer.
 
 ---
 ## [3.2.0] - 2026-06-24

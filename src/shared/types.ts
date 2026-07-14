@@ -73,6 +73,25 @@ export interface TableField {
   fields?: TableField[]
 }
 
+/** A dataset the catalog warm-up could not index, kept for the indexed state + retry. */
+export interface FailedDataset {
+  id: string
+  name: string
+  error: string
+}
+
+/** Per-connection indexed state of the catalog warm-up. Absence of an entry = idle. */
+export type WarmStatus =
+  | { phase: 'warming'; datasetsDone: number; datasetsTotal: number }
+  | {
+      phase: 'warmed'
+      indexedAt: number
+      datasetCount: number
+      tableCount: number
+      failedDatasets: FailedDataset[]
+    }
+  | { phase: 'failed'; error: string }
+
 /** Result row of a catalog-wide table search (no full schema metadata). */
 export interface TableSearchHit {
   datasetId: string
