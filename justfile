@@ -107,8 +107,29 @@ tag-release:
     #!/usr/bin/env bash
     set -euo pipefail
     VERSION="v$(just version)"
+    NUMERIC_VERSION="$(just version)"
     echo "Tagging $VERSION …"
-    git add package.json package-lock.json
+
+    # Promote CHANGELOG.md's "## [Unreleased]" to a versioned heading, so
+    # changelog-release.yml's extraction (## [$VERSION]) has something to find.
+    # A fresh empty "## [Unreleased]" is left in place above it.
+    if ! grep -q "^## \[$NUMERIC_VERSION\]" CHANGELOG.md; then
+        awk -v ver="$NUMERIC_VERSION" -v date="$(date +%Y-%m-%d)" '
+            /^## \[Unreleased\]/ && !done {
+                print
+                print ""
+                print "---"
+                print "## [" ver "] - " date
+                done = 1
+                next
+            }
+            { print }
+        ' CHANGELOG.md > CHANGELOG.md.tmp
+        mv CHANGELOG.md.tmp CHANGELOG.md
+        echo "✓ Promoted [Unreleased] to [$NUMERIC_VERSION] in CHANGELOG.md"
+    fi
+
+    git add package.json package-lock.json CHANGELOG.md
     git commit -m "🔖 chore: release $VERSION" || true
     git tag "$VERSION"
     git push origin HEAD
