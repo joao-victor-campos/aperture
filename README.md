@@ -213,11 +213,17 @@ in the background. This means:
 - **Autocomplete is ready immediately** — the SQL/Cypher editor offers table
   and column suggestions from every dataset, with no need to open a table first.
 
-The "Indexing catalog…" hint appears in the sidebar while the warm-up is
-running. To force a re-index (e.g. after adding new tables), click the
-**Refresh** (↺) icon in the "Datasets" header. Datasets that are inaccessible
-due to permissions or regional issues are silently skipped so the rest of the
-catalog still loads.
+The sidebar shows the warm-up's **indexed state** so you can always answer
+"can I trust search right now?": live progress while indexing ("Indexing
+catalog… 12/42"), then a summary with counts and the completion time
+("Indexed 42 datasets · 730 tables · 09:41"). Datasets that are inaccessible
+(permissions, regional restrictions, network blips) are retried once
+automatically; anything still failing is surfaced in the status line
+("· 2 failed") with a **Retry** link that re-attempts only the failed
+datasets — nothing is ever skipped silently. If the catalog can't be listed
+at all, the sidebar says so ("Catalog indexing failed") instead of pretending
+the index is complete. To force a full re-index (e.g. after adding new
+tables), click the **Refresh** (↺) icon in the "Datasets" header.
 
 Open a table from the catalog to see its schema and a data preview. The table
 detail page's **Query** button opens a `SELECT * … LIMIT 100` draft in a new
