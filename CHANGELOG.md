@@ -7,6 +7,9 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ---
 ## [Unreleased]
 
+---
+## [3.3.0] - 2026-07-14
+
 ### Added
 
 - Catalog warm-up hardening: the sidebar now shows a live indexed state —
